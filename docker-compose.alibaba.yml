@@ -1,0 +1,14 @@
+services:
+  webserver:
+    command: >-
+      dbgpt start webserver
+      --config /app/configs/dbgpt-proxy-alibaba-qwen38-mysql.toml
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?Set DASHSCOPE_API_KEY in local .env}
+      DASHSCOPE_API_BASE: ${DASHSCOPE_API_BASE:?Set DASHSCOPE_API_BASE in local .env}
+      DASHSCOPE_EMBEDDING_API_URL: ${DASHSCOPE_EMBEDDING_API_URL:?Set DASHSCOPE_EMBEDDING_API_URL in local .env}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-qwen3.8-flash}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-text-embedding-v3}
+      DBGPT_LANG: ${DBGPT_LANG:-en}
+      DBGPT_CORS_ALLOWED_ORIGINS: ${DBGPT_CORS_ALLOWED_ORIGINS:-http://localhost:5670}
+      DBGPT_ENCRYPT_KEY: ${DBGPT_ENCRYPT_KEY:?Set DBGPT_ENCRYPT_KEY in local .env}
