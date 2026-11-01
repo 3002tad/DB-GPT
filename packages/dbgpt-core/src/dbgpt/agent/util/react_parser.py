@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 from dataclasses import dataclass
@@ -12,6 +13,25 @@ from dbgpt.vis.tags.vis_thinking import VisThinking
 # they stick to an ``Action Input`` JSON tail they break downstream JSON
 # parsing and the whole final-answer extraction chain collapses.
 _SPECIAL_TOKEN_PATTERN = re.compile(r"<\|[^|<>\n]*\|>")
+
+
+def _inline_keyword_action(action: str) -> Optional[tuple[str, dict]]:
+    """Recover ``tool, key='literal'`` without evaluating generated code."""
+    match = re.fullmatch(r"([A-Za-z_][\w.-]*)\s*,\s*(.+)", action, re.DOTALL)
+    if not match:
+        return None
+    try:
+        expr = ast.parse("_tool(" + match.group(2) + ")", mode="eval").body
+        if not isinstance(expr, ast.Call) or expr.args or not expr.keywords:
+            return None
+        values = {}
+        for keyword in expr.keywords:
+            if keyword.arg is None or keyword.arg in values:
+                return None
+            values[keyword.arg] = ast.literal_eval(keyword.value)
+        return match.group(1), values
+    except (SyntaxError, ValueError, TypeError, MemoryError, RecursionError):
+        return None
 
 
 def extract_terminate_output(content: Any) -> str:
@@ -537,6 +557,12 @@ class ReActOutputParser:
                     action_input = action_input_text
             else:
                 action_input = action_input_text
+
+        if action and action_input is None:
+            inline = _inline_keyword_action(action)
+            if inline is not None:
+                action, action_input = inline
+                is_terminal = action.lower() == self.terminate_action.lower()
 
         # Extract observation
         observation_match = re.search(

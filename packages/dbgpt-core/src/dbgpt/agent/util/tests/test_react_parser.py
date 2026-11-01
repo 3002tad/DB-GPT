@@ -30,6 +30,25 @@ def test_termination_preserves_json_answer_and_code_examples():
 class TestReActOutputParser:
     """Test suite for the ReActOutputParser using pytest."""
 
+    def test_inline_keyword_action_recovers_literal_arguments(self):
+        step = ReActOutputParser().parse_current_step(
+            'Action: sql_query, sql="SELECT COUNT(*) FROM cart_lines"'
+        )[0]
+        assert step.action == "sql_query"
+        assert step.action_input == {"sql": "SELECT COUNT(*) FROM cart_lines"}
+
+    def test_inline_keyword_action_never_executes_expression(self):
+        text = 'Action: sql_query, sql=__import__("os").getcwd()'
+        step = ReActOutputParser().parse_current_step(text)[0]
+        assert step.action == text.removeprefix("Action: ")
+        assert step.action_input is None
+
+    def test_inline_keyword_action_does_not_override_explicit_input(self):
+        step = ReActOutputParser().parse_current_step(
+            'Action: sql_query, sql="SELECT 1"\nAction Input: {"sql":"SELECT 2"}'
+        )[0]
+        assert step.action_input == {"sql": "SELECT 2"}
+
     def test_basic_parsing(self):
         """Test basic parsing of a simple ReAct output."""
         parser = ReActOutputParser()
