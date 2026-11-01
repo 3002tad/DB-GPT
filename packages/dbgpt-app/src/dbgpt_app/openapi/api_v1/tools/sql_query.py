@@ -248,6 +248,14 @@ def make_sql_query(
                 if timed_out
                 else f"{code}: SQL 执行失败: {e}"
             )
+            if quality_blocked:
+                message = (
+                    "BLOCKED_BY_QUALITY: The requested data is unavailable "
+                    "because its quality check failed. Explain this limitation; "
+                    "do not use unverified raw data as a confirmed substitute. "
+                    "Independent data with its own valid quality contract may "
+                    "still be analyzed, with its scope clearly identified."
+                )
             capture_sql_execution(
                 sql=sql_stripped,
                 database=connector_database_name(database_connector, artifact_sink),

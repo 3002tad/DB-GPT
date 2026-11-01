@@ -97,3 +97,18 @@ def test_database_quality_block_is_a_structured_error():
     assert result["success"] is False
     assert result["error_code"] == "BLOCKED_BY_QUALITY"
     assert "unavailable" in result["chunks"][0]["content"]
+
+
+def test_quality_block_does_not_prevent_an_independent_query():
+    class Connector:
+        def run(self, sql):
+            if "blocked_catalog" in sql:
+                raise RuntimeError("BLOCKED_BY_QUALITY: catalog unavailable")
+            return [[("value",)], [7]]
+
+    query = make_sql_query({}, Connector())
+    blocked = json.loads(query(sql="SELECT * FROM blocked_catalog"))
+    independent = json.loads(query(sql="SELECT 7 AS value"))
+    assert blocked["error_code"] == "BLOCKED_BY_QUALITY"
+    assert "7" in independent["chunks"][0]["content"]
+    assert "error_code" not in independent
