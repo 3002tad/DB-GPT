@@ -266,10 +266,12 @@ CREATE TABLE `gpts_messages` (
   `action_report` longtext COMMENT 'Current conversation action report',
   `resource_info` text DEFAULT NULL  COMMENT 'Current conversation resource info',
   `role` varchar(255) DEFAULT NULL COMMENT 'The role of the current message content',
+  `trace_id` varchar(64) DEFAULT NULL COMMENT 'Trace id linking this message to observability spans',
   `created_at` datetime DEFAULT NULL COMMENT 'create time',
   `updated_at` datetime DEFAULT NULL COMMENT 'last update time',
   PRIMARY KEY (`id`),
-  KEY `idx_q_messages` (`conv_id`,`rounds`,`sender`)
+  KEY `idx_q_messages` (`conv_id`,`rounds`,`sender`),
+  KEY `ix_gpts_messages_trace_id` (`trace_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COMMENT="gpts message";
 
 

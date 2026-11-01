@@ -19,6 +19,7 @@ SCHEMA = ROOT / "assets/schema/dbgpt.sql"
 FULL = ROOT / "assets/schema/upgrade/v0_8_3/v0.8.3.sql"
 UPGRADE = ROOT / "assets/schema/upgrade/v0_8_3/upgrade_to_v0.8.3.sql"
 LEGACY = ROOT / "assets/schema/upgrade/v0_8_2/v0.8.2.sql"
+TRACE_MIGRATION = ROOT / "assets/schema/upgrade/funnelmetry/001_gpts_messages_trace_id.sql"
 
 
 def _execute(engine, sql, example_database):
@@ -102,7 +103,8 @@ def _schema_shape(engine):
 def test_mysql_sql_initializes_and_upgrades_without_identity_backfill(
     mysql_schema_engine, full_schema
 ):
-    assert FULL.read_bytes() == SCHEMA.read_bytes()
+    # The v0.8.3 release snapshot remains immutable; the current schema includes
+    # Funnelmetry migration 001 and both paths must converge after applying it.
     engine, example_database, reset = mysql_schema_engine
     _execute(engine, LEGACY.read_text(encoding="utf-8"), example_database)
     with engine.begin() as connection:
@@ -122,6 +124,9 @@ def test_mysql_sql_initializes_and_upgrades_without_identity_backfill(
             )
         )
     _execute(engine, UPGRADE.read_text(encoding="utf-8"), example_database)
+    # The Funnelmetry additive migration is safe to retry against an existing DB.
+    for _ in range(2):
+        _execute(engine, TRACE_MIGRATION.read_text(encoding="utf-8"), example_database)
     inspector = inspect(engine)
     for table in Model.metadata.tables.values():
         if table.name.startswith("dbgpt_dashboard") or table.name in {
@@ -153,5 +158,6 @@ def test_mysql_sql_initializes_and_upgrades_without_identity_backfill(
     upgraded = _schema_shape(engine)
     reset()
     _execute(engine, full_schema.read_text(encoding="utf-8"), example_database)
+    _execute(engine, TRACE_MIGRATION.read_text(encoding="utf-8"), example_database)
     assert _schema_shape(engine) == upgraded
     assert inspect(engine).get_table_names(schema=example_database) == ["users"]
