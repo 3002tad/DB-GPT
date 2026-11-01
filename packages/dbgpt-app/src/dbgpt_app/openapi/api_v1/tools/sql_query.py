@@ -187,13 +187,34 @@ def make_sql_query(
                     f"Total rows: {len(rows)}]"
                 )
 
-            return json.dumps(
-                {
-                    "artifact_id": artifact_id,
-                    "chunks": [{"output_type": "markdown", "content": table}],
-                },
-                ensure_ascii=False,
-            )
+            response = {
+                "artifact_id": artifact_id,
+                "chunks": [{"output_type": "markdown", "content": table}],
+            }
+            # A returned quality status is evidence, not an empty dataset. Do
+            # not infer a gate from arbitrary NULLs or from SQL text alone.
+            quality_columns = [
+                i for i, name in enumerate(col_names)
+                if name.lower() in ("status", "quality_status")
+            ]
+            if any(
+                i < len(row) and row[i] == "BLOCKED_BY_QUALITY"
+                for row in rows for i in quality_columns
+            ):
+                response["quality_warning"] = {
+                    "status": "BLOCKED_BY_QUALITY",
+                    "message": (
+                        "A returned result is blocked by data quality. Its NULL "
+                        "values mean unavailable, not zero or absence of data. "
+                        "Do not report a count or infer a change for the blocked "
+                        "scope; explain the quality limitation to the user."
+                    ),
+                }
+                response["chunks"].insert(0, {
+                    "output_type": "text",
+                    "content": response["quality_warning"]["message"],
+                })
+            return json.dumps(response, ensure_ascii=False)
         except asyncio.CancelledError:
             cancel_event.set()
             capture_sql_execution(
@@ -216,7 +237,11 @@ def make_sql_query(
                 )
             cancel_event.set()
             timed_out = isinstance(e, TimeoutError)
-            code = "SQL_QUERY_TIMEOUT" if timed_out else "SQL_QUERY_FAILED"
+            quality_blocked = "BLOCKED_BY_QUALITY:" in str(e)
+            code = (
+                "SQL_QUERY_TIMEOUT" if timed_out else
+                "BLOCKED_BY_QUALITY" if quality_blocked else "SQL_QUERY_FAILED"
+            )
             message = (
                 f"{code}: 查询超过 {query_timeout_seconds:g} 秒，已请求中断。"
                 "先检查 EXPLAIN QUERY PLAN 与关联索引，优化查询；不要原样重试。"
