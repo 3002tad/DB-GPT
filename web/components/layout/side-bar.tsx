@@ -85,9 +85,9 @@ function SideBar() {
   const handleStartNewTask = useCallback(() => {
     void startNewTask().catch(error => {
       console.error('Failed to start a new task', error);
-      message.error(i18n.language === 'en' ? 'Failed to start a new task' : '新建任务失败');
+      message.error(t('ui_new_task_failed'));
     });
-  }, [i18n.language, startNewTask]);
+  }, [startNewTask, t]);
 
   const fetchDialogueList = useCallback(async () => {
     setLoadingDialogues(true);
@@ -110,12 +110,12 @@ function SideBar() {
       const [err] = await apiInterceptors(delDialogue(convUid));
       if (!err) {
         setDialogueList(prev => prev.filter(d => d.conv_uid !== convUid));
-        message.success('已删除');
+        message.success(t('ui_deleted'));
       }
     } catch (error) {
       console.error('Failed to delete dialogue', error);
     }
-  }, []);
+  }, [t]);
 
   const formatRelativeTime = useCallback((dateStr?: string) => {
     if (!dateStr) return '';
@@ -125,12 +125,14 @@ function SideBar() {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-  }, []);
+    const locale = i18n.resolvedLanguage || i18n.language || 'en';
+    const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    if (diffMins < 1) return relative.format(0, 'minute');
+    if (diffMins < 60) return relative.format(-diffMins, 'minute');
+    if (diffHours < 24) return relative.format(-diffHours, 'hour');
+    if (diffDays < 7) return relative.format(-diffDays, 'day');
+    return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+  }, [i18n.language, i18n.resolvedLanguage]);
 
   const handleToggleMenu = useCallback(() => {
     setIsMenuExpand(!isMenuExpand);
@@ -170,7 +172,7 @@ function SideBar() {
       },
       {
         key: 'dashboards',
-        name: i18n.language === 'en' ? 'Dashboards' : '看板',
+        name: i18n.language.startsWith('zh') ? '看板' : 'Dashboards',
         isActive: pathname.startsWith('/dashboards'),
         iconSrc: '',
         IconComponent: DashboardOutlined,
@@ -302,7 +304,7 @@ function SideBar() {
             <Link href='/' className='flex justify-center items-center pb-2'>
               <Image src='/LOGO_SMALL.png' alt='DB-GPT' width={40} height={40} />
             </Link>
-            <Tooltip title={t('Show_Sidebar') || '展开侧栏'} placement='right'>
+            <Tooltip title={t('Show_Sidebar')} placement='right'>
               <div
                 onClick={handleToggleMenu}
                 className='flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 dark:hover:text-gray-300 cursor-pointer transition-colors'
@@ -367,7 +369,7 @@ function SideBar() {
         <Link href='/' className='flex items-center'>
           <Image src={logo} alt='DB-GPT' width={140} height={32} />
         </Link>
-        <Tooltip title={t('Close_Sidebar') || '收起侧栏'}>
+        <Tooltip title={t('Close_Sidebar')}>
           <div
             onClick={handleToggleMenu}
             className='flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 dark:hover:text-gray-300 cursor-pointer transition-colors'
@@ -452,7 +454,7 @@ function SideBar() {
                     <div className='text-[11px] text-gray-400 mt-0.5'>{formatRelativeTime(conv.gmt_created)}</div>
                   )}
                 </div>
-                <Tooltip title='删除'>
+                <Tooltip title={t('ui_delete')}>
                   <DeleteOutlined
                     onClick={e => handleDeleteDialogue(e, conv.conv_uid)}
                     className='text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1'

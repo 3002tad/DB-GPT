@@ -805,7 +805,7 @@ const Playground: NextPage = () => {
       );
     }
     if (sessionFilePreview.error) {
-      return <Alert type='error' showIcon message='预览失败' description={sessionFilePreview.error} />;
+      return <Alert type='error' showIcon message={t('ui_preview_failed')} description={sessionFilePreview.error} />;
     }
     return <AttachmentPreview snapshot={sessionFilePreview.snapshot} size={sessionFilePreview.size} />;
   };
@@ -1464,7 +1464,7 @@ const Playground: NextPage = () => {
             const blob = await resp.blob();
             triggerBlobDownload(blob, artifact.name || imgName || 'file');
           } catch {
-            message.warning('文件暂不可下载');
+            message.warning(t('ui_file_unavailable'));
           }
         } else if (filePath) {
           // Download via backend file download endpoint (for agent-created files)
@@ -1473,16 +1473,16 @@ const Playground: NextPage = () => {
             const resp = await fetch(downloadUrl);
             if (!resp.ok) {
               const errData = await resp.json().catch(() => ({}));
-              message.warning(errData.detail || '文件暂不可下载');
+              message.warning(errData.detail || t('ui_file_unavailable'));
               break;
             }
             const blob = await resp.blob();
             triggerBlobDownload(blob, artifact.name || filePath.split('/').pop() || 'file');
           } catch {
-            message.warning('文件下载失败');
+            message.warning(t('ui_file_download_failed'));
           }
         } else {
-          message.warning('文件暂不可下载');
+          message.warning(t('ui_file_unavailable'));
         }
         break;
       }
@@ -1919,7 +1919,7 @@ const Playground: NextPage = () => {
     // advertised model is also the normal ChatContext default.
     const effectiveModel = modelList.includes(model) ? model : modelList[0];
     if (!effectiveModel) {
-      message.error('当前服务未配置可用模型，请先在服务端配置并启动模型');
+      message.error(t('ui_no_models'));
       return;
     }
     if (
@@ -1953,17 +1953,17 @@ const Playground: NextPage = () => {
     if (explicitLegacyFile) {
       const staged = sessionFiles.stageLegacyForSend(explicitLegacyFile, currentConvId);
       if (!staged.ok) {
-        message.error('加载示例失败: ' + staged.error);
+        message.error(t('ui_example_load_failed') + staged.error);
         return;
       }
       sendSnapshot = staged.snapshot;
     } else if (hasSessionFileDrafts || hasLegacyFile) {
       if (sessionFiles.files.some(draft => draft.validation.status !== 'ok')) {
-        message.error('存在未通过校验的附件，请先移除后再发送');
+        message.error(t('ui_invalid_attachment'));
         return;
       }
       if (sessionFiles.hasHardFailures) {
-        message.error('有附件上传失败，请重试或移除后再发送');
+        message.error(t('ui_attachment_upload_failed'));
         return;
       }
       try {
@@ -1971,7 +1971,7 @@ const Playground: NextPage = () => {
         sendSnapshot = await sessionFiles.prepare(currentConvId);
       } catch (prepareErr: any) {
         if (taskEpochRef.current !== taskEpoch) return;
-        message.error(prepareErr?.message || '附件校验失败，请重试');
+        message.error(prepareErr?.message || t('ui_attachment_validation_failed'));
         return;
       } finally {
         if (taskEpochRef.current === taskEpoch) setQueuedSendAfterUpload(false);
@@ -2131,7 +2131,7 @@ const Playground: NextPage = () => {
       // state and hides the actionable backend error (for example an invalid
       // example-file path).
       if (!response.ok) {
-        let detail = `请求失败（HTTP ${response.status}）`;
+        let detail = t('ui_request_failed', { status: response.status });
         try {
           const errorPayload = await response.json();
           detail = errorPayload?.err_msg || errorPayload?.message || detail;
@@ -2631,7 +2631,7 @@ const Playground: NextPage = () => {
     let exampleController: AbortController | null = null;
 
     try {
-      message.loading({ content: '正在加载示例...', key: 'example-loading', duration: 0 });
+      message.loading({ content: t('ui_loading_example'), key: 'example-loading', duration: 0 });
       let exampleLegacyFile: LegacyServerFile | null = null;
 
       // Example files already exist on the server: materialize the selected
@@ -2640,7 +2640,7 @@ const Playground: NextPage = () => {
       if (example.fileName) {
         if (hasSessionFileDrafts) {
           message.destroy('example-loading');
-          message.warning('示例文件与本地上传的附件不能混用，请先移除已选附件');
+          message.warning(t('ui_example_attachment_conflict'));
           return;
         }
         exampleController = new AbortController();
@@ -2668,7 +2668,7 @@ const Playground: NextPage = () => {
         } else {
           message.destroy('example-loading');
           const errMsg = res?.err_msg || 'Unknown error';
-          message.error('加载示例失败: ' + errMsg);
+          message.error(t('ui_example_load_failed') + errMsg);
           return;
         }
       }
@@ -2690,7 +2690,7 @@ const Playground: NextPage = () => {
       if (example.dbName) {
         const found = (dataSources || []).find((ds: DataSource) => ds.db_name === example.dbName);
         if (!found) {
-          message.error(`示例依赖的数据源“${example.dbName}”尚未创建或不可访问`);
+          message.error(t('ui_example_datasource_unavailable', { name: example.dbName }));
           return;
         }
         matchedDb = found;
@@ -2702,7 +2702,7 @@ const Playground: NextPage = () => {
       // and ID travel in ext_info, rather than merely mentioning it in text.
       let exampleKnowledge: KnowledgeSpace | null = null;
       if (example.knowledgeName) {
-        message.loading({ content: '正在准备示例知识库...', key: 'example-loading', duration: 0 });
+        message.loading({ content: t('ui_preparing_example_kb'), key: 'example-loading', duration: 0 });
         exampleController = new AbortController();
         exampleAbortControllerRef.current = exampleController;
         const res = await axios.post<
@@ -2717,7 +2717,7 @@ const Playground: NextPage = () => {
         if (taskEpochRef.current !== taskEpoch) return;
         message.destroy('example-loading');
         if (!res?.success || !res?.data?.id || res.data.name !== example.knowledgeName) {
-          message.error('准备示例知识库失败: ' + (res?.err_msg || '未返回知识库信息'));
+          message.error(t('ui_prepare_example_kb_failed') + (res?.err_msg || t('ui_no_kb_info')));
           return;
         }
         exampleKnowledge = res.data;
@@ -2734,7 +2734,7 @@ const Playground: NextPage = () => {
       message.destroy('example-loading');
       console.error('Example click error:', err);
       const errMessage = err instanceof Error ? err.message : 'Unknown error';
-      message.error('加载示例失败: ' + errMessage);
+      message.error(t('ui_example_load_failed') + errMessage);
     } finally {
       if (exampleAbortControllerRef.current === exampleController) {
         exampleAbortControllerRef.current = null;
@@ -2749,9 +2749,9 @@ const Playground: NextPage = () => {
   const handleClearChat = useCallback(() => {
     void startNewTask().catch(error => {
       console.error('Failed to clear the current task', error);
-      message.error('新建任务失败');
+      message.error(t('ui_new_task_failed'));
     });
-  }, [startNewTask]);
+  }, [startNewTask, t]);
 
   const restoreFromHistory = (
     historyMessages: Array<{ role: string; context: string; order?: number; model_name?: string }>,
@@ -2983,7 +2983,7 @@ const Playground: NextPage = () => {
     } catch (e) {
       if (historyRequestRef.current !== requestVersion || taskEpochRef.current !== taskEpoch) return;
       console.error('Failed to load conversation', e);
-      message.error('加载历史对话失败');
+      message.error(t('ui_history_load_failed'));
     } finally {
       if (historyAbortControllerRef.current === controller) {
         historyAbortControllerRef.current = null;
@@ -2998,7 +2998,7 @@ const Playground: NextPage = () => {
   // Share current conversation — create share link and copy to clipboard
   const handleShare = async () => {
     if (!conversationId) {
-      message.warning('请先开始一段对话再分享');
+      message.warning(t('ui_start_before_share'));
       return;
     }
     try {
@@ -3007,10 +3007,10 @@ const Playground: NextPage = () => {
       if (!shareUrl) throw new Error('No share URL returned');
       const fullUrl = `${window.location.origin}${shareUrl}`;
       await navigator.clipboard.writeText(fullUrl);
-      message.success('分享链接已复制到剪贴板！');
+      message.success(t('ui_share_copied'));
     } catch (e) {
       console.error('Failed to create share link', e);
-      message.error('创建分享链接失败，请稍后重试');
+      message.error(t('ui_share_failed'));
     }
   };
 
@@ -3075,7 +3075,7 @@ const Playground: NextPage = () => {
       // legacy example file must never mix with local uploads (file_path vs
       // file_ids), so the pick is refused before a draft is created.
       if (hasLegacyFile) {
-        message.warning('示例文件与本地上传的附件不能混用，请先清除示例文件');
+        message.warning(t('ui_remove_example_attachment'));
         return false;
       }
       void sessionFiles.addFiles([file as File], ensureSessionFilesConvId());
@@ -3128,7 +3128,7 @@ const Playground: NextPage = () => {
           {/* When from_task mode and loading history, show loading spinner instead of Hero */}
           {router.query.from_task && historyLoading && messages.length === 0 ? (
             <div className='flex-1 flex items-center justify-center'>
-              <Spin size='large' tip='加载对话历史...' />
+              <Spin size='large' tip={t('ui_loading_history')} />
             </div>
           ) : messages.length > 0 ? (
             <div className={`flex-1 min-h-0 flex overflow-hidden ${rightPanelCollapsed ? 'justify-center' : ''}`}>
@@ -3870,7 +3870,7 @@ const Playground: NextPage = () => {
                                       : undefined
                                   }
                                 >
-                                  {queuedSendAfterUpload && <span className='text-[13px] font-medium'>上传后发送</span>}
+                                  {queuedSendAfterUpload && <span className='text-[13px] font-medium'>{t('ui_send_after_upload')}</span>}
                                   {(query.trim() || hasSessionFileDrafts || hasLegacyFile) && (
                                     <span
                                       className='absolute inset-0 opacity-0 group-hover/send:opacity-100 transition-opacity duration-300 pointer-events-none'
@@ -4842,7 +4842,7 @@ const Playground: NextPage = () => {
                                 : undefined
                             }
                           >
-                            {queuedSendAfterUpload && <span className='text-[13px] font-medium'>上传后发送</span>}
+                            {queuedSendAfterUpload && <span className='text-[13px] font-medium'>{t('ui_send_after_upload')}</span>}
                             {(query.trim() || hasSessionFileDrafts || hasLegacyFile) && (
                               <span
                                 className='absolute inset-0 opacity-0 group-hover/send:opacity-100 transition-opacity duration-300 pointer-events-none'
