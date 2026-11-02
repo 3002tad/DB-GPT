@@ -8,7 +8,7 @@ import {
 } from '@/client/api';
 import BlurredCard, { ChatButton } from '@/new-components/common/blurredCard';
 import ConstructLayout from '@/new-components/layout/Construct';
-import { IAgentPlugin, PostAgentQueryParams } from '@/types/agent';
+import { IAgentPlugin, IMyPlugin, PostAgentQueryParams } from '@/types/agent';
 import { ClearOutlined, DownloadOutlined, SyncOutlined } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
 import { Button, Segmented, SegmentedProps, Spin, Tag, message } from 'antd';
@@ -18,6 +18,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 // import MyPlugins from '@/components/agent/my-plugins';
 // import MarketPlugins from '@/components/agent/market-plugins';
+
+type PluginDisplay = Pick<IMyPlugin, 'id' | 'name' | 'description' | 'version' | 'type'> & Partial<IAgentPlugin>;
 
 function Agent() {
   const { t } = useTranslation();
@@ -40,12 +42,12 @@ function Agent() {
     data: agents = [],
     loading,
     refresh,
-  } = useRequest<IAgentPlugin[], []>(
+  } = useRequest<PluginDisplay[], []>(
     async () => {
       if (activeKey === 'my') {
         const [err, res] = await apiInterceptors(postAgentMy());
         setIsError(!!err);
-        return res ?? [];
+        return res?.items ?? [];
       }
       const queryParams: PostAgentQueryParams = {
         page_index: pagination.pageNo,

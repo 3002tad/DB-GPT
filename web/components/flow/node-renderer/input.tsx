@@ -2,12 +2,14 @@ import { IFlowNodeParameter } from '@/types/flow';
 import { convertKeysToCamelCase } from '@/utils/flow';
 import * as Icons from '@ant-design/icons';
 import { Input } from 'antd';
+import type { ComponentType } from 'react';
 
 const getIconComponent = (iconString: string) => {
   const match = iconString.match(/^icon:(\w+)$/);
   if (match) {
     const iconName = match[1] as keyof typeof Icons;
-    const IconComponent = Icons[iconName];
+    if (!/(Outlined|Filled|TwoTone)$/.test(iconName)) return null;
+    const IconComponent = Icons[iconName] as ComponentType;
     return IconComponent ? <IconComponent /> : null;
   }
   return null;

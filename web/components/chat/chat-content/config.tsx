@@ -9,6 +9,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import type { ComponentProps } from 'react';
 import ReferencesContent from './ReferencesContent';
 import VisAppLink from './VisAppLink';
 import VisChatLink from './VisChatLink';
@@ -259,12 +260,10 @@ const basicComponents: MarkdownComponent = {
   ol({ children }) {
     return <ol className='py-1'>{children}</ol>;
   },
-  li({ children, ordered }) {
+  li({ children }) {
     return (
       <li
-        className={`text-sm leading-7 ml-5 pl-2 text-gray-600 dark:text-gray-300 ${
-          ordered ? 'list-decimal' : 'list-disc'
-        }`}
+        className='text-sm leading-7 ml-5 pl-2 text-gray-600 dark:text-gray-300 list-disc [ol_&]:list-decimal'
       >
         {children}
       </li>
@@ -459,7 +458,7 @@ const markdownComponents = {
   ...extraComponents,
 };
 
-export const markdownPlugins = {
+export const markdownPlugins: Pick<ComponentProps<typeof GPTVis>, 'remarkPlugins' | 'rehypePlugins'> = {
   remarkPlugins: [remarkGfm, [remarkMath, { singleDollarTextMath: true }]],
   rehypePlugins: [rehypeRaw, [rehypeKatex, { output: 'htmlAndMathml' }]],
 };

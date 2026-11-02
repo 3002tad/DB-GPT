@@ -14,7 +14,7 @@ const nextConfig = {
     esmExternals: "loose",
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // `next-transpile-modules` is unmaintained and does not support Next.js 16.
   // Next has had the same capability built in since 13.1.

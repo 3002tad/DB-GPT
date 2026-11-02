@@ -138,7 +138,7 @@ function DbEditorContent({ layout = 'LR', editorValue, liveSql, chartData, table
       </div>
       <div className='flex-1 h-full overflow-auto bg-white dark:bg-theme-dark-container rounded p-4'>
         {tableData?.values.length ? (
-          <Table bordered scroll={{ x: 'auto' }} rowKey={columns[0].key} columns={columns} dataSource={dataSource} />
+          <Table bordered scroll={{ x: 'auto' }} rowKey={String(columns[0].key)} columns={columns} dataSource={dataSource} />
         ) : (
           <div className='h-full flex justify-center items-center'>
             <MyEmpty />
@@ -160,7 +160,7 @@ function DbEditor() {
   const [editorValue, setEditorValue] = useState<EditorValueProps | EditorValueProps[]>();
   const [newEditorValue, setNewEditorValue] = useState<EditorValueProps>();
   const latestSqlRef = useRef<string | undefined>(undefined);
-  const [tableData, setTableData] = useState<{ columns: string[]; values: (string | number)[] }>();
+  const [tableData, setTableData] = useState<ITableData>();
   const [currentTabIndex, setCurrentTabIndex] = useState<number>();
   const [isMenuExpand, setIsMenuExpand] = useState<boolean>(false);
   const [layout, setLayout] = useState<'TB' | 'LR'>('TB');
@@ -293,8 +293,8 @@ function DbEditor() {
         conv_uid: id,
         db_name,
         conv_round: currentRound,
-        old_sql: editorValue?.sql,
-        old_speak: editorValue?.thoughts,
+        old_sql: !Array.isArray(editorValue) ? editorValue?.sql : undefined,
+        old_speak: !Array.isArray(editorValue) ? editorValue?.thoughts : undefined,
         new_sql: newEditorValue?.sql,
         new_speak: newEditorValue?.thoughts?.match(/^\n--(.*)\n\n$/)?.[1]?.trim() || newEditorValue?.thoughts,
       });
@@ -320,7 +320,7 @@ function DbEditor() {
         conv_uid: id,
         chart_title: newEditorValue?.title,
         db_name,
-        old_sql: editorValue?.[currentTabIndex ?? 0]?.sql,
+        old_sql: Array.isArray(editorValue) ? editorValue[currentTabIndex ?? 0]?.sql : undefined,
         new_chart_type: newEditorValue?.showcase,
         new_sql: newEditorValue?.sql,
         new_comment: newEditorValue?.thoughts?.match(/^\n--(.*)\n\n$/)?.[1]?.trim() || newEditorValue?.thoughts,
@@ -458,9 +458,9 @@ function DbEditor() {
       for (let i = 0; i < data.length; i++) {
         const node = data[i];
         const { key, title } = node;
-        res.push({ key, title: title as string, parentKey });
+        res.push({ key: String(key), title: title as string, parentKey });
         if (node.children) {
-          generateList(node.children, key);
+          generateList(node.children, String(key));
         }
       }
     };

@@ -8,7 +8,7 @@ import {
 } from '@/client/api';
 import BlurredCard, { ChatButton } from '@/new-components/common/blurredCard';
 import ConstructLayout from '@/new-components/layout/Construct';
-import { IAgentPlugin, PostAgentQueryParams } from '@/types/agent';
+import { IAgentPlugin, IMyPlugin, PostAgentQueryParams } from '@/types/agent';
 import { ClearOutlined, DownloadOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
 import { Button, Input, Segmented, SegmentedProps, Spin, Tag, message } from 'antd';
@@ -16,6 +16,8 @@ import cls from 'classnames';
 import moment from 'moment';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+type PluginDisplay = Pick<IMyPlugin, 'id' | 'name' | 'description' | 'version' | 'type'> & Partial<IAgentPlugin>;
+
 function Agent() {
   const { t } = useTranslation();
 
@@ -35,7 +37,7 @@ function Agent() {
     [],
   );
 
-  const { data: agents = [], refresh } = useRequest<IAgentPlugin[], []>(
+  const { data: agents = [], refresh } = useRequest<PluginDisplay[], []>(
     async () => {
       setLoading(true);
       if (activeKey === 'my') {

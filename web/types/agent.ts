@@ -6,6 +6,7 @@ export type PostAgentHubUpdateParams = {
 };
 
 export type PostAgentQueryParams = {
+  filter?: { name?: string; description?: string; author?: string; type?: string };
   page_index?: number;
   page_size?: number;
   name?: string;

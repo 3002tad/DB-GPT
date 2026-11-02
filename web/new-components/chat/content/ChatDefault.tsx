@@ -62,8 +62,8 @@ function ChatDefault() {
         const [_error, data] = res;
         if (activeKey === 'recommend') {
           return setApps({
-            app_list: data,
-            total_count: data?.length || 0,
+            app_list: Array.isArray(data) ? data : [],
+            total_count: Array.isArray(data) ? data.length : 0,
           });
         }
         setApps(data || {});

@@ -9,17 +9,32 @@ import { Button, Modal, Tabs } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CodePreview } from './code-preview';
+
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  mozFullScreenElement?: Element | null;
+  msFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+  mozCancelFullScreen?: () => void;
+  msExitFullscreen?: () => void;
+};
+type FullscreenElement = {
+  requestFullscreen?: () => Promise<void> | void;
+  webkitRequestFullscreen?: () => void;
+  mozRequestFullScreen?: () => void;
+  msRequestFullscreen?: () => void;
+};
 /**
  * The HTML preview component is used to display HTML code and provide run, download, and full-screen functionality
  * @param {Object} props The component props
  * @param {string} props.code HTML code content
  * @param {string} props.language Code language, default is html
  */
-const HtmlPreview = ({ code, language = 'html' }) => {
+const HtmlPreview = ({ code, language = 'html' }: { code: string; language?: string }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const iframeRef = useRef(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const { t } = useTranslation();
   const [parsedCode, setParsedCode] = useState({
     html: '',
@@ -30,7 +45,7 @@ const HtmlPreview = ({ code, language = 'html' }) => {
 
   // Parse the code and extract the HTML, CSS, and JS parts
   useEffect(() => {
-    const parseCode = sourceCode => {
+    const parseCode = (sourceCode: string) => {
       let html = sourceCode;
       let css = '';
       let js = '';
@@ -94,12 +109,8 @@ const HtmlPreview = ({ code, language = 'html' }) => {
   // Listen for fullscreen change events
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(
-        document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.mozFullScreenElement ||
-          document.msFullscreenElement,
-      );
+      const doc = document as FullscreenDocument;
+      setIsFullscreen(Boolean(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -167,7 +178,7 @@ const HtmlPreview = ({ code, language = 'html' }) => {
 
   // Enter fullscreen mode
   const enterFullscreen = () => {
-    const elem = iframeRef.current;
+    const elem: FullscreenElement | null = iframeRef.current;
     if (!elem) return;
 
     if (elem.requestFullscreen) {
@@ -186,17 +197,18 @@ const HtmlPreview = ({ code, language = 'html' }) => {
 
   // Exit fullscreen mode
   const exitFullscreen = () => {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
+    const doc = document as FullscreenDocument;
+    if (doc.exitFullscreen) {
+      doc.exitFullscreen();
+    } else if (doc.webkitExitFullscreen) {
       /* Safari */
-      document.webkitExitFullscreen();
-    } else if (document.msExitFullscreen) {
+      doc.webkitExitFullscreen();
+    } else if (doc.msExitFullscreen) {
       /* IE11 */
-      document.msExitFullscreen();
-    } else if (document.mozCancelFullScreen) {
+      doc.msExitFullscreen();
+    } else if (doc.mozCancelFullScreen) {
       /* Firefox */
-      document.mozCancelFullScreen();
+      doc.mozCancelFullScreen();
     }
   };
 

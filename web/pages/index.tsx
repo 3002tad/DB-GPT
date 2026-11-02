@@ -1111,7 +1111,7 @@ const Playground: NextPage = () => {
       const response = await sendSpacePostRequest('/api/v1/knowledge/space/list', {});
       // ctx-axios interceptor returns response.data directly, so response is {success, data, ...}
       if (response?.success) {
-        return response.data || [];
+        return Array.isArray(response.data) ? (response.data as KnowledgeSpace[]) : [];
       }
       return [];
     } catch (e) {
@@ -1159,7 +1159,7 @@ const Playground: NextPage = () => {
   // Fetch Skills/DBGPTs list
   const { data: skillsList, loading: _loadingSkills } = useRequest(async () => {
     try {
-      const response = await axios.get(`${process.env.API_BASE_URL ?? ''}/api/v1/skills/list`);
+      const response = await axios.get<unknown, { success: boolean; data: unknown[] }>(`${process.env.API_BASE_URL ?? ''}/api/v1/skills/list`);
       // ctx-axios interceptor returns response.data directly
       if (response?.success && Array.isArray(response.data)) {
         return response.data.map((item: any) => ({
@@ -2321,13 +2321,13 @@ const Playground: NextPage = () => {
                       status: 'running' as const,
                     }
                   : step.status === 'running'
-                    ? { ...step, status: 'done' }
+                    ? { ...step, status: 'done' as const }
                     : step,
               );
             } else {
               // New step - mark running steps as done and add new step
               nextSteps = [
-                ...current.steps.map(item => (item.status === 'running' ? { ...item, status: 'done' } : item)),
+                ...current.steps.map(item => (item.status === 'running' ? { ...item, status: 'done' as const } : item)),
                 {
                   id,
                   step: payload.step,
@@ -2645,7 +2645,7 @@ const Playground: NextPage = () => {
         }
         exampleController = new AbortController();
         exampleAbortControllerRef.current = exampleController;
-        const res = await axios.post(
+        const res = await axios.post<unknown, { success: boolean; data?: string; err_msg?: string }>(
           `${process.env.API_BASE_URL ?? ''}/api/v1/examples/use`,
           {
             example_id: example.id,

@@ -90,7 +90,7 @@ export const getDbList = () => {
   return GET<null, DbListResponse>('/api/v2/serve/datasources');
 };
 export const getDbSupportType = () => {
-  return GET<null, DbSupportTypeResponse>('/api/v2/serve/datasource-types');
+  return GET<null, { types: DbSupportTypeResponse }>('/api/v2/serve/datasource-types');
 };
 export const postDbDelete = (id: string) => {
   return DELETE(`/api/v2/serve/datasources/${id}`);
@@ -526,7 +526,7 @@ export const getSupportDBList = (db_name = '') => {
 };
 
 export const recommendApps = (data: Record<string, string>) => {
-  return POST<Record<string, string>, []>('/api/v1/app/hot/list', data);
+  return POST<Record<string, string>, IApp[]>('/api/v1/app/hot/list', data);
 };
 export const flowSearch = (data: Record<string, string>) => {
   return POST<Record<string, string>, []>('/api/v1/serve/awel/flows', data);

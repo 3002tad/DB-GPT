@@ -98,6 +98,7 @@ export interface ArtifactItem {
   mimeType?: string;
   size?: number;
   filePath?: string;
+  stepId?: string;
 }
 
 export interface ManusLeftPanelProps {
