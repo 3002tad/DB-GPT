@@ -4,6 +4,8 @@ import { translateDynamicVi, viUiText } from '@/locales/vi/ui-text';
 import vi from '@/locales/vi';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { localizeConnectorCatalog, localizeConnectorField } from '@/new-components/connector/catalog-i18n';
+import { dashboardSourceLabel } from '@/new-components/dashboard/dashboard-source-label';
 
 describe('Vietnamese interface locale', () => {
   it('defaults to Vietnamese and falls back to English for untranslated keys', async () => {
@@ -30,6 +32,17 @@ describe('Vietnamese interface locale', () => {
     expect(translateDynamicVi('Remove member analyst@example.local?')).toBe('Xóa thành viên analyst@example.local?');
     expect(translateDynamicVi('12 widgets')).toBe('12 thành phần');
     expect(translateDynamicVi('Unrecognized user content')).toBeUndefined();
+  });
+
+  it('localizes built-in catalog labels while preserving unknown catalog and source values', () => {
+    const fallback = { name: '原始名称', description: '原始描述' };
+    expect(localizeConnectorCatalog('feishu', 'vi', fallback).name).toBe('Lark');
+    expect(localizeConnectorCatalog('custom', 'vi', fallback)).toEqual(fallback);
+    expect(localizeConnectorCatalog('feishu', 'zh', fallback)).toEqual(fallback);
+    expect(localizeConnectorField('auth_type', 'vi', '认证方式')).toBe('Phương thức xác thực');
+    expect(localizeConnectorField('unknown', 'vi', 'Custom field')).toBe('Custom field');
+    expect(dashboardSourceLabel('sqlite_voice_lab', 'vi')).toContain('Dữ liệu mẫu tổng hợp');
+    expect(dashboardSourceLabel('my-own-source', 'vi')).toBe('my-own-source');
   });
 
   it('preserves interpolation variables in translated strings', () => {

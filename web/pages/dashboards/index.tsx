@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useUiText } from '@/hooks/use-ui-text';
 import {
   archiveDashboard,
@@ -53,6 +54,7 @@ const formatTime = (value: string, locale: string) =>
 
 export default function DashboardListPage() {
   const tr = useUiText();
+  const { i18n } = useTranslation();
 const tabs: { key: LibraryTab; label: string }[] = [
   ...(TEMPLATE_GALLERY_ENABLED ? [{ key: 'templates' as const, label: tr('模板', 'Templates') }] : []),
   { key: 'folders', label: tr('所有文件夹', 'All folders') },
@@ -481,7 +483,7 @@ const tabs: { key: LibraryTab; label: string }[] = [
                         </div>
                         <p className={styles.description}>{item.description || tr('暂无看板说明', 'No dashboard description')}</p>
                         <div className={styles.meta}>
-                          <span title={item.data_source_id}>{dashboardSourceLabel(item.data_source_id)}</span>
+                          <span title={item.data_source_id}>{dashboardSourceLabel(item.data_source_id, i18n.language)}</span>
                           <span>{formatTime(item.updated_at, tr('zh-CN', 'en-US'))}</span>
                         </div>
                       </article>

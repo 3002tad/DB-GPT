@@ -1,5 +1,8 @@
 /** Translations for built-in dashboard copy not yet migrated to i18next keys. */
 export const viUiText: Record<string, string> = {
+  'Recent': 'Gần đây',
+  'Templates': 'Mẫu',
+  'Dashboard categories': 'Danh mục bảng điều khiển',
   'Edit': 'Chỉnh sửa',
   'View': 'Xem',
   'Editor': 'Người chỉnh sửa',

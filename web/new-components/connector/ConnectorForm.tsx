@@ -2,6 +2,7 @@ import { Alert, Button, Form, Input, Modal, Radio, Select } from 'antd';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConnectorAuthField, ConnectorCatalogEntry, ConnectorInstance, CreateConnectorRequest } from './types';
+import { localizeConnectorCatalog, localizeConnectorField } from './catalog-i18n';
 
 interface ConnectorFormProps {
   open: boolean;
@@ -81,7 +82,7 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({
   prefilledType,
   submitting,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [form] = Form.useForm<FormShape>();
 
   const selectedType = Form.useWatch('connector_type', form);
@@ -179,7 +180,10 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({
       selectedCatalog.description &&
       (next.description === undefined || next.description === '')
     ) {
-      next.description = selectedCatalog.description;
+      next.description = localizeConnectorCatalog(selectedCatalog.type, i18n.resolvedLanguage || i18n.language || 'en', {
+        name: selectedCatalog.display_name,
+        description: selectedCatalog.description,
+      }).description;
       changed = true;
     }
     if (changed) {
@@ -274,7 +278,7 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({
               // (Array.prototype.sort is stable).
               .sort((a, b) => Number(b.is_custom === true) - Number(a.is_custom === true))
               .map(entry => ({
-                label: entry.display_name,
+                label: localizeConnectorCatalog(entry.type, i18n.resolvedLanguage || i18n.language || 'en', { name: entry.display_name, description: entry.description }).name,
                 value: entry.type,
               }))}
           />
@@ -320,13 +324,14 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({
         )}
 
         {visibleFields.map(field => {
+          const fieldLabel = localizeConnectorField(field.name, i18n.resolvedLanguage || i18n.language || 'en', field.label);
           const isEditMode = !!initialValues;
           const isPasswordField = field.type === 'password';
           const fieldRequired = field.required && !(isEditMode && isPasswordField);
           const placeholder =
             isEditMode && isPasswordField
               ? t('connector.form.passwordEditPlaceholder')
-              : t('connector.form.fieldRequired', { label: field.label });
+              : t('connector.form.fieldRequired', { label: fieldLabel });
           let control: React.ReactNode;
           if (field.type === 'select') {
             // Auth-type select uses friendlier labels (e.g. "Bearer Token") while
@@ -343,7 +348,7 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({
             });
             control = (
               <Select
-                placeholder={t('connector.form.selectPlaceholder', { label: field.label })}
+                placeholder={t('connector.form.selectPlaceholder', { label: fieldLabel })}
                 options={optionList}
               />
             );
@@ -356,10 +361,10 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({
             <Form.Item
               key={field.name}
               name={['fields', field.name]}
-              label={field.label}
+              label={fieldLabel}
               rules={
                 fieldRequired
-                  ? [{ required: true, message: t('connector.form.fieldRequired', { label: field.label }) }]
+                  ? [{ required: true, message: t('connector.form.fieldRequired', { label: fieldLabel }) }]
                   : []
               }
             >

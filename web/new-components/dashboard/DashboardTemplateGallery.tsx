@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { getDbList } from '@/client/api';
 import { dashboardSourceLabel } from '@/new-components/dashboard/dashboard-source-label';
 import { ADAPTED_SKILLS } from '@/new-components/skills/skill-catalog';
@@ -54,6 +55,7 @@ const preferredPriority = (id: string) => {
 
 export default function DashboardTemplateGallery({ featured = false }: { featured?: boolean }) {
   const tr = useUiText();
+  const { i18n } = useTranslation();
   const router = useRouter();
   const [category, setCategory] = useState('全部');
   const [search, setSearch] = useState('');
@@ -148,7 +150,7 @@ export default function DashboardTemplateGallery({ featured = false }: { feature
         </div>
         <p className={styles.description}>{description}</p>
         <div className={styles.meta}>
-          <span>{dashboardSourceLabel(proof?.source || item.sourceNames[0])}</span>
+          <span>{dashboardSourceLabel(proof?.source || item.sourceNames[0], i18n.language)}</span>
         </div>
       </article>
     );

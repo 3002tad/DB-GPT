@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useUiText } from '@/hooks/use-ui-text';
 import {
   adaptDashboardTemplate,
@@ -52,6 +53,7 @@ export default function DashboardTemplateSetup({
   onClose: () => void;
 }) {
   const tr = useUiText();
+  const { i18n } = useTranslation();
 const grainLabels = {
   store_week: tr('一间门店的一周记录', 'One store-week'),
   order: tr('一笔订单', 'One order'),
@@ -300,7 +302,7 @@ const grainLabels = {
               optionFilterProp='label'
               value={source || undefined}
               disabled={busy}
-              options={sources.map(value => ({ value, label: dashboardSourceLabel(value) }))}
+              options={sources.map(value => ({ value, label: dashboardSourceLabel(value, i18n.language) }))}
               onChange={value => {
                 epoch.current++;
                 setSource(value);

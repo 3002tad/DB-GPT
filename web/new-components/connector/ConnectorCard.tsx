@@ -15,6 +15,7 @@ import { Button, Popconfirm, Tooltip } from 'antd';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ConnectorToolsModal from './ConnectorToolsModal';
+import { localizeConnectorCatalog } from './catalog-i18n';
 import { ConnectorCatalogEntry, ConnectorInstance, ConnectorStatus } from './types';
 
 interface InstanceCardProps {
@@ -163,7 +164,7 @@ const STATUS_META: Record<ConnectorStatus, { dot: string; text: string; bg: stri
 /* ------------------------------------------------------------------ */
 
 const ConnectorCard: React.FC<ConnectorCardProps> = props => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [toolsModalOpen, setToolsModalOpen] = useState(false);
 
   /* shared shell — glass card with intentional hover lift               */
@@ -181,7 +182,12 @@ const ConnectorCard: React.FC<ConnectorCardProps> = props => {
   const type = isTemplate ? props.template.type : props.connector.connector_type;
   const brand = brandFor(type);
 
-  const displayName = isTemplate ? props.template.display_name : props.connector.display_name;
+  const catalog = isTemplate ? props.template : props.catalogEntry;
+  const localizedCatalog = catalog && localizeConnectorCatalog(type, i18n.resolvedLanguage || i18n.language || 'en', {
+    name: catalog.display_name,
+    description: catalog.description,
+  });
+  const displayName = isTemplate ? (localizedCatalog?.name ?? props.template.display_name) : props.connector.display_name;
 
   // Description precedence:
   //   1. instance.config.description (user-authored in the form)
@@ -195,9 +201,9 @@ const ConnectorCard: React.FC<ConnectorCardProps> = props => {
     ? ((props.connector.config?.description as string | undefined) ?? undefined)
     : undefined;
   const description = isTemplate
-    ? props.template.description
+    ? (localizedCatalog?.description ?? props.template.description)
     : instanceUserDescription ||
-      (props.connector.connector_type === 'custom_mcp' ? '' : (props.catalogEntry?.description ?? '')) ||
+      (props.connector.connector_type === 'custom_mcp' ? '' : (localizedCatalog?.description ?? '')) ||
       '';
 
   const category = isTemplate
