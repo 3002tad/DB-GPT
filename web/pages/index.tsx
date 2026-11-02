@@ -109,6 +109,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { skillDisplayDescription, skillMatchesSearch } from '@/new-components/skills/official-skill-descriptions';
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -3513,9 +3514,7 @@ const Playground: NextPage = () => {
                                       {(skillsList || [])
                                         .filter(
                                           skill =>
-                                            !skillSearchQuery ||
-                                            skill.name.toLowerCase().includes(skillSearchQuery.toLowerCase()) ||
-                                            skill.description.toLowerCase().includes(skillSearchQuery.toLowerCase()),
+                                            skillMatchesSearch(skill, i18n.language, skillSearchQuery),
                                         )
                                         .map(skill => (
                                           <div
@@ -3556,7 +3555,7 @@ const Playground: NextPage = () => {
                                                 </span>
                                               </div>
                                               <p className='text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2'>
-                                                {skill.description}
+                                                {skillDisplayDescription(skill, i18n.language)}
                                               </p>
                                             </div>
                                             {selectedSkill?.id === skill.id && (
@@ -3566,9 +3565,7 @@ const Playground: NextPage = () => {
                                         ))}
                                       {(skillsList || []).filter(
                                         skill =>
-                                          !skillSearchQuery ||
-                                          skill.name.toLowerCase().includes(skillSearchQuery.toLowerCase()) ||
-                                          skill.description.toLowerCase().includes(skillSearchQuery.toLowerCase()),
+                                          skillMatchesSearch(skill, i18n.language, skillSearchQuery),
                                       ).length === 0 && (
                                         <div className='text-center py-8 text-gray-400'>
                                           <ThunderboltOutlined className='text-2xl mb-2 opacity-50' />
@@ -4256,9 +4253,7 @@ const Playground: NextPage = () => {
                                   {(skillsList || [])
                                     .filter(
                                       skill =>
-                                        !skillSearchQuery ||
-                                        skill.name.toLowerCase().includes(skillSearchQuery.toLowerCase()) ||
-                                        skill.description.toLowerCase().includes(skillSearchQuery.toLowerCase()),
+                                        skillMatchesSearch(skill, i18n.language, skillSearchQuery),
                                     )
                                     .map(skill => (
                                       <div
@@ -4299,7 +4294,7 @@ const Playground: NextPage = () => {
                                             </span>
                                           </div>
                                           <p className='text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2'>
-                                            {skill.description}
+                                            {skillDisplayDescription(skill, i18n.language)}
                                           </p>
                                         </div>
                                         {selectedSkill?.id === skill.id && (
@@ -4309,9 +4304,7 @@ const Playground: NextPage = () => {
                                     ))}
                                   {(skillsList || []).filter(
                                     skill =>
-                                      !skillSearchQuery ||
-                                      skill.name.toLowerCase().includes(skillSearchQuery.toLowerCase()) ||
-                                      skill.description.toLowerCase().includes(skillSearchQuery.toLowerCase()),
+                                      skillMatchesSearch(skill, i18n.language, skillSearchQuery),
                                   ).length === 0 && (
                                     <div className='text-center py-8 text-gray-400'>
                                       <ThunderboltOutlined className='text-2xl mb-2 opacity-50' />

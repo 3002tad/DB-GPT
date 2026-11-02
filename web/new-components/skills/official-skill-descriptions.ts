@@ -26,3 +26,17 @@ export function officialSkillDescription(name: string, language: string | undefi
   if (!entry) return fallback;
   return locale.startsWith('vi') ? entry.vi : entry.en;
 }
+
+type SkillSummary = { name: string; description: string; type: 'official' | 'personal' };
+
+export function skillDisplayDescription(skill: SkillSummary, language: string | undefined): string {
+  return skill.type === 'official'
+    ? officialSkillDescription(skill.name, language, skill.description)
+    : skill.description;
+}
+
+export function skillMatchesSearch(skill: SkillSummary, language: string | undefined, query: string): boolean {
+  const search = query.toLocaleLowerCase();
+  return !search || [skill.name, skill.description, skillDisplayDescription(skill, language)]
+    .some(value => value.toLocaleLowerCase().includes(search));
+}

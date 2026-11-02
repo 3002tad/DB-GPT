@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { localizeConnectorCatalog, localizeConnectorField } from '@/new-components/connector/catalog-i18n';
 import { dashboardSourceLabel } from '@/new-components/dashboard/dashboard-source-label';
-import { officialSkillDescription } from '@/new-components/skills/official-skill-descriptions';
+import { officialSkillDescription, skillDisplayDescription, skillMatchesSearch } from '@/new-components/skills/official-skill-descriptions';
 
 describe('Vietnamese interface locale', () => {
   it('localizes bundled skill descriptions and preserves unknown or Chinese descriptions', () => {
@@ -17,6 +17,16 @@ describe('Vietnamese interface locale', () => {
       expect(officialSkillDescription(name, 'zh', original)).toBe(original);
     }
     expect(officialSkillDescription('custom', 'vi', original)).toBe(original);
+  });
+
+  it('localizes and searches the skill picker without altering personal skills', () => {
+    const official = { name: 'pawspa-viz-design', description: '原始描述', type: 'official' as const };
+    const personal = { ...official, type: 'personal' as const };
+    expect(skillDisplayDescription(official, 'vi')).toContain('thú cưng');
+    expect(skillMatchesSearch(official, 'vi', 'thú cưng')).toBe(true);
+    expect(skillMatchesSearch(official, 'vi', '原始')).toBe(true);
+    expect(skillDisplayDescription(personal, 'vi')).toBe('原始描述');
+    expect(skillMatchesSearch(personal, 'vi', 'thú cưng')).toBe(false);
   });
   it('defaults to Vietnamese and falls back to English for untranslated keys', async () => {
     expect(i18n.language).toBe('vi');
