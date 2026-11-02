@@ -36,7 +36,7 @@ const WorkModeSelect: React.FC<WorkModeSelectProps> = ({ disable = false, option
         : 'border-[#d9d9d9]'
     } `;
   };
-  const language = i18n.language === 'en';
+  const language = !i18n.language.startsWith('zh');
 
   return (
     <div className='grid grid-cols-2 gap-4'>
@@ -88,7 +88,7 @@ const CreateAppModal: React.FC<{
   const teamMode = Form.useWatch('team_mode', form);
 
   const router = useRouter();
-  const language = i18n.language === 'en';
+  const language = !i18n.language.startsWith('zh');
 
   // 获取工作模式列表
   const { data, loading } = useRequest(async () => {

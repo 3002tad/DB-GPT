@@ -92,6 +92,7 @@ type IProps = {
   handleStepChange: (params: StepChangeParams) => void;
   spaceConfig: IStorage | null;
   onSuccess?: () => void;
+  onCancel: () => void;
 };
 
 const { Dragger } = Upload;
@@ -208,7 +209,7 @@ const DS_CARDS: DataSourceCardDef[] = [
  */
 export default function SpaceForm(props: IProps) {
   const { t } = useTranslation();
-  const { handleStepChange, spaceConfig, onSuccess } = props;
+  const { handleStepChange, spaceConfig, onSuccess, onCancel } = props;
   const [spinning, setSpinning] = useState<boolean>(false);
   const [dataSourceType, setDataSourceType] = useState<DataSourceType>('DOCUMENT');
   const [strategies, setStrategies] = useState<Array<IChunkStrategyResponse>>([]);
@@ -877,6 +878,7 @@ export default function SpaceForm(props: IProps) {
               onClick={() => {
                 form.resetFields();
                 setFiles([]);
+                onCancel();
               }}
             >
               {t('cancel')}

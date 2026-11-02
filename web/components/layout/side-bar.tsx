@@ -24,6 +24,7 @@ import { Popover, Skeleton, Tooltip, message } from 'antd';
 import cls from 'classnames';
 import moment from 'moment';
 import 'moment/locale/zh-cn';
+import 'moment/locale/vi';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -144,11 +145,9 @@ function SideBar() {
     localStorage.setItem(STORAGE_THEME_KEY, theme);
   }, [mode, setMode]);
 
-  const handleChangeLang = useCallback(() => {
-    const language = i18n.language === 'en' ? 'zh' : 'en';
+  const handleChangeLang = useCallback((language: 'vi' | 'en' | 'zh') => {
     i18n.changeLanguage(language);
-    if (language === 'zh') moment.locale('zh-cn');
-    if (language === 'en') moment.locale('en');
+    moment.locale(language === 'zh' ? 'zh-cn' : language);
     localStorage.setItem(STORAGE_LANG_KEY, language);
   }, [i18n]);
 
@@ -172,7 +171,7 @@ function SideBar() {
       },
       {
         key: 'dashboards',
-        name: i18n.language.startsWith('zh') ? '看板' : 'Dashboards',
+        name: i18n.language.startsWith('zh') ? '看板' : i18n.language.startsWith('vi') ? 'Bảng điều khiển' : 'Dashboards',
         isActive: pathname.startsWith('/dashboards'),
         iconSrc: '',
         IconComponent: DashboardOutlined,
@@ -285,6 +284,7 @@ function SideBar() {
     const language = i18n.language;
     if (language === 'zh') moment.locale('zh-cn');
     if (language === 'en') moment.locale('en');
+    if (language === 'vi') moment.locale('vi');
   }, [i18n.language]);
 
   useEffect(() => {
@@ -503,10 +503,16 @@ function SideBar() {
               {mode === 'dark' ? <Icon component={DarkSvg} /> : <Icon component={SunnySvg} />}
             </div>
           </Popover>
-          <Popover content={t('language')}>
-            <div className='flex-1 flex items-center justify-center cursor-pointer text-xl' onClick={handleChangeLang}>
-              <GlobalOutlined />
+          <Popover trigger='click' content={
+            <div className='flex flex-col gap-1' role='group' aria-label={t('language')}>
+              {([['vi', 'Tiếng Việt'], ['en', 'English'], ['zh', '中文']] as const).map(([code, label]) => (
+                <button key={code} type='button' className='rounded px-3 py-1 text-left hover:bg-gray-100 dark:hover:bg-gray-700' aria-pressed={i18n.language === code} onClick={() => handleChangeLang(code)}>{label}</button>
+              ))}
             </div>
+          }>
+            <button type='button' className='flex-1 flex items-center justify-center cursor-pointer text-xl' aria-label={t('language')}>
+              <GlobalOutlined />
+            </button>
           </Popover>
           <Popover content={t(isMenuExpand ? 'Close_Sidebar' : 'Show_Sidebar')}>
             <div className='flex-1 flex items-center justify-center cursor-pointer text-xl' onClick={handleToggleMenu}>

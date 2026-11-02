@@ -82,7 +82,7 @@ const AutoPlan: React.FC<{
   // 选中的agent
   const [selectedTab, setSelectedTab] = useState<string>('');
   const details = useRef<IDetail[]>([]);
-  const language = i18n.language === 'en';
+  const language = !i18n.language.startsWith('zh');
 
   // 获取agents, strategy, sourceType;
   const { data, loading } = useRequest(async () => {

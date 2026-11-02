@@ -269,6 +269,7 @@ const Knowledge = () => {
             <SpaceForm
               handleStepChange={handleStepChange}
               spaceConfig={spaceConfig}
+              onCancel={() => setIsAddShow(false)}
               onSuccess={() => {
                 setIsAddShow(false);
                 getSpaces();

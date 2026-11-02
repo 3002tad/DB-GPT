@@ -5,6 +5,8 @@ import { STORAGE_LANG_KEY, STORAGE_THEME_KEY } from '@/utils/constants/index';
 import Icon, { GlobalOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { Layout, Popover } from 'antd';
 import moment from 'moment';
+import 'moment/locale/vi';
+import 'moment/locale/zh-cn';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { ReactNode, useCallback, useContext, useMemo, useState } from 'react';
@@ -32,13 +34,16 @@ const Sider: React.FC = () => {
 
   // 切换语言
   const handleChangeLang = useCallback(() => {
-    const language = i18n.language === 'en' ? 'zh' : 'en';
+    const language = i18n.language === 'vi' ? 'en' : i18n.language === 'en' ? 'zh' : 'vi';
     i18n.changeLanguage(language);
     if (language === 'zh') {
       moment.locale('zh-cn');
     }
     if (language === 'en') {
       moment.locale('en');
+    }
+    if (language === 'vi') {
+      moment.locale('vi');
     }
     localStorage.setItem(STORAGE_LANG_KEY, language);
   }, [i18n]);

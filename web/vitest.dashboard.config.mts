@@ -17,6 +17,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./new-components/dashboard/test-setup.ts'],
     include: [
+      './app/i18n.test.ts',
       './new-components/dashboard/**/*.test.{ts,tsx}',
       './new-components/scheduled-task/**/*.test.{ts,tsx}',
       './hooks/use-scheduled-task.test.tsx',
