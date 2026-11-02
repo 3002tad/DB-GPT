@@ -1,5 +1,5 @@
 import MarkDownContext from '@/new-components/common/MarkdownContext';
-import { officialSkillDescriptions } from '@/new-components/skills/official-skill-descriptions';
+import { officialSkillDescription } from '@/new-components/skills/official-skill-descriptions';
 import ConstructLayout from '@/new-components/layout/Construct';
 import axios from '@/utils/ctx-axios';
 import {
@@ -409,8 +409,8 @@ function Skills() {
 
                   {/* Description */}
                   <p className='text-sm text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[40px] mb-3'>
-                    {skill.type === 'official' && !i18n?.language?.toLowerCase().startsWith('zh')
-                      ? officialSkillDescriptions[skill.name] || skill.description || t('no_data')
+                    {skill.type === 'official'
+                      ? officialSkillDescription(skill.name, i18n?.language, skill.description || t('no_data'))
                       : skill.description || t('no_data')}
                   </p>
 

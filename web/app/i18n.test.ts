@@ -6,8 +6,18 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { localizeConnectorCatalog, localizeConnectorField } from '@/new-components/connector/catalog-i18n';
 import { dashboardSourceLabel } from '@/new-components/dashboard/dashboard-source-label';
+import { officialSkillDescription } from '@/new-components/skills/official-skill-descriptions';
 
 describe('Vietnamese interface locale', () => {
+  it('localizes bundled skill descriptions and preserves unknown or Chinese descriptions', () => {
+    const original = '原始描述';
+    for (const name of ['dashboard-chart-configuration', 'dashboard-collaboration', 'dashboard-filter-configuration']) {
+      expect(officialSkillDescription(name, 'vi', original)).not.toMatch(/[\u4e00-\u9fff]/);
+      expect(officialSkillDescription(name, 'en', original)).not.toMatch(/[\u4e00-\u9fff]/);
+      expect(officialSkillDescription(name, 'zh', original)).toBe(original);
+    }
+    expect(officialSkillDescription('custom', 'vi', original)).toBe(original);
+  });
   it('defaults to Vietnamese and falls back to English for untranslated keys', async () => {
     expect(i18n.language).toBe('vi');
     expect(i18n.t('new_task')).toBe('Tác vụ mới');
