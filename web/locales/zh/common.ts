@@ -8,7 +8,6 @@ interface Resources {
 
 export const CommonZh: Resources['translation'] = {
   ui_enter_password: '请输入密码',
-  ui_enter_value: '请输入',
   ui_related_questions: '关联问题:',
   ui_enter_question: '请输入问题',
   ui_preview_failed: '预览失败',
