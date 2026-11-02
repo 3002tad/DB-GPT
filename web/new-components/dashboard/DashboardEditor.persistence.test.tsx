@@ -2,6 +2,11 @@ import type { DashboardAnnotationRecord, DashboardRecord } from '@/types/dashboa
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+const locale = vi.hoisted(() => ({ language: 'zh' }));
+vi.mock('@/hooks/use-ui-text', () => {
+  const translate = (zh: string, en: string) => locale.language === 'zh' ? zh : en;
+  return { useUiText: () => translate };
+});
 import fixture from '../../tests/dashboard-e2e/fixtures/walmart/record.json';
 import DashboardEditor from './DashboardEditor';
 import { readDashboardLocalDraft } from './dashboard-draft-recovery';
@@ -142,6 +147,7 @@ const apply = () => fireEvent.click(screen.getByText('应用测试批注'));
 
 describe('DashboardEditor pending mutations', () => {
   beforeEach(() => {
+    locale.language = 'zh';
     localStorage.clear();
     sessionStorage.clear();
     mocks.save.mockReset();
@@ -149,6 +155,14 @@ describe('DashboardEditor pending mutations', () => {
     mocks.deferRemoteRecord.mockReset();
     mocks.annotations.mockResolvedValue({ data: { data: [proposal] } });
     mocks.refresh.mockResolvedValue({ data: { success: true, data: { widgets: {}, filters: {} } } });
+  });
+
+  it('renders editor controls in English without changing saved titles', async () => {
+    locale.language = 'en';
+    await openEditor();
+    expect((screen.getByLabelText('Dashboard title') as HTMLInputElement).value).toBe('Original');
+    expect(screen.getByLabelText('Save dashboard')).toBeTruthy();
+    expect(screen.getByText('Component library')).toBeTruthy();
   });
 
   it('keeps edits made after a save was submitted and saves them using the acknowledged revision', async () => {

@@ -1,0 +1,51 @@
+/** Presentation only: never replace template prompts or source data. */
+export const galleryCategories: Record<string, string> = {
+  全部: 'All', 设计: 'Design', 销售: 'Sales', 运营: 'Operations', 电商: 'E-commerce', 财务: 'Finance',
+  客户: 'Customers', 经营: 'Business', 'IT 服务': 'IT services', 供应链: 'Supply chain', 能源: 'Energy',
+  制造: 'Manufacturing', 教育: 'Education', 营销: 'Marketing', 大屏: 'Command center', 研究分析: 'Research', 科技: 'Technology',
+};
+
+export const templateEnglish: Record<string, [string, string]> = {
+  'retail-overview': ['Retail overview', 'Explore sales, trends and store performance.'],
+  'holiday-sales': ['Holiday sales', 'Compare average weekly sales per store during holiday and ordinary weeks.'],
+  'store-coverage': ['Store coverage', 'Explore monthly sales record coverage and store rankings.'],
+  'olist-delivery': ['Order delivery and status', 'Compare order status and delivery timing across regions.'],
+  'olist-payments': ['Payment methods', 'Explore payments by method and monthly trends.'],
+  'northwind-revenue': ['Category revenue and markets', 'Explore discounted net product revenue by category, country and month.'],
+  'northwind-customers': ['Customer orders', 'Explore customer cohorts and repeat purchase retention.'],
+  'northwind-freight': ['Freight costs', 'Compare order value, freight costs, carriers and monthly trends.'],
+  'growth-map': ['Revenue growth map', 'Explore business structure by customer, market and category.'],
+  'quarterly-timeline': ['Quarterly business timeline', 'Explore store sales across quarters and years.'],
+  'business-dossier': ['Business analysis dossier', 'Review revenue, customers, categories and markets.'],
+  'sales-receipt': ['Sales receipt', 'Review revenue and category details in a receipt layout.'],
+  'annual-story': ['Annual business story', 'Explore scale, trends, categories and markets.'],
+  'retail-terminal': ['Retail data terminal', 'Review store sales and changes over time.'],
+  'executive-pulse': ['Executive overview', 'Explore revenue, market coverage and trends.'],
+  'service-desk': ['IT service desk', 'Explore incident counts, resolution times and priorities.'],
+  'revenue-growth': ['Revenue drivers and growth', 'Explore revenue trends, categories and markets.'],
+  'customer-value': ['Customer value and retention', 'Explore customer contribution and repeat purchases.'],
+  'inventory-watch': ['Inventory and replenishment', 'Explore current stock, incoming items and replenishment gaps.'],
+  'ecommerce-revenue': ['E-commerce revenue and fulfillment', 'Explore payments, order status and delivery timing.'],
+  'logistics-flow': ['Delivery tracking', 'Explore order status and differences between expected and actual delivery.'],
+  'support-operations': ['Service teams and SLA markers', 'Compare team workloads, reopened incidents and source SLA markers.'],
+  'energy-monitor': ['Residential energy use', 'Explore measured household electricity use over time.'],
+  'manufacturing-quality': ['Manufacturing quality', 'Explore failure rates and equipment readings in synthetic samples.'],
+  'student-performance': ['Student performance', 'Explore course grades, absences and study time.'],
+  'brand-revenue': ['Brand revenue dashboard', 'Explore actual Northwind order details by market and category.'],
+  'store-marketing': ['Store marketing', 'Explore campaigns, channels and store performance with sample data.'],
+  'national-command': ['National business command center', 'Explore revenue, delivery and regions with sample data.'],
+  'healthcare-command': ['Healthcare service command center', 'Explore synthetic service, prescription and department summaries.'],
+  'rural-finance': ['Rural finance command center', 'Explore lending and repayment trends with sample data.'],
+  'clinical-insight': ['Health research overview', 'Explore sample composition and clinical fields in public historical data.'],
+  'voice-observatory': ['AI voice trends', 'Explore response latency and interactions with synthetic sample data.'],
+};
+
+export const designEnglish: Record<string, [string, string]> = {
+  'antv-g2-chart': ['G2 charts', 'Choose charts, axes and interactions that answer the question.'],
+  'datapulse-viz-design': ['Growth pulse', 'Organize acquisition, activation and retention with clear metrics and trends.'],
+  'nexusai-viz-design': ['Agent workspace', 'Organize task queues, service status and operational metrics.'],
+  'learnhub-viz-design': ['Learning journey', 'Present participation, progress and groups that need attention.'],
+  'brutal-viz-design': ['Poster marketing', 'Highlight campaign results with bold typography and clear sections.'],
+  'pawspa-viz-design': ['Pet store operations', 'Present appointments, services and repeat visits.'],
+  'serenityspa-viz-design': ['Spa appointments', 'Organize appointments, rooms and member activity.'],
+};

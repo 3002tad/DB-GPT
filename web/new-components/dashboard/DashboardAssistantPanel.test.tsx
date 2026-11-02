@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/hooks/use-ui-text', () => { const zh = (text: string) => text; return { useUiText: () => zh }; });
 import { DashboardAnnotationDraft, makeDashboardAnnotationDraft } from './dashboard-assistant';
 
 vi.mock('antd', async () => {

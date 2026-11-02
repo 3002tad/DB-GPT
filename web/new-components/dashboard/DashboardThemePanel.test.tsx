@@ -2,6 +2,7 @@ import { DashboardVisualTheme } from '@/types/dashboard';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ReactNode, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/hooks/use-ui-text', () => { const zh = (text: string) => text; return { useUiText: () => zh }; });
 import DashboardThemePanel from './DashboardThemePanel';
 
 vi.mock('antd', () => ({

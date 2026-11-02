@@ -1,6 +1,7 @@
 import type { DashboardWidget, DashboardWidgetResult } from '@/types/dashboard';
 import { render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+vi.mock('@/hooks/use-ui-text', () => { const zh = (text: string) => text; return { useUiText: () => zh }; });
 import snapshot from '../../../examples/dashboard/snapshots/walmart-sales.public.json';
 import DashboardWidgetCard from './DashboardWidgetCard';
 

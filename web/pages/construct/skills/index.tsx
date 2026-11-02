@@ -1,4 +1,5 @@
 import MarkDownContext from '@/new-components/common/MarkdownContext';
+import { officialSkillDescriptions } from '@/new-components/skills/official-skill-descriptions';
 import ConstructLayout from '@/new-components/layout/Construct';
 import axios from '@/utils/ctx-axios';
 import {
@@ -92,7 +93,7 @@ function toAntTreeData(node: TreeNode): DataNode {
 }
 
 function Skills() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchValue, setSearchValue] = useState('');
   const [officialOnly, setOfficialOnly] = useState(false);
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>({});
@@ -408,7 +409,9 @@ function Skills() {
 
                   {/* Description */}
                   <p className='text-sm text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[40px] mb-3'>
-                    {skill.description || t('no_data')}
+                    {skill.type === 'official' && !i18n?.language?.toLowerCase().startsWith('zh')
+                      ? officialSkillDescriptions[skill.name] || skill.description || t('no_data')
+                      : skill.description || t('no_data')}
                   </p>
 
                   {/* Footer */}

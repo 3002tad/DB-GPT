@@ -1,4 +1,8 @@
 export const CommonEn = {
+  ui_enter_password: 'Enter password',
+  ui_enter_value: 'Enter a value',
+  ui_related_questions: 'Related questions:',
+  ui_enter_question: 'Enter a question',
   ui_preview_failed: 'Preview failed',
   ui_file_unavailable: 'This file is not available to download yet',
   ui_file_download_failed: 'File download failed',

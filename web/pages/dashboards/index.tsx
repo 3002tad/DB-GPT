@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import {
   archiveDashboard,
   copyDashboard,
@@ -35,12 +36,6 @@ import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type LibraryTab = 'templates' | 'folders' | 'all' | 'recent' | 'tests' | 'archived';
-const tabs: { key: LibraryTab; label: string }[] = [
-  ...(TEMPLATE_GALLERY_ENABLED ? [{ key: 'templates' as const, label: '模板' }] : []),
-  { key: 'folders', label: '所有文件夹' },
-  { key: 'all', label: '全部看板' },
-  { key: 'recent', label: '最近使用' },
-];
 const toItem = (r: DashboardRecord): DashboardListItem => ({
   id: r.id,
   title: r.schema.dashboard.title,
@@ -53,10 +48,17 @@ const toItem = (r: DashboardRecord): DashboardListItem => ({
   status: r.status,
   updated_at: r.updated_at,
 });
-const formatTime = (value: string) =>
-  new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+const formatTime = (value: string, locale: string) =>
+  new Date(value).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export default function DashboardListPage() {
+  const tr = useUiText();
+const tabs: { key: LibraryTab; label: string }[] = [
+  ...(TEMPLATE_GALLERY_ENABLED ? [{ key: 'templates' as const, label: tr('模板', 'Templates') }] : []),
+  { key: 'folders', label: tr('所有文件夹', 'All folders') },
+  { key: 'all', label: tr('全部看板', 'All dashboards') },
+  { key: 'recent', label: tr('最近使用', 'Recent') },
+];
   const router = useRouter();
   const { message } = App.useApp();
   const requestedTab = router.query.tab;
@@ -73,13 +75,13 @@ export default function DashboardListPage() {
   const [moving, setMoving] = useState(false);
   const loadFolders = useCallback(async () => {
     const response = await listDashboardFolders();
-    if (!response.data.success) throw new Error(response.data.err_msg || '文件夹加载失败');
+    if (!response.data.success) throw new Error(response.data.err_msg || tr('文件夹加载失败', 'Failed to load folders'));
     setFolders(response.data.data);
-  }, []);
+  }, [tr]);
   useEffect(() => {
     // Initial page mount starts an external API read; state is set after it resolves.
-    void loadFolders().catch(() => message.error('文件夹加载失败，请刷新重试'));
-  }, [loadFolders, message]);
+    void loadFolders().catch(() => message.error(tr('文件夹加载失败，请刷新重试', 'Could not load folders. Refresh and try again.')));
+  }, [loadFolders, message, tr]);
   const [items, setItems] = useState<DashboardListItem[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -113,9 +115,9 @@ export default function DashboardListPage() {
       setCoverJob(null);
       setCoverQueue(q => q.slice(1));
       setCoverRefresh(n => n + 1);
-      if (error) message.warning('此看板预览未更新：' + error);
+      if (error) message.warning(tr('此看板预览未更新：', 'Dashboard preview was not updated: ') + error);
     },
-    [message],
+    [message, tr],
   );
   useEffect(() => {
     if (!coverQueue.length || coverJob) return;
@@ -124,26 +126,26 @@ export default function DashboardListPage() {
       try {
         activeCoverId.current = coverQueue[0].id;
         const r = await getDashboard(coverQueue[0].id);
-        if (!r.data.success) throw new Error(r.data.err_msg || '读取看板失败');
+        if (!r.data.success) throw new Error(r.data.err_msg || tr('读取看板失败', 'Failed to load dashboard'));
         const snap = await refreshDashboard(r.data.data.id, {});
-        if (!snap.data.success) throw new Error(snap.data.err_msg || '查询失败');
+        if (!snap.data.success) throw new Error(snap.data.err_msg || tr('查询失败', 'Query failed'));
         if (
           !r.data.data.schema.widgets.length ||
           r.data.data.schema.widgets.some(
             w => !snap.data.data.widgets[w.id]?.rows.length || snap.data.data.widgets[w.id].error,
           )
         )
-          throw new Error('存在不可用组件，保留已有预览');
+          throw new Error(tr('存在不可用组件，保留已有预览', 'Some widgets are unavailable; the existing preview was retained'));
         if (active) setCoverJob({ record: r.data.data, snapshot: snap.data.data });
       } catch (e) {
-        if (active) finishCover(null, describeDashboardError(e, '无法生成预览'));
+        if (active) finishCover(null, describeDashboardError(e, tr('无法生成预览', 'Could not generate preview')));
       }
     }, 0);
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [coverQueue, coverJob, finishCover]);
+  }, [coverQueue, coverJob, finishCover, tr]);
   const load = useCallback(async () => {
     const id = ++requestId.current;
     if (tab === 'templates' || (tab === 'folders' && (!folderId || folderId === 'folders'))) {
@@ -166,7 +168,7 @@ export default function DashboardListPage() {
         if (networkFailure?.status === 'rejected') throw networkFailure.reason;
         const businessFailure = results.find(result => result.status === 'fulfilled' && !result.value.data.success);
         if (businessFailure?.status === 'fulfilled')
-          throw new Error(businessFailure.value.data.err_msg || '最近看板加载失败');
+          throw new Error(businessFailure.value.data.err_msg || tr('最近看板加载失败', 'Failed to load recent dashboards'));
         const matches = available.filter(
           item =>
             item.status !== 'archived' &&
@@ -187,18 +189,18 @@ export default function DashboardListPage() {
           limit: pageSize,
           offset: (page - 1) * pageSize,
         });
-        if (!response.data.success) throw new Error(response.data.err_msg || '加载看板失败');
+        if (!response.data.success) throw new Error(response.data.err_msg || tr('加载看板失败', 'Failed to load dashboards'));
         if (id === requestId.current) {
           setItems(response.data.data.items);
           setTotal(response.data.data.total);
         }
       }
     } catch (reason) {
-      if (id === requestId.current) setError(describeDashboardError(reason, '无法加载看板'));
+      if (id === requestId.current) setError(describeDashboardError(reason, tr('无法加载看板', 'Could not load dashboards')));
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [tab, search, page, folderId]);
+  }, [tab, search, page, folderId, tr]);
   useEffect(() => {
     const cancellationVersion = requestId.current;
     const timer = setTimeout(() => void load(), 250);
@@ -215,7 +217,7 @@ export default function DashboardListPage() {
     try {
       if (key === 'copy') {
         const r = await copyDashboard(item.id);
-        if (!r.data.success) throw new Error(r.data.err_msg || '复制失败');
+        if (!r.data.success) throw new Error(r.data.err_msg || tr('复制失败', 'Copy failed'));
         await router.push('/dashboards/' + r.data.data.id);
         return;
       }
@@ -223,27 +225,27 @@ export default function DashboardListPage() {
         key === 'archive'
           ? await archiveDashboard(item.id, item.current_revision)
           : await restoreDashboard(item.id, item.current_revision);
-      if (!response.data.success) throw new Error(response.data.err_msg || '操作失败');
+      if (!response.data.success) throw new Error(response.data.err_msg || tr('操作失败', 'Operation failed'));
       await load();
     } catch (reason) {
-      message.error(describeDashboardError(reason, '操作失败'));
+      message.error(describeDashboardError(reason, tr('操作失败', 'Operation failed')));
     }
   };
   const menu = (item: DashboardListItem) => ({
     items: [
       {
         key: 'folder',
-        label: '移动到文件夹',
+        label: tr('移动到文件夹', 'Move to folder'),
       },
-      { key: 'copy', label: '复制为草稿', icon: <CopyOutlined /> },
-      { key: 'lifecycle', label: '版本与分享', icon: <HistoryOutlined /> },
-      { key: 'access', label: '权限与审计', icon: <SafetyCertificateOutlined /> },
-      { key: 'schedule', label: '定时刷新', icon: <ScheduleOutlined /> },
-      ...(item.conversation_id ? [{ key: 'task', label: '返回来源对话', icon: <HistoryOutlined /> }] : []),
+      { key: 'copy', label: tr('复制为草稿', 'Copy as draft'), icon: <CopyOutlined /> },
+      { key: 'lifecycle', label: tr('版本与分享', 'Versions and sharing'), icon: <HistoryOutlined /> },
+      { key: 'access', label: tr('权限与审计', 'Access and audit'), icon: <SafetyCertificateOutlined /> },
+      { key: 'schedule', label: tr('定时刷新', 'Scheduled refresh'), icon: <ScheduleOutlined /> },
+      ...(item.conversation_id ? [{ key: 'task', label: tr('返回来源对话', 'Return to source conversation'), icon: <HistoryOutlined /> }] : []),
       { type: 'divider' as const },
       item.status === 'archived'
-        ? { key: 'restore', label: '恢复看板', icon: <UndoOutlined /> }
-        : { key: 'archive', label: '归档看板', icon: <InboxOutlined /> },
+        ? { key: 'restore', label: tr('恢复看板', 'Restore dashboard'), icon: <UndoOutlined /> }
+        : { key: 'archive', label: tr('归档看板', 'Archive dashboard'), icon: <InboxOutlined /> },
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === 'folder') {
@@ -258,24 +260,24 @@ export default function DashboardListPage() {
   return (
     <div className={styles.page}>
       <Modal
-        title='移动到文件夹'
+        title={tr('移动到文件夹', 'Move to folder')}
         open={!!movingItem}
         onCancel={() => {
           if (!moving) setMovingItem(null);
         }}
-        okText='移动'
+        okText={tr('移动', 'Move')}
         confirmLoading={moving}
         onOk={async () => {
           if (!movingItem || moving) return;
           setMoving(true);
           try {
             const r = await moveDashboardToFolder(movingItem.id, moveTarget || null);
-            if (!r.data.success) throw new Error(r.data.err_msg || '移动失败');
+            if (!r.data.success) throw new Error(r.data.err_msg || tr('移动失败', 'Move failed'));
             await loadFolders();
             await load();
             setMovingItem(null);
           } catch (reason) {
-            message.error(describeDashboardError(reason, '移动失败，请重试'));
+            message.error(describeDashboardError(reason, tr('移动失败，请重试', 'Move failed. Please try again.')));
           } finally {
             setMoving(false);
           }
@@ -283,14 +285,14 @@ export default function DashboardListPage() {
       >
         <p className='mb-3 break-words'>{movingItem?.title}</p>
         <Select
-          aria-label='目标文件夹'
+          aria-label={tr('目标文件夹', 'Destination folder')}
           className='w-full'
           showSearch
           optionFilterProp='label'
           value={moveTarget}
           onChange={setMoveTarget}
           options={[
-            { value: '', label: '未分类' },
+            { value: '', label: tr('未分类', 'Uncategorized') },
             ...folders.map(folder => ({ value: folder.id, label: folder.name })),
           ]}
         />
@@ -304,23 +306,23 @@ export default function DashboardListPage() {
         />
       )}
       <Head>
-        <title>数据看板 · DB-GPT</title>
+        <title>{tr('数据看板 · DB-GPT', 'Dashboards · DB-GPT')}</title>
       </Head>
       <div className={styles.container}>
         <header className={styles.header}>
           <div>
-            <h1>数据看板</h1>
+            <h1>{tr('数据看板', 'Dashboards')}</h1>
             <p>
-              {TEMPLATE_GALLERY_ENABLED ? '选一个模板开始，或继续编辑已有看板。' : '找到你的看板，继续分析与编辑。'}
+              {TEMPLATE_GALLERY_ENABLED ? tr('选一个模板开始，或继续编辑已有看板。', 'Choose a template to get started, or continue editing a dashboard.') : tr('找到你的看板，继续分析与编辑。', 'Find your dashboards and continue analyzing and editing.')}
             </p>
           </div>
           {AVAILABLE_CREATION_MODES.some(mode => mode.id === 'dashboard') && (
             <Button type='primary' icon={<PlusOutlined />} onClick={() => router.push('/dashboards/new')}>
-              创建看板
+              {tr('创建看板', 'Create dashboard')}
             </Button>
           )}
         </header>
-        <nav className={styles.tabs} aria-label='看板分类'>
+        <nav className={styles.tabs} aria-label={tr('看板分类', 'Dashboard categories')}>
           {tabs.map(item => (
             <button
               type='button'
@@ -347,11 +349,11 @@ export default function DashboardListPage() {
         ) : (
           <>
             {(tab === 'all' || tab === 'tests' || tab === 'archived') && (
-              <nav className={styles.categories} aria-label='全部看板分类' style={{ marginBottom: 20 }}>
+              <nav className={styles.categories} aria-label={tr('全部看板分类', 'All dashboard categories')} style={{ marginBottom: 20 }}>
                 {[
-                  { key: 'all', label: '所有看板' },
-                  { key: 'tests', label: '验收测试' },
-                  { key: 'archived', label: '已归档' },
+                  { key: 'all', label: tr('所有看板', 'All dashboards') },
+                  { key: 'tests', label: tr('验收测试', 'Acceptance tests') },
+                  { key: 'archived', label: tr('已归档', 'Archived') },
                 ].map(item => (
                   <button
                     key={item.key}
@@ -389,8 +391,8 @@ export default function DashboardListPage() {
                   <Input
                     className={styles.search}
                     prefix={<SearchOutlined />}
-                    placeholder='搜索看板'
-                    aria-label='搜索看板'
+                    placeholder={tr('搜索看板', 'Search dashboards')}
+                    aria-label={tr('搜索看板', 'Search dashboards')}
                     allowClear
                     value={search}
                     onChange={event => {
@@ -400,20 +402,20 @@ export default function DashboardListPage() {
                   />
                   <span className='flex-1 text-xs text-[var(--app-muted)]'>
                     {tab === 'recent'
-                      ? '本浏览器最近打开的看板'
+                      ? tr('本浏览器最近打开的看板', 'Dashboards recently opened in this browser')
                       : tab === 'tests'
-                        ? '验收看板集中展示，原始记录与版本均保留'
-                        : '按最近更新排序'}
+                        ? tr('验收看板集中展示，原始记录与版本均保留', 'Acceptance dashboards, with original records and versions preserved')
+                        : tr('按最近更新排序', 'Sorted by most recently updated')}
                   </span>
                   <Button
                     disabled={!items.length || !!coverQueue.length}
                     loading={!!coverQueue.length}
                     onClick={() => items.forEach(item => enqueueCover(item, true))}
                   >
-                    {coverQueue.length ? `正在生成（剩余 ${coverQueue.length}）` : '更新本页预览'}
+                    {coverQueue.length ? tr(`正在生成（剩余 ${coverQueue.length}）`, `Generating (${coverQueue.length} remaining)`) : tr('更新本页预览', 'Update previews on this page')}
                   </Button>
                   <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>
-                    刷新
+                    {tr('刷新', 'Refresh')}
                   </Button>
                 </div>
                 {error && (
@@ -424,12 +426,12 @@ export default function DashboardListPage() {
                     message={error}
                     description={
                       items.length
-                        ? '已保留上次加载的内容。恢复连接后可重试。'
-                        : '暂时无法读取看板，请检查服务连接后重试。'
+                        ? tr('已保留上次加载的内容。恢复连接后可重试。', 'Previously loaded content was retained. Retry when the connection is restored.')
+                        : tr('暂时无法读取看板，请检查服务连接后重试。', 'Could not load dashboards. Check the connection and try again.')
                     }
                     action={
                       <Button onClick={() => void load()} loading={loading}>
-                        重试
+                        {tr('重试', 'Retry')}
                       </Button>
                     }
                   />
@@ -447,7 +449,7 @@ export default function DashboardListPage() {
                         <button
                           type='button'
                           className={styles.cover}
-                          aria-label={`打开看板 ${item.title}`}
+                          aria-label={tr(`打开看板 ${item.title}`, `Open dashboard ${item.title}`)}
                           onClick={() => open(item)}
                         >
                           <DashboardAssetCover
@@ -457,11 +459,11 @@ export default function DashboardListPage() {
                             generating={coverQueue.some(queued => queued.id === item.id)}
                             failure={coverErrors[item.id]}
                           />
-                          <span className={styles.coverAction}>打开看板</span>
+                          <span className={styles.coverAction}>{tr('打开看板', 'Open dashboard')}</span>
                         </button>
                         {coverErrors[item.id] && (
                           <Button size='small' onClick={() => enqueueCover(item, true)}>
-                            重试预览
+                            {tr('重试预览', 'Retry preview')}
                           </Button>
                         )}
                         <div className={styles.cardTitle}>
@@ -472,15 +474,15 @@ export default function DashboardListPage() {
                             <Button
                               size='small'
                               type='text'
-                              aria-label={item.title + '更多操作'}
+                              aria-label={tr(item.title + '更多操作', `More actions for ${item.title}`)}
                               icon={<MoreOutlined />}
                             />
                           </Dropdown>
                         </div>
-                        <p className={styles.description}>{item.description || '暂无看板说明'}</p>
+                        <p className={styles.description}>{item.description || tr('暂无看板说明', 'No dashboard description')}</p>
                         <div className={styles.meta}>
                           <span title={item.data_source_id}>{dashboardSourceLabel(item.data_source_id)}</span>
-                          <span>{formatTime(item.updated_at)}</span>
+                          <span>{formatTime(item.updated_at, tr('zh-CN', 'en-US'))}</span>
                         </div>
                       </article>
                     ))}
@@ -491,12 +493,12 @@ export default function DashboardListPage() {
                       className={styles.empty}
                       description={
                         search
-                          ? '没有找到匹配的看板'
+                          ? tr('没有找到匹配的看板', 'No matching dashboards')
                           : tab === 'recent'
-                            ? '打开一个看板后，会在这里留下记录'
+                            ? tr('打开一个看板后，会在这里留下记录', 'Dashboards you open will appear here')
                             : tab === 'archived'
-                              ? '暂无归档看板'
-                              : '还没有已保存的看板'
+                              ? tr('暂无归档看板', 'No archived dashboards')
+                              : tr('还没有已保存的看板', 'No saved dashboards yet')
                       }
                     />
                   )

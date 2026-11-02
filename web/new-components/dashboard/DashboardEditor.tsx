@@ -1,3 +1,5 @@
+import { useUiText } from '@/hooks/use-ui-text';
+import { visualizationEnglish } from './dashboard-visualization-english';
 import {
   applyDashboardAnnotation,
   createDashboardAnnotation,
@@ -213,6 +215,14 @@ const publicationAggregationOptions: { value: DashboardPublicationAggregation; l
   { value: 'first', label: '第一项' },
   { value: 'ratio', label: '比率（分子/分母）' },
 ];
+const aggregationEnglish: Record<DashboardPublicationAggregation, string> = {
+  sum: 'Sum', average: 'Average', count: 'Count', count_distinct: 'Distinct count',
+  minimum: 'Minimum', maximum: 'Maximum', first: 'First', ratio: 'Ratio (numerator/denominator)',
+};
+const paletteEnglish: Record<string, string> = {
+  businessBlue: 'Business blue', deepNavy: 'Deep blue', tealOrange: 'Teal and orange',
+  violet: 'Violet', executive: 'Executive', monochrome: 'Monochrome',
+};
 
 const widgetVisualization = (widget: DashboardWidget): DashboardVisualization => {
   if (widget.presentation?.visualization) return widget.presentation.visualization;
@@ -281,6 +291,8 @@ export default function DashboardEditor({
   onRecordChange,
   onSubmitAnnotation,
 }: DashboardEditorProps) {
+  const tr = useUiText();
+  const visualizationLabel = (type: DashboardVisualization) => tr(visualizationNames[type], visualizationEnglish[type]);
   const { message, modal } = App.useApp();
   const { warning: warnInitialDataLoad } = message;
   const publicationErrorRef = useRef<{ destroy: () => void } | null>(null);
@@ -453,31 +465,31 @@ export default function DashboardEditor({
   const cartesianFieldLabels = useMemo(() => {
     if (!selectedVisualization) return null;
     if (selectedVisualization === 'geo_map')
-      return { x: '国家字段（中英文名称或 ISO 代码）', y: '数值字段', series: '' };
+      return { x: tr('国家字段（中英文名称或 ISO 代码）', 'Country field (Chinese/English name or ISO code)'), y: tr('数值字段', 'Value field'), series: '' };
     if (['funnel', 'treemap', 'radar', 'waterfall'].includes(selectedVisualization))
       return {
-        x: selectedVisualization === 'funnel' ? '阶段字段（按查询顺序）' : '分类或维度字段',
-        y: selectedVisualization === 'waterfall' ? '增减量字段' : '数值字段（相同单位）',
+        x: selectedVisualization === 'funnel' ? tr('阶段字段（按查询顺序）', 'Stage field (query order)') : tr('分类或维度字段', 'Category or dimension field'),
+        y: selectedVisualization === 'waterfall' ? tr('增减量字段', 'Change field') : tr('数值字段（相同单位）', 'Value field (same unit)'),
         series: '',
       };
     if (selectedVisualization === 'line' || selectedVisualization === 'area') {
-      return { x: 'X 轴（时间或分类）', y: 'Y 轴（数值）', series: '系列（可选）' };
+      return { x: tr('X 轴（时间或分类）', 'X axis (time or category)'), y: tr('Y 轴（数值）', 'Y axis (value)'), series: tr('系列（可选）', 'Series (optional)') };
     }
     if (
       selectedVisualization === 'column' ||
       selectedVisualization === 'bar' ||
       selectedVisualization === 'stacked_column'
     ) {
-      return { x: '分类字段', y: '数值字段', series: '系列或堆叠字段（可选）' };
+      return { x: tr('分类字段', 'Category field'), y: tr('数值字段', 'Value field'), series: tr('系列或堆叠字段（可选）', 'Series or stack field (optional)') };
     }
     if (selectedVisualization === 'scatter') {
-      return { x: '横轴数值', y: '纵轴数值', series: '分组字段（可选）' };
+      return { x: tr('横轴数值', 'Horizontal value'), y: tr('纵轴数值', 'Vertical value'), series: tr('分组字段（可选）', 'Group field (optional)') };
     }
     if (selectedVisualization === 'dual_axis') {
-      return { x: '横轴字段', y: '主数值字段', series: '系列字段（可选）' };
+      return { x: tr('横轴字段', 'Horizontal field'), y: tr('主数值字段', 'Primary value field'), series: tr('系列字段（可选）', 'Series field (optional)') };
     }
     return null;
-  }, [selectedVisualization]);
+  }, [selectedVisualization, tr]);
   const supportsTopN = Boolean(
     selectedVisualization && ['column', 'bar', 'stacked_column', 'pie', 'donut'].includes(selectedVisualization),
   );
@@ -614,7 +626,7 @@ export default function DashboardEditor({
         setSnapshot(response.data.data);
         setFilters(response.data.data.filters);
       } catch (error) {
-        if (active) warnInitialDataLoad(describeDashboardError(error, '看板数据加载失败，请点击刷新重试'));
+        if (active) warnInitialDataLoad(describeDashboardError(error, tr('看板数据加载失败，请点击刷新重试', 'Failed to load dashboard data. Select Refresh to retry.')));
       } finally {
         if (active) {
           settled = true;
@@ -632,6 +644,7 @@ export default function DashboardEditor({
     };
   }, [
     warnInitialDataLoad,
+    tr,
     record.id,
     record.schema.dashboard.refresh_policy?.refresh_on_open,
     record.schema.filters,
@@ -651,14 +664,14 @@ export default function DashboardEditor({
       return;
     }
     modal.confirm({
-      title: '发现未保存的本地草稿',
-      content: `这份草稿保存于 ${new Date(localDraft.savedAt).toLocaleString()}。恢复后仍需点击“保存”才会写入服务器。`,
-      okText: '恢复草稿',
-      cancelText: '丢弃草稿',
+      title: tr('发现未保存的本地草稿', 'Unsaved local draft found'),
+      content: tr(`这份草稿保存于 ${new Date(localDraft.savedAt).toLocaleString()}。恢复后仍需点击“保存”才会写入服务器。`, `This draft was saved locally at ${new Date(localDraft.savedAt).toLocaleString()}. After restoring it, select Save to write it to the server.`),
+      okText: tr('恢复草稿', 'Restore draft'),
+      cancelText: tr('丢弃草稿', 'Discard draft'),
       onOk: () => setSchema(localDraft.schema),
       onCancel: () => clearDashboardLocalDraft(record.id),
     });
-  }, [modal, record.current_revision, record.id, record.schema, setSchema]);
+  }, [modal, record.current_revision, record.id, record.schema, setSchema, tr]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -722,12 +735,12 @@ export default function DashboardEditor({
       const incomplete = schema.widgets.filter(isWidgetQueryUnconfigured);
       if (incomplete.length) {
         publicationErrorRef.current = modal.error({
-          title: '仍有组件未配置查询',
+          title: tr('仍有组件未配置查询', 'Some widgets have no configured query'),
           content: (
             <div>
-              <p>发布前请完成：SQL → 输出字段 → 图表映射 → 校验并试运行。</p>
+              <p>{tr('发布前请完成：SQL → 输出字段 → 图表映射 → 校验并试运行。', 'Before publishing, complete SQL → output fields → chart mapping → validation and test run.')}</p>
               <p className='mt-2 text-xs text-[var(--app-muted)]'>
-                未配置：{incomplete.map(widget => widget.title).join('、')}
+                {tr('未配置：', 'Not configured: ')}{incomplete.map(widget => widget.title).join(', ')}
               </p>
               <Button
                 className='mt-3'
@@ -736,7 +749,7 @@ export default function DashboardEditor({
                   publicationErrorRef.current?.destroy();
                 }}
               >
-                前往配置第一个组件
+                {tr('前往配置第一个组件', 'Configure the first widget')}
               </Button>
             </div>
           ),
@@ -802,9 +815,9 @@ export default function DashboardEditor({
     setSaving(true);
     try {
       await persistDraft();
-      message.success('草稿已保存');
+      message.success(tr('草稿已保存', 'Draft saved'));
     } catch (error) {
-      showRequestError(error, '保存失败');
+      showRequestError(error, tr('保存失败', 'Save failed'));
     } finally {
       setSaving(false);
     }
@@ -832,7 +845,7 @@ export default function DashboardEditor({
         ? message.warning(`${failed} 个组件刷新失败，其余组件已保留`)
         : message.success(reset ? '已恢复默认筛选并刷新数据' : '数据已刷新');
     } catch (error) {
-      showRequestError(error, '刷新失败');
+      showRequestError(error, tr('刷新失败', 'Refresh failed'));
     } finally {
       if (sequence === filterRequestRef.current) setRefreshing(false);
     }
@@ -883,9 +896,9 @@ export default function DashboardEditor({
         if (sequence !== filterRequestRef.current) return;
         setSnapshot(nextSnapshot);
         if (Object.values(nextSnapshot.widgets).some(widget => widget.error))
-          message.warning('部分组件筛选失败，请查看组件内提示');
+          message.warning(tr('部分组件筛选失败，请查看组件内提示', 'Some widget filters failed. Check each widget.'));
       } catch (error) {
-        if (sequence === filterRequestRef.current) showRequestError(error, '筛选失败，已保留上一次结果');
+        if (sequence === filterRequestRef.current) showRequestError(error, tr('筛选失败，已保留上一次结果', 'Filtering failed; the previous results were retained'));
       } finally {
         if (sequence === filterRequestRef.current) setRefreshing(false);
       }
@@ -909,7 +922,7 @@ export default function DashboardEditor({
         widgets: { ...(current?.widgets || {}), [widgetId]: response.data.data },
       }));
     } catch (error) {
-      showRequestError(error, '组件试运行失败');
+      showRequestError(error, tr('组件试运行失败', 'Widget test failed'));
     } finally {
       setLoadingWidgetIds(current => {
         const next = new Set(current);
@@ -944,7 +957,7 @@ export default function DashboardEditor({
               if (setRecord(latest)) acknowledgeSave(currentSchema, latest.schema);
             } else {
               collaboration.deferRemoteRecord(latest);
-              message.warning('发布期间的本地修改已保留，请确认后再加载远端版本');
+              message.warning(tr('发布期间的本地修改已保留，请确认后再加载远端版本', 'Local changes made during publication were retained. Review them before loading the remote version.'));
             }
           }
         }
@@ -1056,13 +1069,13 @@ export default function DashboardEditor({
             expiresAt: live.data.data.expires_at,
           };
         } catch (error) {
-          showRequestError(error, '固定快照已发布，但持续更新链接生成失败，请重试');
+          showRequestError(error, tr('固定快照已发布，但持续更新链接生成失败，请重试', 'The snapshot was published, but creating the live link failed. Please retry.'));
           return;
         }
       }
       return { mode, snapshotUrl, url: snapshotUrl };
     } catch (error) {
-      showRequestError(error, '发布失败');
+      showRequestError(error, tr('发布失败', 'Publication failed'));
     } finally {
       setPublishing(false);
     }
@@ -1173,7 +1186,7 @@ export default function DashboardEditor({
         item => item.field.toLocaleLowerCase() === (field || filter.field).toLocaleLowerCase(),
       ) || dateFilterFieldCandidates[0];
     if (!candidate) {
-      message.warning('当前看板结果中没有识别出日期字段。可手工填写字段、默认范围和 SQL 参数。');
+      message.warning(tr('当前看板结果中没有识别出日期字段。可手工填写字段、默认范围和 SQL 参数。', 'No date field was found in the current results. Enter the field, default range and SQL parameters manually.'));
       return;
     }
     const defaultValue = candidate.dateRange || null;
@@ -1208,7 +1221,7 @@ export default function DashboardEditor({
       item => item.field.toLocaleLowerCase() === (field || filter.field).toLocaleLowerCase(),
     );
     if (!candidate || candidate.options.length === 0) {
-      message.warning('当前看板数据中没有找到这个字段的可选值；你仍可在下方手动输入选项。');
+      message.warning(tr('当前看板数据中没有找到这个字段的可选值；你仍可在下方手动输入选项。', 'No options were found for this field; you can enter them manually below.'));
       return;
     }
     const defaultValue = filter.type === 'multi_select' ? [] : null;
@@ -1290,7 +1303,7 @@ export default function DashboardEditor({
     const startParameter = normalizeDashboardFilterParameter(requestedStartParameter, 'start_date');
     const endParameter = normalizeDashboardFilterParameter(requestedEndParameter, 'end_date');
     if (startParameter === endParameter) {
-      message.warning('开始参数和结束参数必须使用不同名称。');
+      message.warning(tr('开始参数和结束参数必须使用不同名称。', 'Start and end parameters must use different names.'));
       return;
     }
     const sourceUsesBoth = (sql: string) =>
@@ -1665,7 +1678,7 @@ export default function DashboardEditor({
     });
     setSelectedWidgetId(draft.target.widget_id || null);
     setSelectedFilterId(draft.target.filter_id || null);
-    if (!node) message.info('这个批注对应的组件已被移除，记录仍保留。');
+    if (!node) message.info(tr('这个批注对应的组件已被移除，记录仍保留。', 'The annotated widget has been removed; the record was retained.'));
   };
 
   const removeAnnotationDraft = (id: string) => {
@@ -1754,7 +1767,7 @@ export default function DashboardEditor({
     if (!annotationSelection || assistantRunning) return;
     const attachedIds = new Set([...annotationDrafts, ...assistantSession.pending].map(item => item.id));
     if (!annotationSelection.draftId && attachedIds.size >= 20) {
-      message.info('本批已保存 20 条批注，请先一起发送，再继续添加。');
+      message.info(tr('本批已保存 20 条批注，请先一起发送，再继续添加。', 'This batch has 20 annotations. Send them before adding more.'));
       return;
     }
     const draft = {
@@ -1801,8 +1814,8 @@ export default function DashboardEditor({
     latestMessage: string,
     conversation: string,
   ) => {
-    if (!assistantAvailable) throw new Error('此看板没有可续接的数据助理任务');
-    onStatus('正在结合看板和最近对话思考…');
+    if (!assistantAvailable) throw new Error(tr('此看板没有可续接的数据助理任务', 'No data assistant task is available for this dashboard.'));
+    onStatus(tr('正在结合看板和最近对话思考…', 'Reviewing the dashboard and recent conversation…'));
     const selectedModel = localStorage.getItem(SELECTED_MODEL_STORAGE_KEY) || undefined;
     const context = {
       message: latestMessage,
@@ -1824,7 +1837,7 @@ export default function DashboardEditor({
           throw new Error(response.data.err_msg || '意图识别失败，请重试');
         resolution = response.data.data;
       } catch (error) {
-        throw new Error(describeDashboardError(error, '意图识别暂时不可用，批注已保留，请重试。'));
+        throw new Error(describeDashboardError(error, tr('意图识别暂时不可用，批注已保留，请重试。', 'Intent recognition is unavailable. Annotations were retained; please retry.')));
       }
     }
     const resolvedDrafts = resolveDashboardAnnotationDrafts(drafts, resolution);
@@ -1837,10 +1850,10 @@ export default function DashboardEditor({
         pendingIds,
         persisted: [],
       };
-    if (!validateInBrowser()) throw new Error('看板校验未通过，请先修复当前草稿');
+    if (!validateInBrowser()) throw new Error(tr('看板校验未通过，请先修复当前草稿', 'Dashboard validation failed. Correct the draft first.'));
     assistantAbortRef.current?.signal.throwIfAborted();
     intentResolutionRef.current = { key: batchKey, resolution };
-    onStatus('意图已识别，正在保存批注…');
+    onStatus(tr('意图已识别，正在保存批注…', 'Intent identified; saving annotations…'));
     const annotationRecord = isDirty ? await persistDraft(false) : record;
     const persisted = await Promise.all(
       resolvedDrafts.map(async draft => {
@@ -1922,7 +1935,7 @@ export default function DashboardEditor({
     }
     const explanatory = persisted.filter(item => item.intent !== 'modify');
     if (explanatory.length) {
-      onStatus('正在整理解释结果…');
+      onStatus(tr('正在整理解释结果…', 'Preparing the explanation…'));
       replies.push(
         await runDashboardAssistant(
           annotationRecord,
@@ -1941,7 +1954,7 @@ export default function DashboardEditor({
     }
     // Once tools finish, report their result rather than repeat an unverified plan.
     const discussion = questions.length || resolution.items.some(item => item.answered) ? introduction : '';
-    if (modifications.length) replies.push('修改方案已通过验证，请审阅后应用。');
+    if (modifications.length) replies.push(tr('修改方案已通过验证，请审阅后应用。', 'The proposal passed validation. Review it before applying.'));
     return { reply: [discussion, ...replies].filter(Boolean).join('\n\n'), pendingIds, persisted };
   };
 
@@ -2063,7 +2076,7 @@ export default function DashboardEditor({
     const current = JSON.stringify(schemaRef.current);
     if (current !== JSON.stringify(submitted) && current !== JSON.stringify(next.schema)) {
       collaboration.deferRemoteRecord(next);
-      message.warning('方案已在服务器应用；请求期间的本地修改已保留，请确认后再加载远端版本');
+      message.warning(tr('方案已在服务器应用；请求期间的本地修改已保留，请确认后再加载远端版本', 'The proposal was applied on the server. Local changes were retained; review them before loading the remote version.'));
       return false;
     }
     setRecord(next);
@@ -2074,7 +2087,7 @@ export default function DashboardEditor({
 
   const applyAssistantBatch = async () => {
     if (isDirty) {
-      message.info('请先保存当前手动修改，再应用 AI 方案');
+      message.info(tr('请先保存当前手动修改，再应用 AI 方案', 'Save manual changes before applying the AI proposal.'));
       return;
     }
     const proposals = assistantProposals;
@@ -2108,10 +2121,10 @@ export default function DashboardEditor({
         if (!refreshed.data.success) throw new Error('refresh failed');
         setSnapshot(refreshed.data.data);
       } catch {
-        message.warning('本批修改已应用，但数据刷新失败；请稍后刷新数据');
+        message.warning(tr('本批修改已应用，但数据刷新失败；请稍后刷新数据', 'Changes were applied, but data refresh failed. Refresh later.'));
       }
     } catch (error) {
-      showRequestError(error, '未能应用本批修改');
+      showRequestError(error, tr('未能应用本批修改', 'Could not apply these changes'));
     } finally {
       setApplyingAnnotationId(null);
     }
@@ -2119,7 +2132,7 @@ export default function DashboardEditor({
 
   const handleApplyAnnotation = async (annotation: DashboardAnnotationRecord) => {
     if (isDirty) {
-      message.info('请先保存当前手动修改，再应用 AI 方案');
+      message.info(tr('请先保存当前手动修改，再应用 AI 方案', 'Save manual changes before applying the AI proposal.'));
       return;
     }
     if (applyingAnnotationId) return;
@@ -2138,11 +2151,11 @@ export default function DashboardEditor({
         const refreshed = await refreshDashboard(nextRecord.id, filters);
         setSnapshot(refreshed.data.data);
       } catch {
-        message.warning('修改已经应用，但数据刷新失败；请稍后点击“刷新”重试');
+        message.warning(tr('修改已经应用，但数据刷新失败；请稍后点击“刷新”重试', 'The changes were applied, but refresh failed. Select Refresh to retry.'));
       }
-      message.success('Agent 修改已应用到真实草稿');
+      message.success(tr('Agent 修改已应用到真实草稿', 'Agent changes were applied to the draft'));
     } catch (error) {
-      showRequestError(error, '应用批注方案失败');
+      showRequestError(error, tr('应用批注方案失败', 'Could not apply the annotation proposal'));
     } finally {
       setApplyingAnnotationId(null);
     }
@@ -2153,9 +2166,9 @@ export default function DashboardEditor({
     try {
       const response = await rejectDashboardAnnotation(record.id, annotation.id);
       setAnnotations(current => current.map(item => (item.id === annotation.id ? response.data.data : item)));
-      message.success('已放弃这次修改方案，看板没有变化');
+      message.success(tr('已放弃这次修改方案，看板没有变化', 'The proposal was discarded; the dashboard is unchanged.'));
     } catch (error) {
-      showRequestError(error, '放弃批注方案失败');
+      showRequestError(error, tr('放弃批注方案失败', 'Could not discard the annotation proposal'));
     } finally {
       setApplyingAnnotationId(null);
     }
@@ -2186,7 +2199,7 @@ export default function DashboardEditor({
             <div className={styles.titleBlock}>
               <div className={styles.titleRow}>
                 <Input
-                  aria-label='看板标题'
+                  aria-label={tr('看板标题', 'Dashboard title')}
                   variant='borderless'
                   className={styles.titleInput}
                   value={schema.dashboard.title}
@@ -2202,28 +2215,28 @@ export default function DashboardEditor({
                   style={statusTagStyle(isDirty ? 'accent' : record.status === 'published' ? 'success' : 'warning')}
                 >
                   {isDirty
-                    ? '未保存'
+                    ? tr('未保存', 'Unsaved')
                     : record.asset_state === 'generated'
-                      ? '生成草稿'
+                      ? tr('生成草稿', 'Generated draft')
                       : record.status === 'published'
-                        ? '已发布'
-                        : '已保存资产'}
+                        ? tr('已发布', 'Published')
+                        : tr('已保存资产', 'Saved asset')}
                 </Tag>
               </div>
               <div className={styles.metaRow}>
-                <span>修订 {record.current_revision}</span>
+                <span>{tr(`修订 ${record.current_revision}`, `Revision ${record.current_revision}`)}</span>
                 <span className={styles.metaDot} />
-                <span>{schema.widgets.length} 个组件</span>
+                <span>{tr(`${schema.widgets.length} 个组件`, `${schema.widgets.length} widgets`)}</span>
                 <span className={styles.metaDot} />
                 <Tooltip
                   title={
                     collaboration.status === 'online'
-                      ? `${collaboration.participants.length || 1} 个协作客户端在线；保存后会立即同步。`
+                      ? tr(`${collaboration.participants.length || 1} 个协作客户端在线；保存后会立即同步。`, `${collaboration.participants.length || 1} collaborators online; changes sync on save.`)
                       : collaboration.status === 'conflict'
-                        ? '另一位协作者已保存新版本，请先处理冲突。'
+                        ? tr('另一位协作者已保存新版本，请先处理冲突。', 'Another collaborator saved a new version. Resolve the conflict first.')
                         : collaboration.status === 'connecting'
-                          ? '正在建立协作连接'
-                          : '协作连接暂时离线，系统会自动重连'
+                          ? tr('正在建立协作连接', 'Connecting to collaboration')
+                          : tr('协作连接暂时离线，系统会自动重连', 'Collaboration is offline; reconnecting automatically')
                   }
                 >
                   <Tag
@@ -2239,12 +2252,12 @@ export default function DashboardEditor({
                     )}
                   >
                     {collaboration.status === 'online'
-                      ? `协作在线 ${collaboration.participants.length || 1}`
+                      ? tr(`协作在线 ${collaboration.participants.length || 1}`, `Online ${collaboration.participants.length || 1}`)
                       : collaboration.status === 'conflict'
-                        ? '协作冲突'
+                        ? tr('协作冲突', 'Collaboration conflict')
                         : collaboration.status === 'connecting'
-                          ? '连接协作'
-                          : '协作离线'}
+                          ? tr('连接协作', 'Connecting')
+                          : tr('协作离线', 'Collaboration offline')}
                   </Tag>
                 </Tooltip>
               </div>
@@ -2253,22 +2266,22 @@ export default function DashboardEditor({
 
           <div className={styles.toolbarActions}>
             {mode === 'standalone' && standaloneFocused && (
-              <Button aria-label='显示导航' onClick={restoreBrowsingLayout} icon={<MenuUnfoldOutlined />}>
-                显示导航
+              <Button aria-label={tr('显示导航', 'Show navigation')} onClick={restoreBrowsingLayout} icon={<MenuUnfoldOutlined />}>
+                {tr('显示导航', 'Show navigation')}
               </Button>
             )}
             {mode === 'embedded' && (
               <>
-                <Tooltip title={libraryCollapsed ? '展开组件库' : '收起组件库'}>
+                <Tooltip title={libraryCollapsed ? tr('展开组件库', 'Expand component library') : tr('收起组件库', 'Collapse component library')}>
                   <Button
-                    aria-label={libraryCollapsed ? '展开组件库' : '收起组件库'}
+                    aria-label={libraryCollapsed ? tr('展开组件库', 'Expand component library') : tr('收起组件库', 'Collapse component library')}
                     icon={<AppstoreOutlined />}
                     onClick={() => setLibraryCollapsed(value => !value)}
                   />
                 </Tooltip>
-                <Tooltip title={settingsCollapsed ? '展开属性设置' : '收起属性设置'}>
+                <Tooltip title={settingsCollapsed ? tr('展开属性设置', 'Expand properties') : tr('收起属性设置', 'Collapse properties')}>
                   <Button
-                    aria-label={settingsCollapsed ? '展开属性设置' : '收起属性设置'}
+                    aria-label={settingsCollapsed ? tr('展开属性设置', 'Expand properties') : tr('收起属性设置', 'Collapse properties')}
                     icon={<SettingOutlined />}
                     onClick={() => {
                       if (settingsCollapsed) focusManualEditor();
@@ -2276,9 +2289,9 @@ export default function DashboardEditor({
                     }}
                   />
                 </Tooltip>
-                <Tooltip title={focused ? '恢复任务分栏' : '任务内放大编辑'}>
+                <Tooltip title={focused ? tr('恢复任务分栏', 'Restore task view') : tr('任务内放大编辑', 'Expand editor')}>
                   <Button
-                    aria-label={focused ? '恢复任务分栏' : '任务内放大编辑'}
+                    aria-label={focused ? tr('恢复任务分栏', 'Restore task view') : tr('任务内放大编辑', 'Expand editor')}
                     icon={focused ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                     onClick={() => (focused ? restoreBrowsingLayout() : onFocusChange?.(true))}
                   />
@@ -2287,36 +2300,36 @@ export default function DashboardEditor({
             )}
             {LAYOUT_TEMPLATES_ENABLED && (
               <Button
-                aria-label='布局模板'
+                aria-label={tr('布局模板', 'Layout templates')}
                 className={styles.layoutTemplateButton}
                 icon={<AppstoreOutlined />}
                 disabled={workspaceMode === 'preview'}
                 onClick={() => setLayoutPickerOpen(true)}
               >
-                布局模板
+                {tr('布局模板', 'Layout templates')}
               </Button>
             )}
-            <Tooltip title='撤销 (Ctrl+Z)'>
-              <Button aria-label='撤销' type='text' icon={<UndoOutlined />} disabled={!canUndo} onClick={undo} />
+            <Tooltip title={tr('撤销 (Ctrl+Z)', 'Undo (Ctrl+Z)')}>
+              <Button aria-label={tr('撤销', 'Undo')} type='text' icon={<UndoOutlined />} disabled={!canUndo} onClick={undo} />
             </Tooltip>
-            <Tooltip title='重做 (Ctrl+Shift+Z)'>
-              <Button aria-label='重做' type='text' icon={<RedoOutlined />} disabled={!canRedo} onClick={redo} />
+            <Tooltip title={tr('重做 (Ctrl+Shift+Z)', 'Redo (Ctrl+Shift+Z)')}>
+              <Button aria-label={tr('重做', 'Redo')} type='text' icon={<RedoOutlined />} disabled={!canRedo} onClick={redo} />
             </Tooltip>
             <Button
-              aria-label='刷新看板数据'
+              aria-label={tr('刷新看板数据', 'Refresh dashboard data')}
               type='text'
               icon={<ReloadOutlined />}
               loading={refreshing}
               onClick={handleRefresh}
             >
-              刷新
+              {tr('刷新', 'Refresh')}
             </Button>
             <Segmented
-              aria-label='编辑预览切换'
+              aria-label={tr('编辑预览切换', 'Switch between edit and preview')}
               value={workspaceMode}
               options={[
-                { label: '编辑', value: 'edit', icon: <EditOutlined /> },
-                { label: '预览', value: 'preview', icon: <EyeOutlined /> },
+                { label: tr('编辑', 'Edit'), value: 'edit', icon: <EditOutlined /> },
+                { label: tr('预览', 'Preview'), value: 'preview', icon: <EyeOutlined /> },
               ]}
               onChange={value => {
                 const nextMode = value as WorkspaceMode;
@@ -2333,22 +2346,22 @@ export default function DashboardEditor({
               }}
             />
             <Button
-              aria-label='保存看板'
+              aria-label={tr('保存看板', 'Save dashboard')}
               icon={<SaveOutlined />}
               loading={saving}
               disabled={!isDirty && record.asset_state !== 'generated'}
               onClick={handleSave}
             >
-              保存
+              {tr('保存', 'Save')}
             </Button>
             <Dropdown
               trigger={['click']}
               menu={{
                 items: [
-                  { key: 'schedule', label: '定时任务', icon: <CalendarOutlined /> },
-                  { key: 'files', label: '工程文件', icon: <FolderOpenOutlined /> },
-                  { key: 'access', label: '权限与审计', icon: <SafetyCertificateOutlined /> },
-                  { key: 'lifecycle', label: '版本与分享', icon: <HistoryOutlined /> },
+                  { key: 'schedule', label: tr('定时任务', 'Scheduled tasks'), icon: <CalendarOutlined /> },
+                  { key: 'files', label: tr('工程文件', 'Project files'), icon: <FolderOpenOutlined /> },
+                  { key: 'access', label: tr('权限与审计', 'Access and audit'), icon: <SafetyCertificateOutlined /> },
+                  { key: 'lifecycle', label: tr('版本与分享', 'Versions and sharing'), icon: <HistoryOutlined /> },
                 ],
                 onClick: ({ key }) => {
                   if (key === 'schedule') setSchedulePanelOpen(true);
@@ -2358,26 +2371,26 @@ export default function DashboardEditor({
                 },
               }}
             >
-              <Button aria-label='更多看板操作' icon={<MoreOutlined />}>
-                更多
+              <Button aria-label={tr('更多看板操作', 'More dashboard actions')} icon={<MoreOutlined />}>
+                {tr('更多', 'More')}
               </Button>
             </Dropdown>
             <Button
-              aria-label='发布看板'
+              aria-label={tr('发布看板', 'Publish dashboard')}
               type='primary'
               icon={<ShareAltOutlined />}
               loading={publishing}
               onClick={() => setPublishPanelOpen(true)}
             >
-              发布
+              {tr('发布', 'Publish')}
             </Button>
           </div>
         </header>
 
-        <section className={styles.filterBar} aria-label='全局筛选条'>
+        <section className={styles.filterBar} aria-label={tr('全局筛选条', 'Global filter bar')}>
           <div className={styles.filterTitle}>
             <FilterOutlined className={styles.filterTitleIcon} />
-            全局筛选
+            {tr('全局筛选', 'Global filters')}
           </div>
           <div className={styles.filterBody}>
             <DashboardFilters
@@ -2402,13 +2415,13 @@ export default function DashboardEditor({
           </div>
           <div className={styles.filterActions}>
             <span className={styles.liveBadge}>
-              <span className={styles.liveDot} /> 即时联动
+              <span className={styles.liveDot} /> {tr('即时联动', 'Live updates')}
             </span>
             <Button
               loading={refreshing}
               onClick={() => handleResetFilters(initialDashboardFilterValues(schema.filters))}
             >
-              重置筛选
+              {tr('重置筛选', 'Reset filters')}
             </Button>
           </div>
         </section>
@@ -2426,17 +2439,17 @@ export default function DashboardEditor({
               id={paneResize.leftId}
               style={{ width: paneResize.left }}
               className={`${styles.panel} ${styles.libraryPanel} ${libraryMode === 'assistant' ? styles.assistantPanel : ''}`}
-              aria-label='组件库与 AI 批注'
+              aria-label={tr('组件库与 AI 批注', 'Components and AI annotations')}
             >
               <div className={styles.panelHeader}>
                 <div className={styles.panelHeaderText}>
-                  <h2 className={styles.panelTitle}>{libraryMode === 'assistant' ? 'AI 助手' : '组件库'}</h2>
+                  <h2 className={styles.panelTitle}>{libraryMode === 'assistant' ? tr('AI 助手', 'AI assistant') : tr('组件库', 'Component library')}</h2>
                   <div className={styles.panelHint}>
-                    {libraryMode === 'assistant' ? '围绕当前看板继续对话' : '点击添加到画布'}
+                    {libraryMode === 'assistant' ? tr('围绕当前看板继续对话', 'Continue discussing this dashboard') : tr('点击添加到画布', 'Select to add to canvas')}
                   </div>
                 </div>
                 <Button
-                  aria-label='折叠组件库'
+                  aria-label={tr('折叠组件库', 'Collapse component library')}
                   type='text'
                   size='small'
                   icon={<MenuFoldOutlined />}
@@ -2449,9 +2462,9 @@ export default function DashboardEditor({
                   size='small'
                   value={libraryMode}
                   options={[
-                    { label: '组件', value: 'components', icon: <AppstoreOutlined /> },
+                    { label: tr('组件', 'Components'), value: 'components', icon: <AppstoreOutlined /> },
                     {
-                      label: 'AI 助手',
+                      label: tr('AI 助手', 'AI assistant'),
                       value: 'assistant',
                       icon: <CommentOutlined />,
                     },
@@ -2512,23 +2525,23 @@ export default function DashboardEditor({
                 ) : (
                   <>
                     <Input.Search
-                      aria-label='搜索图表类型'
+                      aria-label={tr('搜索图表类型', 'Search chart types')}
                       aria-expanded={chartPickerOpen}
                       onFocus={() => setChartPickerOpen(true)}
                       onSearch={() => setChartPickerOpen(true)}
                       onKeyDown={event => {
                         if (event.key === 'Escape') setChartPickerOpen(false);
                       }}
-                      placeholder='搜索图表类型…'
+                      placeholder={tr('搜索图表类型…', 'Search chart types…')}
                       allowClear
                       value={chartSearch}
                       onChange={event => setChartSearch(event.target.value)}
                     />
                     {chartPickerOpen && (
-                      <div className={styles.componentOptions} aria-label='图表类型'>
+                      <div className={styles.componentOptions} aria-label={tr('图表类型', 'Chart types')}>
                         {(Object.entries(visualizationNames) as [DashboardVisualization, string][])
-                          .filter(([type, label]) => (label + type).toLowerCase().includes(chartSearch.toLowerCase()))
-                          .map(([type, label]) => (
+                          .filter(([type, label]) => (label + visualizationLabel(type) + type).toLowerCase().includes(chartSearch.toLowerCase()))
+                          .map(([type]) => (
                             <button
                               key={type}
                               type='button'
@@ -2537,13 +2550,13 @@ export default function DashboardEditor({
                                 setChartPickerOpen(false);
                               }}
                             >
-                              {label}
+                              {visualizationLabel(type)}
                               <PlusOutlined aria-hidden />
                             </button>
                           ))}
                         {!Object.entries(visualizationNames).some(([type, label]) =>
-                          (label + type).toLowerCase().includes(chartSearch.toLowerCase()),
-                        ) && <p>没有匹配的图表类型</p>}
+                          (label + visualizationLabel(type as DashboardVisualization) + type).toLowerCase().includes(chartSearch.toLowerCase()),
+                        ) && <p>{tr('没有匹配的图表类型', 'No matching chart types')}</p>}
                       </div>
                     )}
                     <div className={styles.libraryTools}>
@@ -2551,27 +2564,27 @@ export default function DashboardEditor({
                         size='small'
                         onClick={() => {
                           const next = recommendedDashboardLayout(schema.widgets);
-                          if (sameDesktopLayout(schema.layouts.desktop, next)) message.info('当前已是推荐布局');
+                          if (sameDesktopLayout(schema.layouts.desktop, next)) message.info(tr('当前已是推荐布局', 'The recommended layout is already applied'));
                           else {
                             setSchema(current => ({ ...current, layouts: { ...current.layouts, desktop: next } }));
-                            message.success('已恢复推荐布局');
+                            message.success(tr('已恢复推荐布局', 'Recommended layout restored'));
                           }
                         }}
                       >
-                        推荐布局
+                        {tr('推荐布局', 'Recommended layout')}
                       </Button>
                       <Button
                         size='small'
                         onClick={() => {
                           const next = compactDashboardLayout(schema.layouts.desktop);
-                          if (sameDesktopLayout(schema.layouts.desktop, next)) message.info('当前已无多余空隙');
+                          if (sameDesktopLayout(schema.layouts.desktop, next)) message.info(tr('当前已无多余空隙', 'The layout has no extra gaps'));
                           else {
                             setSchema(current => ({ ...current, layouts: { ...current.layouts, desktop: next } }));
-                            message.success('已紧凑排列组件');
+                            message.success(tr('已紧凑排列组件', 'Widgets arranged compactly'));
                           }
                         }}
                       >
-                        紧凑排列
+                        {tr('紧凑排列', 'Compact layout')}
                       </Button>
                     </div>
                     <Divider className={styles.librarySectionDivider} />
@@ -2586,18 +2599,18 @@ export default function DashboardEditor({
                       }
                     />
                     <Divider className={styles.librarySectionDivider} />
-                    <h3 className={styles.sectionTitle}>全局筛选器</h3>
+                    <h3 className={styles.sectionTitle}>{tr('全局筛选器', 'Global filters')}</h3>
                     <Select
-                      aria-label='新增筛选器类型'
-                      placeholder='添加筛选器…'
+                      aria-label={tr('新增筛选器类型', 'New filter type')}
+                      placeholder={tr('添加筛选器…', 'Add filter…')}
                       className={styles.librarySelect}
                       value={undefined}
                       options={[
-                        { value: 'date_range', label: '日期范围' },
-                        { value: 'select', label: '单选' },
-                        { value: 'multi_select', label: '多选' },
-                        { value: 'text', label: '文本' },
-                        { value: 'number_range', label: '数值范围' },
+                        { value: 'date_range', label: tr('日期范围', 'Date range') },
+                        { value: 'select', label: tr('单选', 'Single select') },
+                        { value: 'multi_select', label: tr('多选', 'Multiple select') },
+                        { value: 'text', label: tr('文本', 'Text') },
+                        { value: 'number_range', label: tr('数值范围', 'Number range') },
                       ]}
                       onChange={addFilter}
                     />
@@ -2623,7 +2636,7 @@ export default function DashboardEditor({
                             type='link'
                             size='small'
                             icon={<EditOutlined />}
-                            aria-label={`编辑筛选器 ${filter.label}`}
+                            aria-label={tr(`编辑筛选器 ${filter.label}`, `Edit filter ${filter.label}`)}
                             onClick={event => {
                               event.stopPropagation();
                               setSelectedFilterId(filter.id);
@@ -2631,11 +2644,11 @@ export default function DashboardEditor({
                               setSettingsCollapsed(false);
                             }}
                           >
-                            编辑
+                            {tr('编辑', 'Edit')}
                           </Button>
-                          <Tooltip title='让数据助理配置这个筛选器'>
+                          <Tooltip title={tr('让数据助理配置这个筛选器', 'Ask the data assistant to configure this filter')}>
                             <Button
-                              aria-label={`让数据助理配置筛选器 ${filter.label}`}
+                              aria-label={tr(`让数据助理配置筛选器 ${filter.label}`, `Ask the assistant to configure ${filter.label}`)}
                               type='text'
                               size='small'
                               icon={<CommentOutlined />}
@@ -2664,9 +2677,9 @@ export default function DashboardEditor({
             </aside>
           ) : workspaceMode === 'edit' ? (
             <div className={`${styles.collapsedRail} ${styles.collapsedRailLeft}`}>
-              <Tooltip title='展开组件库' placement='right'>
+              <Tooltip title={tr('展开组件库', 'Expand component library')} placement='right'>
                 <Button
-                  aria-label='展开组件库'
+                  aria-label={tr('展开组件库', 'Expand component library')}
                   type='text'
                   size='small'
                   icon={<MenuUnfoldOutlined />}
@@ -2699,22 +2712,22 @@ export default function DashboardEditor({
                 className='mb-4'
                 type='warning'
                 showIcon
-                message={`远端已保存修订 ${collaboration.pendingRemote.current_revision}`}
-                description='本页也有尚未保存的修改，因此没有自动覆盖。你可以先复制需要保留的内容，再加载远端版本。'
-                action={<Button onClick={collaboration.acceptRemote}>加载远端版本</Button>}
+                message={tr(`远端已保存修订 ${collaboration.pendingRemote.current_revision}`, `Remote revision ${collaboration.pendingRemote.current_revision} saved`)}
+                description={tr('本页也有尚未保存的修改，因此没有自动覆盖。你可以先复制需要保留的内容，再加载远端版本。', 'This page has unsaved changes, so the remote version was not loaded automatically. Copy any changes you need before loading it.')}
+                action={<Button onClick={collaboration.acceptRemote}>{tr('加载远端版本', 'Load remote version')}</Button>}
               />
             )}
             <div className={styles.canvasToolbar}>
               <div>
-                <span className={styles.canvasTitle}>{workspaceMode === 'edit' ? '编辑画布' : '看板预览'}</span>
+                <span className={styles.canvasTitle}>{workspaceMode === 'edit' ? tr('编辑画布', 'Edit canvas') : tr('看板预览', 'Dashboard preview')}</span>
                 <span className={styles.canvasSubtitle}>
                   {workspaceMode === 'edit'
-                    ? '拖动标题到空白处；占用位置不会挤开其他组件。右下角可调整尺寸'
-                    : '交互筛选仍可用，布局已锁定'}
+                    ? tr('拖动标题到空白处；占用位置不会挤开其他组件。右下角可调整尺寸', 'Drag titles to empty spaces. Occupied positions do not displace widgets; resize from the lower-right corner.')
+                    : tr('交互筛选仍可用，布局已锁定', 'Interactive filters remain available; layout is locked')}
                 </span>
               </div>
               <div className={styles.canvasStatus}>
-                <span>{schema.widgets.length} 个组件</span>
+                <span>{tr(`${schema.widgets.length} 个组件`, `${schema.widgets.length} widgets`)}</span>
                 <span className={styles.gridBadge}>12 COL</span>
               </div>
             </div>
@@ -2769,20 +2782,20 @@ export default function DashboardEditor({
               id={paneResize.rightId}
               style={{ width: paneResize.right }}
               className={`${styles.panel} ${styles.settingsPanel}`}
-              aria-label='属性设置'
+              aria-label={tr('属性设置', 'Properties')}
             >
               <div className={styles.panelHeader}>
                 <div className={styles.panelHeaderText}>
-                  <h2 className={styles.panelTitle}>属性设置</h2>
+                  <h2 className={styles.panelTitle}>{tr('属性设置', 'Properties')}</h2>
                   <div
                     className={styles.panelHint}
-                    title={selectedWidget?.title || selectedFilter?.label || '未选择组件或筛选器'}
+                    title={selectedWidget?.title || selectedFilter?.label || tr('未选择组件或筛选器', 'No widget or filter selected')}
                   >
-                    当前：{selectedWidget?.title || selectedFilter?.label || '未选择'}
+                    {tr('当前：', 'Current: ')}{selectedWidget?.title || selectedFilter?.label || tr('未选择', 'None selected')}
                   </div>
                 </div>
                 <Button
-                  aria-label='折叠属性设置'
+                  aria-label={tr('折叠属性设置', 'Collapse properties')}
                   type='text'
                   size='small'
                   icon={<RightOutlined />}
@@ -2795,14 +2808,14 @@ export default function DashboardEditor({
                     <div className='flex items-center gap-2'>
                       <div className='min-w-0 flex-1'>
                         <strong className='block'>
-                          {widgetSettingsMode === 'visual' ? '可视化设置' : '计算逻辑与 SQL'}
+                          {widgetSettingsMode === 'visual' ? tr('可视化设置', 'Visualization settings') : tr('计算逻辑与 SQL', 'Calculation logic and SQL')}
                         </strong>
                         <span className='block truncate text-xs text-[var(--app-accent)]'>
-                          正在编辑：{selectedWidget.title}
+                          {tr('正在编辑：', 'Editing: ')}{selectedWidget.title}
                         </span>
                       </div>
                       <Button
-                        aria-label={`删除组件 ${selectedWidget.title}`}
+                        aria-label={tr(`删除组件 ${selectedWidget.title}`, `Delete widget ${selectedWidget.title}`)}
                         danger
                         type='text'
                         icon={<DeleteOutlined />}
@@ -2819,9 +2832,9 @@ export default function DashboardEditor({
                             <div className='flex items-start gap-2'>
                               <CommentOutlined className='mt-0.5 text-[var(--app-accent)]' />
                               <div className='min-w-0'>
-                                <div className='text-sm font-medium text-[var(--app-accent)]'>尚未配置查询</div>
+                                <div className='text-sm font-medium text-[var(--app-accent)]'>{tr('尚未配置查询', 'Query not configured')}</div>
                                 <div className='mt-1 text-xs leading-5 text-[var(--app-accent)]'>
-                                  该组件还没有数据查询。可让数据助理结合当前数据源自动生成，也可直接编辑 SQL。
+                                  {tr('该组件还没有数据查询。可让数据助理结合当前数据源自动生成，也可直接编辑 SQL。', 'This widget has no data query. Ask the assistant to generate one or edit SQL directly.')}
                                 </div>
                               </div>
                             </div>
@@ -2830,7 +2843,7 @@ export default function DashboardEditor({
                                 block
                                 size='small'
                                 type='primary'
-                                aria-label='让数据助理配置'
+                                aria-label={tr('让数据助理配置', 'Ask data assistant to configure')}
                                 icon={<CommentOutlined />}
                                 disabled={!assistantAvailable}
                                 onClick={event =>
@@ -2840,27 +2853,27 @@ export default function DashboardEditor({
                                   )
                                 }
                               >
-                                让数据助理配置
+                                {tr('让数据助理配置', 'Ask data assistant to configure')}
                               </Button>
                               <Button
                                 block
                                 size='small'
-                                aria-label='手动配置 SQL'
+                                aria-label={tr('手动配置 SQL', 'Configure SQL manually')}
                                 icon={<CodeOutlined />}
                                 onClick={() => openWidgetQueryEditor(selectedWidget.id)}
                               >
-                                手动配置 SQL
+                                {tr('手动配置 SQL', 'Configure SQL manually')}
                               </Button>
                             </div>
                             {!assistantAvailable && (
                               <div className='mt-2 text-[11px] leading-4 text-[var(--app-muted)]'>
-                                此看板没有可续接的数据助理任务，请使用手动配置。
+                                {tr('此看板没有可续接的数据助理任务，请使用手动配置。', 'No data assistant task is available. Configure it manually.')}
                               </div>
                             )}
                           </div>
                         )}
                         <label className='block text-xs text-[var(--app-muted)]'>
-                          标题
+                          {tr('标题', 'Title')}
                           <Input
                             value={selectedWidget.title}
                             onChange={event =>
@@ -2869,7 +2882,7 @@ export default function DashboardEditor({
                           />
                         </label>
                         <label className='block text-xs text-[var(--app-muted)]'>
-                          副标题（可选）
+                          {tr('副标题（可选）', 'Subtitle (optional)')}
                           <Input
                             value={selectedWidget.description}
                             onChange={event =>
@@ -2881,14 +2894,14 @@ export default function DashboardEditor({
                           />
                         </label>
                         <label className='block text-xs text-[var(--app-muted)]'>
-                          展示形式（Schema 1.3）
+                          {tr('展示形式（Schema 1.3）', 'Visualization (Schema 1.3)')}
                           <Select
                             className='w-full'
                             value={selectedVisualization || undefined}
                             options={(Object.keys(visualizationNames) as DashboardVisualization[]).map(
                               visualization => ({
                                 value: visualization,
-                                label: visualizationNames[visualization],
+                                label: visualizationLabel(visualization),
                               }),
                             )}
                             onChange={visualization => setWidgetVisualization(selectedWidget.id, visualization)}
@@ -2897,20 +2910,20 @@ export default function DashboardEditor({
                         <div className='space-y-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-accent-soft)] p-3'>
                           <div className='flex items-center gap-2 text-xs font-semibold text-[var(--app-text)]'>
                             <BgColorsOutlined className='text-[var(--app-accent)]' />
-                            图表样式与颜色
+                            {tr('图表样式与颜色', 'Chart style and colors')}
                           </div>
                           <label className='block text-xs text-[var(--app-muted)]'>
-                            配色方案
+                            {tr('配色方案', 'Color palette')}
                             <Select
-                              aria-label='配色方案'
+                              aria-label={tr('配色方案', 'Color palette')}
                               className='mt-1 w-full'
                               value={detectDashboardPalette(selectedWidget.presentation?.colors)}
                               options={[
                                 ...(Object.keys(DASHBOARD_PALETTES) as DashboardPaletteId[]).map(id => ({
                                   value: id,
-                                  label: DASHBOARD_PALETTES[id].label,
+                                  label: tr(DASHBOARD_PALETTES[id].label, paletteEnglish[id] || id),
                                 })),
-                                { value: 'custom', label: '自定义颜色' },
+                                { value: 'custom', label: tr('自定义颜色', 'Custom colors') },
                               ]}
                               onChange={value => {
                                 if (value !== 'custom') setWidgetPalette(value as DashboardPaletteId);
@@ -2919,24 +2932,24 @@ export default function DashboardEditor({
                           </label>
                           <div className='grid grid-cols-[minmax(0,1fr)_92px] gap-3'>
                             <label className='block text-xs text-[var(--app-muted)]'>
-                              字体
+                              {tr('字体', 'Font')}
                               <Select
-                                aria-label='图表字体'
+                                aria-label={tr('图表字体', 'Chart font')}
                                 className='mt-1 w-full'
                                 value={String(selectedWidget.style.fontFamily || 'system-ui')}
                                 options={[
-                                  { value: 'system-ui', label: '系统字体' },
+                                  { value: 'system-ui', label: tr('系统字体', 'System font') },
                                   { value: 'Arial, sans-serif', label: 'Arial' },
-                                  { value: '"Microsoft YaHei", sans-serif', label: '微软雅黑' },
-                                  { value: '"Noto Sans SC", sans-serif', label: '思源黑体' },
+                                  { value: '"Microsoft YaHei", sans-serif', label: tr('微软雅黑', 'Microsoft YaHei') },
+                                  { value: '"Noto Sans SC", sans-serif', label: tr('思源黑体', 'Noto Sans SC') },
                                 ]}
                                 onChange={value => updateStyle('fontFamily', value)}
                               />
                             </label>
                             <label className='block text-xs text-[var(--app-muted)]'>
-                              标题字号
+                              {tr('标题字号', 'Title font size')}
                               <InputNumber
-                                aria-label='图表标题字号'
+                                aria-label={tr('图表标题字号', 'Chart title font size')}
                                 className='mt-1 w-full'
                                 min={12}
                                 max={32}
@@ -2946,7 +2959,7 @@ export default function DashboardEditor({
                             </label>
                           </div>
                           <div>
-                            <div className='mb-1 text-xs text-[var(--app-muted)]'>主色与系列色</div>
+                            <div className='mb-1 text-xs text-[var(--app-muted)]'>{tr('主色与系列色', 'Primary and series colors')}</div>
                             <div className='flex flex-wrap gap-2'>
                               {(selectedWidget.presentation?.colors.length
                                 ? selectedWidget.presentation.colors
@@ -2957,11 +2970,11 @@ export default function DashboardEditor({
                                   <label
                                     key={`${index}-${color}`}
                                     className='relative h-8 w-8 cursor-pointer overflow-hidden rounded-full border-2 border-[var(--app-border)] shadow ring-1 ring-[var(--app-border)]'
-                                    title={`颜色 ${index + 1}：${color}`}
+                                    title={tr(`颜色 ${index + 1}：${color}`, `Color ${index + 1}: ${color}`)}
                                     style={{ backgroundColor: color }}
                                   >
                                     <input
-                                      aria-label={`编辑颜色 ${index + 1}`}
+                                      aria-label={tr(`编辑颜色 ${index + 1}`, `Edit color ${index + 1}`)}
                                       type='color'
                                       className='absolute inset-0 h-full w-full cursor-pointer opacity-0'
                                       value={color}
@@ -2982,7 +2995,7 @@ export default function DashboardEditor({
                           </div>
                           <div className='grid grid-cols-2 gap-x-3 gap-y-2'>
                             <label className='flex items-center justify-between text-xs text-[var(--app-muted)]'>
-                              显示网格线
+                              {tr('显示网格线', 'Show gridlines')}
                               <Switch
                                 size='small'
                                 checked={selectedWidget.presentation?.show_grid ?? true}
@@ -2990,7 +3003,7 @@ export default function DashboardEditor({
                               />
                             </label>
                             <label className='flex items-center justify-between text-xs text-[var(--app-muted)]'>
-                              显示图例
+                              {tr('显示图例', 'Show legend')}
                               <Switch
                                 size='small'
                                 checked={selectedWidget.presentation?.show_legend ?? true}
@@ -2999,7 +3012,7 @@ export default function DashboardEditor({
                             </label>
                             {selectedVisualization && ['line', 'area'].includes(selectedVisualization) && (
                               <label className='flex items-center justify-between text-xs text-[var(--app-muted)]'>
-                                平滑曲线
+                                {tr('平滑曲线', 'Smooth curve')}
                                 <Switch
                                   size='small'
                                   checked={selectedWidget.presentation?.smooth ?? true}
@@ -3010,7 +3023,7 @@ export default function DashboardEditor({
                             {selectedVisualization &&
                               ['column', 'bar', 'stacked_column'].includes(selectedVisualization) && (
                                 <label className='flex items-center justify-between text-xs text-[var(--app-muted)]'>
-                                  堆叠展示
+                                  {tr('堆叠展示', 'Stack series')}
                                   <Switch
                                     size='small'
                                     checked={
@@ -3022,7 +3035,7 @@ export default function DashboardEditor({
                               )}
                             {selectedVisualization && ['kpi', 'gauge'].includes(selectedVisualization) && (
                               <label className='flex items-center justify-between text-xs text-[var(--app-muted)]'>
-                                百分比格式
+                                {tr('百分比格式', 'Percentage format')}
                                 <Switch
                                   size='small'
                                   checked={selectedWidget.presentation?.percentage ?? false}
@@ -3036,13 +3049,13 @@ export default function DashboardEditor({
                           <div className='grid grid-cols-2 gap-3 rounded-lg border border-[var(--app-border)] p-3'>
                             {supportsTopN && (
                               <label className='text-xs text-[var(--app-muted)]'>
-                                显示前 N 项
+                                {tr('显示前 N 项', 'Show top N')}
                                 <InputNumber
                                   className='mt-1 w-full'
                                   min={1}
                                   max={100}
                                   value={selectedWidget.presentation?.top_n ?? 10}
-                                  placeholder='默认 10'
+                                  placeholder={tr('默认 10', 'Default 10')}
                                   onChange={value => updatePresentation('top_n', value ?? 10)}
                                 />
                               </label>
@@ -3050,31 +3063,31 @@ export default function DashboardEditor({
                             {supportsNumericFormatting && (
                               <>
                                 <label className='text-xs text-[var(--app-muted)]'>
-                                  小数位
+                                  {tr('小数位', 'Decimal places')}
                                   <InputNumber
                                     className='mt-1 w-full'
                                     min={0}
                                     max={20}
                                     value={selectedWidget.presentation?.precision ?? null}
-                                    placeholder='自动'
+                                    placeholder={tr('自动', 'Automatic')}
                                     onChange={value => updatePresentation('precision', value)}
                                   />
                                 </label>
                                 <label className='text-xs text-[var(--app-muted)]'>
-                                  单位
+                                  {tr('单位', 'Unit')}
                                   <Input
                                     className='mt-1'
                                     value={selectedWidget.presentation?.unit || ''}
-                                    placeholder='例如：万元'
+                                    placeholder={tr('例如：万元', 'For example: USD')}
                                     onChange={event => updatePresentation('unit', event.target.value || null)}
                                   />
                                 </label>
                                 <label className='text-xs text-[var(--app-muted)]'>
-                                  货币符号
+                                  {tr('货币符号', 'Currency symbol')}
                                   <Input
                                     className='mt-1'
                                     value={selectedWidget.presentation?.currency || ''}
-                                    placeholder='例如：¥ / $'
+                                    placeholder={tr('例如：¥ / $', 'For example: ¥ / $')}
                                     onChange={event => updatePresentation('currency', event.target.value || null)}
                                   />
                                 </label>
@@ -3083,13 +3096,13 @@ export default function DashboardEditor({
                           </div>
                         )}
                         <Divider className='my-2' />
-                        <div className='text-xs font-semibold text-[var(--app-muted)]'>图表字段设置</div>
+                        <div className='text-xs font-semibold text-[var(--app-muted)]'>{tr('图表字段设置', 'Chart field settings')}</div>
                         {(selectedVisualization === 'kpi' || selectedVisualization === 'gauge') && (
                           <Select
                             showSearch
                             optionFilterProp='label'
                             className='w-full'
-                            placeholder='数值字段'
+                            placeholder={tr('数值字段', 'Value field')}
                             value={selectedWidget.encoding.value}
                             options={selectedOutputFieldOptions}
                             onChange={value => updateEncoding('value', value)}
@@ -3101,7 +3114,7 @@ export default function DashboardEditor({
                             showSearch
                             optionFilterProp='label'
                             className='w-full'
-                            placeholder='目标字段（可选）'
+                            placeholder={tr('目标字段（可选）', 'Target field (optional)')}
                             value={selectedWidget.encoding.target}
                             options={selectedOutputFieldOptions}
                             onChange={value => updateEncoding('target', value)}
@@ -3127,7 +3140,7 @@ export default function DashboardEditor({
                                 showSearch
                                 optionFilterProp='label'
                                 className='w-full'
-                                placeholder={cartesianFieldLabels?.x || 'X 轴'}
+                                placeholder={cartesianFieldLabels?.x || tr('X 轴', 'X axis')}
                                 value={selectedWidget.encoding.x}
                                 options={selectedOutputFieldOptions}
                                 onChange={value => updateEncoding('x', value)}
@@ -3136,7 +3149,7 @@ export default function DashboardEditor({
                                 showSearch
                                 optionFilterProp='label'
                                 className='w-full'
-                                placeholder={cartesianFieldLabels?.y || 'Y 轴'}
+                                placeholder={cartesianFieldLabels?.y || tr('Y 轴', 'Y axis')}
                                 value={selectedWidget.encoding.y}
                                 options={selectedOutputFieldOptions}
                                 onChange={value => updateEncoding('y', value)}
@@ -3147,7 +3160,7 @@ export default function DashboardEditor({
                                   showSearch
                                   optionFilterProp='label'
                                   className='w-full'
-                                  placeholder={cartesianFieldLabels?.series || '系列（可选）'}
+                                  placeholder={cartesianFieldLabels?.series || tr('系列（可选）', 'Series (optional)')}
                                   value={selectedWidget.encoding.series}
                                   options={selectedOutputFieldOptions}
                                   onChange={value => updateEncoding('series', value)}
@@ -3160,7 +3173,7 @@ export default function DashboardEditor({
                             showSearch
                             optionFilterProp='label'
                             className='w-full'
-                            placeholder='第二数值字段'
+                            placeholder={tr('第二数值字段', 'Second value field')}
                             value={selectedWidget.encoding.y2}
                             options={selectedOutputFieldOptions}
                             onChange={value => updateEncoding('y2', value)}
@@ -3172,7 +3185,7 @@ export default function DashboardEditor({
                               showSearch
                               optionFilterProp='label'
                               className='w-full'
-                              placeholder='分类字段'
+                              placeholder={tr('分类字段', 'Category field')}
                               value={selectedWidget.encoding.color || selectedWidget.encoding.category}
                               options={selectedOutputFieldOptions}
                               onChange={value => updateEncoding('color', value)}
@@ -3181,7 +3194,7 @@ export default function DashboardEditor({
                               showSearch
                               optionFilterProp='label'
                               className='w-full'
-                              placeholder='数值字段'
+                              placeholder={tr('数值字段', 'Value field')}
                               value={selectedWidget.encoding.angle}
                               options={selectedOutputFieldOptions}
                               onChange={value => updateEncoding('angle', value)}
@@ -3192,11 +3205,11 @@ export default function DashboardEditor({
                           <Space direction='vertical' className='w-full'>
                             {(
                               [
-                                { name: 'row', label: '首次购买周期' },
-                                { name: 'column', label: '经过周期数（从 0 开始）' },
-                                { name: 'value', label: '当期购买客户数' },
-                                { name: 'target', label: '首购客户数（分母）' },
-                                { name: 'color', label: '已观察标识（1 已覆盖 / 0 未到期）' },
+                                { name: 'row', label: tr('首次购买周期', 'First purchase period') },
+                                { name: 'column', label: tr('经过周期数（从 0 开始）', 'Periods elapsed (starting at 0)') },
+                                { name: 'value', label: tr('当期购买客户数', 'Purchasing customers in period') },
+                                { name: 'target', label: tr('首购客户数（分母）', 'First-purchase customers (denominator)') },
+                                { name: 'color', label: tr('已观察标识（1 已覆盖 / 0 未到期）', 'Observed flag (1 covered / 0 not due)') },
                               ] as const
                             ).map(({ name, label }) => (
                               <label key={name} className='block w-full text-xs'>
@@ -3222,7 +3235,7 @@ export default function DashboardEditor({
                                 showSearch
                                 optionFilterProp='label'
                                 className='w-full'
-                                placeholder={index === 0 ? '行维度' : index === 1 ? '列维度' : '颜色数值'}
+                                placeholder={index === 0 ? tr('行维度', 'Row dimension') : index === 1 ? tr('列维度', 'Column dimension') : tr('颜色数值', 'Color value')}
                                 value={selectedWidget.encoding[name]}
                                 options={selectedOutputFieldOptions}
                                 onChange={value => updateEncoding(name, value)}
@@ -3237,7 +3250,7 @@ export default function DashboardEditor({
                               showSearch
                               optionFilterProp='label'
                               className='w-full'
-                              placeholder='显示列（可搜索）'
+                              placeholder={tr('显示列（可搜索）', 'Displayed columns (searchable)')}
                               value={selectedWidget.encoding.columns}
                               options={selectedOutputFieldOptions}
                               onChange={value => updateEncoding('columns', value)}
@@ -3247,7 +3260,7 @@ export default function DashboardEditor({
                               if (!field) return null;
                               return (
                                 <label key={fieldName} className='block text-xs text-[var(--app-muted)]'>
-                                  {fieldName} 的显示名称
+                                  {tr(`${fieldName} 的显示名称`, `Display name for ${fieldName}`)}
                                   <Input
                                     className='mt-1'
                                     value={field.label || ''}
@@ -3263,7 +3276,7 @@ export default function DashboardEditor({
                                 showSearch
                                 optionFilterProp='label'
                                 className='flex-1'
-                                placeholder='默认排序字段（可选）'
+                                placeholder={tr('默认排序字段（可选）', 'Default sort field (optional)')}
                                 value={selectedWidget.presentation?.default_sort.field || undefined}
                                 options={selectedOutputFieldOptions}
                                 onChange={value =>
@@ -3281,9 +3294,9 @@ export default function DashboardEditor({
                                 className='w-28'
                                 value={selectedWidget.presentation?.default_sort.direction || 'default'}
                                 options={[
-                                  { value: 'default', label: '原始顺序' },
-                                  { value: 'ascending', label: '升序' },
-                                  { value: 'descending', label: '降序' },
+                                  { value: 'default', label: tr('原始顺序', 'Original order') },
+                                  { value: 'ascending', label: tr('升序', 'Ascending') },
+                                  { value: 'descending', label: tr('降序', 'Descending') },
                                 ]}
                                 onChange={direction =>
                                   updatePresentation('default_sort', {
@@ -3323,16 +3336,16 @@ export default function DashboardEditor({
                           className='rounded-lg border border-[var(--app-border)] p-3'
                           data-testid='query-advanced-settings'
                         >
-                          <summary className='cursor-pointer text-sm font-medium'>高级数据设置</summary>
+                          <summary className='cursor-pointer text-sm font-medium'>{tr('高级数据设置', 'Advanced data settings')}</summary>
                           <div className='mt-4 space-y-4'>
                             <Alert
                               type='info'
                               showIcon
-                              message='SQL 与数据设置'
-                              description='在这里维护该组件的参数化 SQL、输出字段、筛选参数、行数限制和分享页筛选绑定。查询仍会经过后端只读安全校验。'
+                              message={tr('SQL 与数据设置', 'SQL and data settings')}
+                              description={tr('在这里维护该组件的参数化 SQL、输出字段、筛选参数、行数限制和分享页筛选绑定。查询仍会经过后端只读安全校验。', 'Configure parameterized SQL, output fields, filters, row limits and share-page bindings. Queries remain subject to backend read-only validation.')}
                             />
                             <label className='block text-xs text-[var(--app-muted)]'>
-                              输出字段（逗号分隔）
+                              {tr('输出字段（逗号分隔）', 'Output fields (comma-separated)')}
                               <Input
                                 value={selectedWidget.query.output_fields.map(field => field.name).join(', ')}
                                 onChange={event => {
@@ -3347,12 +3360,12 @@ export default function DashboardEditor({
                                 <Alert
                                   type='warning'
                                   showIcon
-                                  message='这是旧版本的高级跨数据源组件'
-                                  description='普通编辑器不再暴露跨数据源原始配置。请保留现有组件，或让数据助理基于当前单一数据源重新生成。'
+                                  message={tr('这是旧版本的高级跨数据源组件', 'This is a legacy cross-source widget')}
+                                  description={tr('普通编辑器不再暴露跨数据源原始配置。请保留现有组件，或让数据助理基于当前单一数据源重新生成。', 'The editor does not expose raw cross-source configuration. Keep this widget or regenerate it using the current data source.')}
                                 />
                               ) : (
                                 <>
-                                  <div className='text-xs font-semibold text-[var(--app-muted)]'>全局筛选器参数</div>
+                                  <div className='text-xs font-semibold text-[var(--app-muted)]'>{tr('全局筛选器参数', 'Global filter parameters')}</div>
                                   {schema.filters.length ? (
                                     schema.filters.map(filter => {
                                       const binding = selectedWidget.query.filter_parameters[filter.id];
@@ -3363,7 +3376,7 @@ export default function DashboardEditor({
                                           {filter.type === 'date_range' ? (
                                             <Space.Compact>
                                               <Input
-                                                placeholder='开始参数'
+                                                placeholder={tr('开始参数', 'Start parameter')}
                                                 value={(range as FilterParameterBinding).start_parameter || ''}
                                                 onChange={event =>
                                                   setFilterBinding(filter, {
@@ -3373,7 +3386,7 @@ export default function DashboardEditor({
                                                 }
                                               />
                                               <Input
-                                                placeholder='结束参数'
+                                                placeholder={tr('结束参数', 'End parameter')}
                                                 value={(range as FilterParameterBinding).end_parameter || ''}
                                                 onChange={event =>
                                                   setFilterBinding(filter, {
@@ -3385,7 +3398,7 @@ export default function DashboardEditor({
                                             </Space.Compact>
                                           ) : (
                                             <Input
-                                              placeholder='SQL 参数名'
+                                              placeholder={tr('SQL 参数名', 'SQL parameter name')}
                                               value={
                                                 typeof binding === 'string'
                                                   ? binding
@@ -3398,12 +3411,12 @@ export default function DashboardEditor({
                                       );
                                     })
                                   ) : (
-                                    <span className='text-xs text-[var(--app-muted)]'>暂无筛选器</span>
+                                    <span className='text-xs text-[var(--app-muted)]'>{tr('暂无筛选器', 'No filters')}</span>
                                   )}
                                   <Divider className='my-2' />
                                   <div ref={queryEditorRef} data-testid='dashboard-query-editor'>
                                     <label className='block text-xs text-[var(--app-muted)]'>
-                                      参数化 SQL
+                                      {tr('参数化 SQL', 'Parameterized SQL')}
                                       <Input.TextArea
                                         data-testid='dashboard-query-sql-input'
                                         className='font-mono text-xs'
@@ -3420,7 +3433,7 @@ export default function DashboardEditor({
                                   </div>
                                   <Space.Compact block>
                                     <label className='block flex-1 text-xs text-[var(--app-muted)]'>
-                                      最多返回行数
+                                      {tr('最多返回行数', 'Maximum rows')}
                                       <Input
                                         type='number'
                                         min={1}
@@ -3438,7 +3451,7 @@ export default function DashboardEditor({
                                       />
                                     </label>
                                     <div className='flex flex-1 items-end pb-2 pl-3 text-xs text-[var(--app-muted)]'>
-                                      明细查询最多 1000 行；执行超时由后端统一控制。
+                                      {tr('明细查询最多 1000 行；执行超时由后端统一控制。', 'Detail queries return at most 1,000 rows; timeouts are controlled by the backend.')}
                                     </div>
                                   </Space.Compact>
                                   <Divider className='my-2' />
@@ -3447,26 +3460,26 @@ export default function DashboardEditor({
                                     className='rounded-lg border border-[var(--app-border)] bg-[var(--app-accent-soft)] p-3'
                                   >
                                     <summary className='cursor-pointer text-sm font-semibold text-[var(--app-accent)]'>
-                                      分享页筛选数据绑定
+                                      {tr('分享页筛选数据绑定', 'Share-page filter binding')}
                                     </summary>
                                     <div className='mt-3 space-y-3'>
                                       {!selectedWidget.publication ? (
                                         <Alert
                                           type='warning'
                                           showIcon
-                                          message='尚未配置，当前组件不能发布为可交互筛选快照'
+                                          message={tr('尚未配置，当前组件不能发布为可交互筛选快照', 'Not configured; this widget cannot be published as an interactive snapshot')}
                                           description={
                                             <Space direction='vertical' size={8}>
                                               <span>
-                                                发布页不会连接原数据库。需要先定义一条受限的发布查询，把筛选字段和指标原料冻结到快照中。
+                                                {tr('发布页不会连接原数据库。需要先定义一条受限的发布查询，把筛选字段和指标原料冻结到快照中。', 'The published page does not access the source database. Define a bounded query to freeze filter fields and metric inputs in the snapshot.')}
                                               </span>
                                               <Button
                                                 type='primary'
                                                 size='small'
-                                                aria-label='创建发布筛选绑定'
+                                                aria-label={tr('创建发布筛选绑定', 'Create publication filter binding')}
                                                 onClick={initializePublicationBinding}
                                               >
-                                                创建发布筛选绑定
+                                                {tr('创建发布筛选绑定', 'Create publication filter binding')}
                                               </Button>
                                             </Space>
                                           }
@@ -3476,11 +3489,11 @@ export default function DashboardEditor({
                                           <Alert
                                             type='info'
                                             showIcon
-                                            message='发布时冻结受限数据集，匿名筛选只在快照中计算'
-                                            description='发布查询应返回筛选维度、分组字段和指标原料，不要包含筛选占位符。匿名分享页不会访问数据库、凭据或普通组件 SQL。'
+                                            message={tr('发布时冻结受限数据集，匿名筛选只在快照中计算', 'Publishing freezes a bounded dataset; anonymous filters operate only on the snapshot')}
+                                            description={tr('发布查询应返回筛选维度、分组字段和指标原料，不要包含筛选占位符。匿名分享页不会访问数据库、凭据或普通组件 SQL。', 'The publication query should return filter dimensions, grouping fields and metric inputs without filter placeholders. The share page does not access the database, credentials or normal widget SQL.')}
                                           />
                                           <label className='block text-xs text-[var(--app-muted)]'>
-                                            发布数据 SQL（无筛选条件、只读且有界）
+                                            {tr('发布数据 SQL（无筛选条件、只读且有界）', 'Publication SQL (unfiltered, read-only and bounded)')}
                                             <Input.TextArea
                                               data-testid='dashboard-publication-query-sql-input'
                                               className='mt-1 font-mono text-xs'
@@ -3495,7 +3508,7 @@ export default function DashboardEditor({
                                             />
                                           </label>
                                           <label className='block text-xs text-[var(--app-muted)]'>
-                                            发布数据字段（输入名称后按回车）
+                                            {tr('发布数据字段（输入名称后按回车）', 'Publication data fields (press Enter after each name)')}
                                             <Select
                                               mode='tags'
                                               showSearch
@@ -3511,7 +3524,7 @@ export default function DashboardEditor({
                                           </label>
                                           <div className='space-y-2 rounded border border-[var(--app-border)] bg-[var(--app-surface)] p-2'>
                                             <div className='text-xs font-semibold text-[var(--app-text)]'>
-                                              全局筛选器对应的发布字段
+                                              {tr('全局筛选器对应的发布字段', 'Publication fields for global filters')}
                                             </div>
                                             {schema.filters.length ? (
                                               schema.filters.map(filter => {
@@ -3532,7 +3545,7 @@ export default function DashboardEditor({
                                                       allowClear
                                                       showSearch
                                                       optionFilterProp='label'
-                                                      placeholder='不影响此组件'
+                                                      placeholder={tr('不影响此组件', 'Does not affect this widget')}
                                                       value={field || undefined}
                                                       options={selectedPublicationFieldOptions}
                                                       onChange={value =>
@@ -3554,10 +3567,10 @@ export default function DashboardEditor({
                                                       disabled={!field}
                                                       value={operator || 'auto'}
                                                       options={[
-                                                        { value: 'auto', label: '自动' },
-                                                        { value: 'equal', label: '等于' },
-                                                        { value: 'less_than_or_equal', label: '小于等于' },
-                                                        { value: 'greater_than_or_equal', label: '大于等于' },
+                                                        { value: 'auto', label: tr('自动', 'Automatic') },
+                                                        { value: 'equal', label: tr('等于', 'Equals') },
+                                                        { value: 'less_than_or_equal', label: tr('小于等于', 'Less than or equal') },
+                                                        { value: 'greater_than_or_equal', label: tr('大于等于', 'Greater than or equal') },
                                                       ]}
                                                       onChange={value =>
                                                         updatePublicationBinding(binding => ({
@@ -3577,17 +3590,17 @@ export default function DashboardEditor({
                                               })
                                             ) : (
                                               <span className='text-xs text-[var(--app-muted)]'>
-                                                当前看板没有全局筛选器。
+                                                {tr('当前看板没有全局筛选器。', 'This dashboard has no global filters.')}
                                               </span>
                                             )}
                                           </div>
                                           <div className='flex items-center justify-between rounded border border-[var(--app-border)] bg-[var(--app-surface)] p-2'>
                                             <div>
                                               <div className='text-xs font-semibold text-[var(--app-text)]'>
-                                                明细行模式
+                                                {tr('明细行模式', 'Detail row mode')}
                                               </div>
                                               <div className='text-xs text-[var(--app-muted)]'>
-                                                表格通常开启；图表通常关闭并使用分组与指标聚合。
+                                                {tr('表格通常开启；图表通常关闭并使用分组与指标聚合。', 'Usually enabled for tables; charts generally use groups and metric aggregation.')}
                                               </div>
                                             </div>
                                             <Switch
@@ -3605,13 +3618,13 @@ export default function DashboardEditor({
                                           {!selectedWidget.publication.row_mode && (
                                             <div className='space-y-3 rounded border border-[var(--app-border)] bg-[var(--app-surface)] p-2'>
                                               <label className='block text-xs text-[var(--app-muted)]'>
-                                                分组字段
+                                                {tr('分组字段', 'Group fields')}
                                                 <Select
                                                   mode='multiple'
                                                   showSearch
                                                   optionFilterProp='label'
                                                   className='mt-1 w-full'
-                                                  placeholder='例如月份、门店或类别'
+                                                  placeholder={tr('例如月份、门店或类别', 'For example: month, store or category')}
                                                   value={selectedWidget.publication.group_by}
                                                   options={selectedPublicationFieldOptions}
                                                   onChange={groupBy =>
@@ -3624,7 +3637,7 @@ export default function DashboardEditor({
                                               </label>
                                               <div className='space-y-2'>
                                                 <div className='text-xs font-semibold text-[var(--app-text)]'>
-                                                  指标聚合
+                                                  {tr('指标聚合', 'Metric aggregations')}
                                                 </div>
                                                 {selectedWidget.publication.measures.map((measure, index) => (
                                                   <div key={`${measure.output_field}-${index}`} className='space-y-1'>
@@ -3633,7 +3646,7 @@ export default function DashboardEditor({
                                                         showSearch
                                                         optionFilterProp='label'
                                                         className='min-w-0 flex-1'
-                                                        placeholder='原料字段'
+                                                        placeholder={tr('原料字段', 'Input field')}
                                                         value={measure.source_field || undefined}
                                                         options={selectedPublicationFieldOptions}
                                                         onChange={sourceField =>
@@ -3651,7 +3664,7 @@ export default function DashboardEditor({
                                                         showSearch
                                                         optionFilterProp='label'
                                                         className='min-w-0 flex-1'
-                                                        placeholder='输出字段'
+                                                        placeholder={tr('输出字段', 'Output field')}
                                                         value={measure.output_field || undefined}
                                                         options={selectedOutputFieldOptions}
                                                         onChange={outputField =>
@@ -3668,7 +3681,7 @@ export default function DashboardEditor({
                                                       <Select
                                                         className='w-28'
                                                         value={measure.aggregation}
-                                                        options={publicationAggregationOptions}
+                                                        options={publicationAggregationOptions.map(option => ({ ...option, label: tr(option.label, aggregationEnglish[option.value]) }))}
                                                         onChange={aggregation =>
                                                           updatePublicationBinding(binding => ({
                                                             ...binding,
@@ -3681,7 +3694,7 @@ export default function DashboardEditor({
                                                       <Button
                                                         danger
                                                         icon={<DeleteOutlined />}
-                                                        aria-label='删除指标聚合'
+                                                        aria-label={tr('删除指标聚合', 'Delete metric aggregation')}
                                                         onClick={() =>
                                                           updatePublicationBinding(binding => ({
                                                             ...binding,
@@ -3698,7 +3711,7 @@ export default function DashboardEditor({
                                                           showSearch
                                                           optionFilterProp='label'
                                                           className='min-w-0 flex-1'
-                                                          placeholder='分母字段'
+                                                          placeholder={tr('分母字段', 'Denominator field')}
                                                           value={measure.denominator_field || undefined}
                                                           options={selectedPublicationFieldOptions}
                                                           onChange={denominatorField =>
@@ -3716,7 +3729,7 @@ export default function DashboardEditor({
                                                           className='w-28'
                                                           min={0.000001}
                                                           max={1000000}
-                                                          placeholder='倍率'
+                                                          placeholder={tr('倍率', 'Multiplier')}
                                                           value={measure.scale ?? 1}
                                                           onChange={scale =>
                                                             updatePublicationBinding(binding => ({
@@ -3750,15 +3763,15 @@ export default function DashboardEditor({
                                                     }))
                                                   }
                                                 >
-                                                  添加指标聚合
+                                                  {tr('添加指标聚合', 'Add metric aggregation')}
                                                 </Button>
                                               </div>
                                             </div>
                                           )}
                                           <div className='space-y-2 rounded border border-[var(--app-border)] bg-[var(--app-surface)] p-2'>
                                             <div className='text-xs text-[var(--app-muted)]'>
-                                              最终输出字段：
-                                              {selectedWidget.publication.output_columns.join('、') || '未配置'}
+                                              {tr('最终输出字段：', 'Final output fields: ')}
+                                              {selectedWidget.publication.output_columns.join(', ') || tr('未配置', 'Not configured')}
                                             </div>
                                             <Space.Compact block>
                                               <Select
@@ -3766,7 +3779,7 @@ export default function DashboardEditor({
                                                 showSearch
                                                 optionFilterProp='label'
                                                 className='flex-1'
-                                                placeholder='发布结果排序字段（可选）'
+                                                placeholder={tr('发布结果排序字段（可选）', 'Publication sort field (optional)')}
                                                 value={selectedWidget.publication.sort[0]?.field || undefined}
                                                 options={selectedOutputFieldOptions}
                                                 onChange={field =>
@@ -3791,8 +3804,8 @@ export default function DashboardEditor({
                                                 disabled={!selectedWidget.publication.sort[0]?.field}
                                                 value={selectedWidget.publication.sort[0]?.direction || 'ascending'}
                                                 options={[
-                                                  { value: 'ascending', label: '升序' },
-                                                  { value: 'descending', label: '降序' },
+                                                  { value: 'ascending', label: tr('升序', 'Ascending') },
+                                                  { value: 'descending', label: tr('降序', 'Descending') },
                                                 ]}
                                                 onChange={direction =>
                                                   updatePublicationBinding(binding => ({
@@ -3803,7 +3816,7 @@ export default function DashboardEditor({
                                               />
                                             </Space.Compact>
                                             <label className='block text-xs text-[var(--app-muted)]'>
-                                              分享页最多输出行数
+                                              {tr('分享页最多输出行数', 'Maximum rows on share page')}
                                               <InputNumber
                                                 className='mt-1 w-full'
                                                 min={1}
@@ -3819,7 +3832,7 @@ export default function DashboardEditor({
                                             </label>
                                           </div>
                                           <Button danger size='small' onClick={removePublicationBinding}>
-                                            删除发布筛选绑定
+                                            {tr('删除发布筛选绑定', 'Delete publication filter binding')}
                                           </Button>
                                         </>
                                       )}
@@ -3837,14 +3850,14 @@ export default function DashboardEditor({
                         {selectedWidget.type === 'kpi' && (
                           <Space.Compact block>
                             <label className='block flex-1 text-xs text-[var(--app-muted)]'>
-                              前缀
+                              {tr('前缀', 'Prefix')}
                               <Input
                                 value={String(selectedWidget.style.prefix ?? '')}
                                 onChange={event => updateStyle('prefix', event.target.value)}
                               />
                             </label>
                             <label className='block flex-1 text-xs text-[var(--app-muted)]'>
-                              后缀
+                              {tr('后缀', 'Suffix')}
                               <Input
                                 value={String(selectedWidget.style.suffix ?? '')}
                                 onChange={event => updateStyle('suffix', event.target.value)}
@@ -3854,7 +3867,7 @@ export default function DashboardEditor({
                         )}
                         {selectedWidget.type === 'pie' && (
                           <label className='block text-xs text-[var(--app-muted)]'>
-                            圆环内径（0–0.9）
+                            {tr('圆环内径（0–0.9）', 'Donut inner radius (0–0.9)')}
                             <Input
                               type='number'
                               min={0}
@@ -3867,7 +3880,7 @@ export default function DashboardEditor({
                         )}
                         {selectedWidget.type === 'table' && (
                           <label className='block text-xs text-[var(--app-muted)]'>
-                            每页行数
+                            {tr('每页行数', 'Rows per page')}
                             <Input
                               type='number'
                               min={1}
@@ -3890,7 +3903,7 @@ export default function DashboardEditor({
                           loading={loadingWidgetIds.has(selectedWidget.id)}
                           onClick={() => handlePreview(selectedWidget.id)}
                         >
-                          校验并试运行
+                          {tr('校验并试运行', 'Validate and test')}
                         </Button>
                       </>
                     )}
@@ -3898,10 +3911,10 @@ export default function DashboardEditor({
                 ) : selectedFilter ? (
                   <div className='space-y-4'>
                     <div className='flex items-center gap-2'>
-                      <strong className='flex-1'>筛选器设置</strong>
-                      <Tooltip title='让数据助理配置这个筛选器'>
+                      <strong className='flex-1'>{tr('筛选器设置', 'Filter settings')}</strong>
+                      <Tooltip title={tr('让数据助理配置这个筛选器', 'Ask the data assistant to configure this filter')}>
                         <Button
-                          aria-label={`让数据助理配置筛选器 ${selectedFilter.label}`}
+                          aria-label={tr(`让数据助理配置筛选器 ${selectedFilter.label}`, `Ask the assistant to configure ${selectedFilter.label}`)}
                           type='text'
                           icon={<CommentOutlined />}
                           onClick={event =>
@@ -3917,7 +3930,7 @@ export default function DashboardEditor({
                       />
                     </div>
                     <div className='rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-muted)] p-3'>
-                      <div className='mb-2 text-xs font-semibold text-[var(--app-text)]'>配置完整度</div>
+                      <div className='mb-2 text-xs font-semibold text-[var(--app-text)]'>{tr('配置完整度', 'Configuration completeness')}</div>
                       <div className='flex flex-wrap gap-2'>
                         <Tag
                           style={statusTagStyle(
@@ -3928,25 +3941,25 @@ export default function DashboardEditor({
                           )}
                         >
                           {selectedFilter.type === 'date_range'
-                            ? '日期范围输入已就绪'
+                            ? tr('日期范围输入已就绪', 'Date range input ready')
                             : selectedFilter.type === 'number_range'
-                              ? '数值范围输入已就绪'
+                              ? tr('数值范围输入已就绪', 'Number range input ready')
                               : selectedFilter.type === 'text'
-                                ? '文本搜索输入已就绪'
-                                : `${selectedFilter.options.length} 个可选值`}
+                                ? tr('文本搜索输入已就绪', 'Text search input ready')
+                                : tr(`${selectedFilter.options.length} 个可选值`, `${selectedFilter.options.length} options`)}
                         </Tag>
                         <Tag style={statusTagStyle(selectedFilterBoundWidgets.length ? 'success' : 'warning')}>
-                          影响 {selectedFilterBoundWidgets.length} 个组件
+                          {tr(`影响 ${selectedFilterBoundWidgets.length} 个组件`, `Affects ${selectedFilterBoundWidgets.length} widgets`)}
                         </Tag>
                       </div>
                       {!selectedFilterBoundWidgets.length && (
                         <p className='mt-2 text-xs leading-5 text-[var(--app-muted)]'>
-                          这个筛选器目前只会改变下拉框，不会改变图表。请在下方选择 SQL 参数并完成绑定。
+                          {tr('这个筛选器目前只会改变下拉框，不会改变图表。请在下方选择 SQL 参数并完成绑定。', 'This filter only changes the control, not the charts. Select and bind an SQL parameter below.')}
                         </p>
                       )}
                     </div>
                     <label className='block text-xs text-[var(--app-muted)]'>
-                      标题
+                      {tr('标题', 'Title')}
                       <Input
                         value={selectedFilter.label}
                         onChange={event =>
@@ -3955,7 +3968,7 @@ export default function DashboardEditor({
                       />
                     </label>
                     <label className='block text-xs text-[var(--app-muted)]'>
-                      数据字段
+                      {tr('数据字段', 'Data field')}
                       <Input
                         value={selectedFilter.field}
                         onChange={event =>
@@ -3968,11 +3981,11 @@ export default function DashboardEditor({
                         data-testid='dashboard-filter-field-source'
                         className='space-y-2 rounded border border-[var(--app-border)] bg-[var(--app-accent-soft)] p-3'
                       >
-                        <div className='text-xs font-semibold text-[var(--app-accent)]'>从当前看板数据生成可选值</div>
+                        <div className='text-xs font-semibold text-[var(--app-accent)]'>{tr('从当前看板数据生成可选值', 'Generate options from current dashboard data')}</div>
                         <Select
                           className='w-full'
                           showSearch
-                          placeholder='选择一个已返回数据的字段'
+                          placeholder={tr('选择一个已返回数据的字段', 'Select a returned field')}
                           value={
                             filterFieldCandidates.some(
                               candidate =>
@@ -3983,26 +3996,26 @@ export default function DashboardEditor({
                           }
                           options={filterFieldCandidates.map(candidate => ({
                             value: candidate.field,
-                            label: `${candidate.label}（${candidate.options.length} 个值）`,
+                            label: tr(`${candidate.label}（${candidate.options.length} 个值）`, `${candidate.label} (${candidate.options.length} values)`),
                           }))}
                           onChange={field => populateFilterFromCurrentData(selectedFilter.id, field)}
                         />
                         <Button block onClick={() => populateFilterFromCurrentData(selectedFilter.id)}>
-                          按“{selectedFilter.field}”重新读取可选值
+                          {tr(`按“${selectedFilter.field}”重新读取可选值`, `Reload options for “${selectedFilter.field}”`)}
                         </Button>
                       </div>
                     )}
                     <label className='block text-xs text-[var(--app-muted)]'>
-                      类型
+                      {tr('类型', 'Type')}
                       <Select
                         className='w-full'
                         value={selectedFilter.type}
                         options={[
-                          { value: 'date_range', label: '日期范围' },
-                          { value: 'select', label: '单选' },
-                          { value: 'multi_select', label: '多选' },
-                          { value: 'text', label: '文本搜索' },
-                          { value: 'number_range', label: '数值范围' },
+                          { value: 'date_range', label: tr('日期范围', 'Date range') },
+                          { value: 'select', label: tr('单选', 'Single select') },
+                          { value: 'multi_select', label: tr('多选', 'Multiple select') },
+                          { value: 'text', label: tr('文本搜索', 'Text search') },
+                          { value: 'number_range', label: tr('数值范围', 'Number range') },
                         ]}
                         onChange={type => changeFilterType(selectedFilter.id, type)}
                       />
@@ -4011,13 +4024,13 @@ export default function DashboardEditor({
                       <>
                         <div className='space-y-2 rounded border border-[var(--app-border)] bg-[var(--app-accent-soft)] p-3'>
                           <div className='text-xs font-semibold text-[var(--app-accent)]'>
-                            从当前看板已加载结果识别日期字段
+                            {tr('从当前看板已加载结果识别日期字段', 'Identify date fields from loaded dashboard results')}
                           </div>
                           <Select
-                            aria-label='日期筛选器数据字段'
+                            aria-label={tr('日期筛选器数据字段', 'Date filter data field')}
                             className='w-full'
                             showSearch
-                            placeholder='选择日期字段'
+                            placeholder={tr('选择日期字段', 'Select a date field')}
                             value={
                               dateFilterFieldCandidates.some(
                                 candidate =>
@@ -4029,18 +4042,19 @@ export default function DashboardEditor({
                             options={dateFilterFieldCandidates.map(candidate => ({
                               value: candidate.field,
                               label: candidate.dateRange
-                                ? `${candidate.label}（当前已加载：${candidate.dateRange[0]} 至 ${candidate.dateRange[1]}${
-                                    candidate.rangeIsPartial ? '，已截断' : ''
-                                  }）`
+                                ? tr(
+                                    `${candidate.label}（当前已加载：${candidate.dateRange[0]} 至 ${candidate.dateRange[1]}${candidate.rangeIsPartial ? '，已截断' : ''}）`,
+                                    `${candidate.label} (loaded: ${candidate.dateRange[0]} to ${candidate.dateRange[1]}${candidate.rangeIsPartial ? ', truncated' : ''})`,
+                                  )
                                 : candidate.label,
                             }))}
                             onChange={field => selectDateFilterField(selectedFilter.id, field)}
                           />
                           <Button block onClick={() => populateDateFilterFromCurrentData(selectedFilter.id)}>
-                            采用“{selectedFilter.field}”当前已加载范围
+                            {tr(`采用“${selectedFilter.field}”当前已加载范围`, `Use the loaded range for “${selectedFilter.field}”`)}
                           </Button>
                           <div className='text-xs text-[var(--app-accent)]'>
-                            当前范围可能受组件 SQL 的 LIMIT 影响；系统不会在新增时自动缩小你的看板数据。
+                            {tr('当前范围可能受组件 SQL 的 LIMIT 影响；系统不会在新增时自动缩小你的看板数据。', 'The loaded range may be limited by widget SQL. Adding a filter does not automatically narrow dashboard data.')}
                           </div>
                           {dateFilterFieldCandidates.find(
                             candidate =>
@@ -4049,13 +4063,13 @@ export default function DashboardEditor({
                             <Alert
                               type='warning'
                               showIcon
-                              message='当前组件结果已截断，因此这里只能辅助识别日期字段，不会把局部日期自动设为默认范围。'
+                              message={tr('当前组件结果已截断，因此这里只能辅助识别日期字段，不会把局部日期自动设为默认范围。', 'Widget results are truncated. Date fields can be identified, but partial dates are not automatically used as defaults.')}
                             />
                           )}
                         </div>
                         <label className='block text-xs text-[var(--app-muted)]'>
                           <span className='mb-1 flex items-center justify-between gap-2'>
-                            <span>相对日期</span>
+                            <span>{tr('相对日期', 'Relative dates')}</span>
                             <Switch
                               size='small'
                               checked={Boolean(selectedFilter.relative_date)}
@@ -4081,8 +4095,8 @@ export default function DashboardEditor({
                           {selectedFilter.relative_date && (
                             <Space.Compact block className='mb-2'>
                               <InputNumber
-                                aria-label='相对日期开始偏移天数'
-                                addonBefore='开始 T'
+                                aria-label={tr('相对日期开始偏移天数', 'Relative start offset in days')}
+                                addonBefore={tr('开始 T', 'Start T')}
                                 min={-3650}
                                 max={3650}
                                 value={selectedFilter.relative_date.start_offset_days}
@@ -4096,8 +4110,8 @@ export default function DashboardEditor({
                                 }
                               />
                               <InputNumber
-                                aria-label='相对日期结束偏移天数'
-                                addonBefore='结束 T'
+                                aria-label={tr('相对日期结束偏移天数', 'Relative end offset in days')}
+                                addonBefore={tr('结束 T', 'End T')}
                                 min={-3650}
                                 max={3650}
                                 value={selectedFilter.relative_date.end_offset_days}
@@ -4112,9 +4126,9 @@ export default function DashboardEditor({
                               />
                             </Space.Compact>
                           )}
-                          默认日期范围
+                          {tr('默认日期范围', 'Default date range')}
                           <DatePicker.RangePicker
-                            aria-label='筛选器默认日期范围'
+                            aria-label={tr('筛选器默认日期范围', 'Filter default date range')}
                             className='w-full'
                             allowClear
                             value={
@@ -4132,11 +4146,11 @@ export default function DashboardEditor({
                           />
                         </label>
                         <div className='space-y-2 rounded border border-[var(--app-border)] p-3'>
-                          <div className='text-xs font-semibold text-[var(--app-text)]'>让日期范围真正影响组件 SQL</div>
+                          <div className='text-xs font-semibold text-[var(--app-text)]'>{tr('让日期范围真正影响组件 SQL', 'Bind the date range to widget SQL')}</div>
                           <Space.Compact block>
                             <Input
-                              aria-label='日期筛选器开始参数'
-                              addonBefore='开始 :'
+                              aria-label={tr('日期筛选器开始参数', 'Date filter start parameter')}
+                              addonBefore={tr('开始 :', 'Start :')}
                               value={
                                 filterParameterDrafts[`${selectedFilter.id}:start`] ??
                                 selectedDateParameterRecommendation?.startParameter ??
@@ -4150,8 +4164,8 @@ export default function DashboardEditor({
                               }
                             />
                             <Input
-                              aria-label='日期筛选器结束参数'
-                              addonBefore='结束 :'
+                              aria-label={tr('日期筛选器结束参数', 'Date filter end parameter')}
+                              addonBefore={tr('结束 :', 'End :')}
                               value={
                                 filterParameterDrafts[`${selectedFilter.id}:end`] ??
                                 selectedDateParameterRecommendation?.endParameter ??
@@ -4181,19 +4195,19 @@ export default function DashboardEditor({
                               )
                             }
                           >
-                            自动绑定使用这两个参数的组件
+                            {tr('自动绑定使用这两个参数的组件', 'Bind widgets using both parameters')}
                           </Button>
                         </div>
                       </>
                     ) : selectedFilter.type === 'number_range' ? (
                       <>
                         <label className='block text-xs text-[var(--app-muted)]'>
-                          默认数值范围
+                          {tr('默认数值范围', 'Default number range')}
                           <Space.Compact block>
                             <InputNumber
-                              aria-label='筛选器默认最小值'
+                              aria-label={tr('筛选器默认最小值', 'Filter default minimum')}
                               className='w-1/2'
-                              placeholder='最小值'
+                              placeholder={tr('最小值', 'Minimum')}
                               value={
                                 Array.isArray(selectedFilter.default)
                                   ? ((selectedFilter.default[0] as number | null) ?? null)
@@ -4209,9 +4223,9 @@ export default function DashboardEditor({
                               }}
                             />
                             <InputNumber
-                              aria-label='筛选器默认最大值'
+                              aria-label={tr('筛选器默认最大值', 'Filter default maximum')}
                               className='w-1/2'
-                              placeholder='最大值'
+                              placeholder={tr('最大值', 'Maximum')}
                               value={
                                 Array.isArray(selectedFilter.default)
                                   ? ((selectedFilter.default[1] as number | null) ?? null)
@@ -4229,11 +4243,11 @@ export default function DashboardEditor({
                           </Space.Compact>
                         </label>
                         <div className='space-y-2 rounded border border-[var(--app-border)] p-3'>
-                          <div className='text-xs font-semibold text-[var(--app-text)]'>让数值范围真正影响组件 SQL</div>
+                          <div className='text-xs font-semibold text-[var(--app-text)]'>{tr('让数值范围真正影响组件 SQL', 'Bind the number range to widget SQL')}</div>
                           <Space.Compact block>
                             <Input
-                              aria-label='数值筛选器最小值参数'
-                              addonBefore='最小 :'
+                              aria-label={tr('数值筛选器最小值参数', 'Number filter minimum parameter')}
+                              addonBefore={tr('最小 :', 'Min :')}
                               value={filterParameterDrafts[`${selectedFilter.id}:start`] ?? 'min_value'}
                               onChange={event =>
                                 setFilterParameterDrafts(current => ({
@@ -4243,8 +4257,8 @@ export default function DashboardEditor({
                               }
                             />
                             <Input
-                              aria-label='数值筛选器最大值参数'
-                              addonBefore='最大 :'
+                              aria-label={tr('数值筛选器最大值参数', 'Number filter maximum parameter')}
+                              addonBefore={tr('最大 :', 'Max :')}
                               value={filterParameterDrafts[`${selectedFilter.id}:end`] ?? 'max_value'}
                               onChange={event =>
                                 setFilterParameterDrafts(current => ({
@@ -4267,7 +4281,7 @@ export default function DashboardEditor({
                               )
                             }
                           >
-                            自动绑定使用这两个参数的组件
+                            {tr('自动绑定使用这两个参数的组件', 'Bind widgets using both parameters')}
                           </Button>
                         </div>
                       </>
@@ -4275,11 +4289,11 @@ export default function DashboardEditor({
                       <>
                         {selectedFilter.type === 'text' ? (
                           <label className='block text-xs text-[var(--app-muted)]'>
-                            默认搜索内容
+                            {tr('默认搜索内容', 'Default search')}
                             <Input
-                              aria-label='筛选器默认搜索内容'
+                              aria-label={tr('筛选器默认搜索内容', 'Filter default search')}
                               allowClear
-                              placeholder='例如：北京、iPhone'
+                              placeholder={tr('例如：北京、iPhone', 'For example: London, iPhone')}
                               value={typeof selectedFilter.default === 'string' ? selectedFilter.default : ''}
                               onChange={event => {
                                 const value = event.target.value;
@@ -4291,14 +4305,14 @@ export default function DashboardEditor({
                         ) : (
                           <>
                             <label className='block text-xs text-[var(--app-muted)]'>
-                              可选值（可直接输入并按回车）
+                              {tr('可选值（可直接输入并按回车）', 'Options (type and press Enter)')}
                               <Select
-                                aria-label='筛选器可选值'
+                                aria-label={tr('筛选器可选值', 'Filter options')}
                                 data-testid='dashboard-filter-options'
                                 className='w-full'
                                 mode='tags'
                                 tokenSeparators={[',', '，']}
-                                placeholder='例如 Store 1、Store 2'
+                                placeholder={tr('例如 Store 1、Store 2', 'For example: Store 1, Store 2')}
                                 value={selectedFilter.options.map(option => option.value as string | number)}
                                 options={selectedFilter.options.map(option => ({
                                   label: option.label,
@@ -4313,9 +4327,9 @@ export default function DashboardEditor({
                               />
                             </label>
                             <label className='block text-xs text-[var(--app-muted)]'>
-                              默认选择
+                              {tr('默认选择', 'Default selection')}
                               <Select
-                                aria-label='筛选器默认选择'
+                                aria-label={tr('筛选器默认选择', 'Filter default selection')}
                                 data-testid='dashboard-filter-default'
                                 className='w-full'
                                 allowClear
@@ -4334,9 +4348,9 @@ export default function DashboardEditor({
                           </>
                         )}
                         <div className='space-y-2 rounded border border-[var(--app-border)] p-3'>
-                          <div className='text-xs font-semibold text-[var(--app-text)]'>让筛选器真正影响组件 SQL</div>
+                          <div className='text-xs font-semibold text-[var(--app-text)]'>{tr('让筛选器真正影响组件 SQL', 'Bind the filter to widget SQL')}</div>
                           <Input
-                            aria-label='筛选器 SQL 参数'
+                            aria-label={tr('筛选器 SQL 参数', 'Filter SQL parameter')}
                             data-testid='dashboard-filter-sql-parameter'
                             addonBefore=':'
                             list={`dashboard-filter-parameters-${selectedFilter.id}`}
@@ -4381,7 +4395,7 @@ export default function DashboardEditor({
                               )
                             }
                           >
-                            自动绑定使用该参数的组件
+                            {tr('自动绑定使用该参数的组件', 'Bind widgets using this parameter')}
                           </Button>
                         </div>
                       </>
@@ -4391,27 +4405,27 @@ export default function DashboardEditor({
                       showIcon
                       message={
                         selectedFilter.type === 'multi_select'
-                          ? '多选允许同时选择多个值；空列表表示不过滤。组件 SQL 应使用 IN (:参数名)，不要使用等号。'
+                          ? tr('多选允许同时选择多个值；空列表表示不过滤。组件 SQL 应使用 IN (:参数名)，不要使用等号。', 'Multiple selections allow several values; an empty list means no filter. Widget SQL should use IN (:parameter), not equality.')
                           : selectedFilter.type === 'number_range'
-                            ? '数值范围使用最小值、最大值两个参数；任一端留空表示不限制该方向。'
+                            ? tr('数值范围使用最小值、最大值两个参数；任一端留空表示不限制该方向。', 'Number ranges use minimum and maximum parameters; a blank endpoint is unbounded.')
                             : selectedFilter.type === 'text'
-                              ? '文本搜索会把关键词作为绑定参数传给组件 SQL；建议在 SQL 中使用数据库支持的包含匹配。'
+                              ? tr('文本搜索会把关键词作为绑定参数传给组件 SQL；建议在 SQL 中使用数据库支持的包含匹配。', 'Text search passes the keyword as a bound SQL parameter; use a database-supported contains match.')
                               : selectedFilter.type === 'date_range'
-                                ? '日期范围需要开始、结束两个参数；清空日期时表示不限制时间。'
-                                : '单选筛选器需要可选值和一个 SQL 参数绑定。'
+                                ? tr('日期范围需要开始、结束两个参数；清空日期时表示不限制时间。', 'Date ranges require start and end parameters; clearing them removes the time limit.')
+                                : tr('单选筛选器需要可选值和一个 SQL 参数绑定。', 'Single-select filters require options and one SQL parameter binding.')
                       }
                     />
                   </div>
                 ) : (
-                  <div className='mt-20 text-center text-sm text-[var(--app-muted)]'>选择一个组件后在这里编辑</div>
+                  <div className='mt-20 text-center text-sm text-[var(--app-muted)]'>{tr('选择一个组件后在这里编辑', 'Select a widget to edit it here')}</div>
                 )}
               </div>
             </aside>
           ) : workspaceMode === 'edit' ? (
             <div className={`${styles.collapsedRail} ${styles.collapsedRailRight}`}>
-              <Tooltip title='展开属性设置' placement='left'>
+              <Tooltip title={tr('展开属性设置', 'Expand properties')} placement='left'>
                 <Button
-                  aria-label='展开属性设置'
+                  aria-label={tr('展开属性设置', 'Expand properties')}
                   type='text'
                   size='small'
                   icon={<SettingOutlined />}
@@ -4431,7 +4445,7 @@ export default function DashboardEditor({
               setLayoutPickerOpen(false);
               setLibraryCollapsed(true);
               setSettingsCollapsed(true);
-              message.success(`已应用${getDashboardLayoutTemplate(id)?.title}布局，可撤销`);
+              message.success(tr(`已应用${getDashboardLayoutTemplate(id)?.title}布局，可撤销`, 'Layout applied; this can be undone.'));
             }}
           />
         )}
@@ -4476,7 +4490,7 @@ export default function DashboardEditor({
               filters: scheduleDashboardFilterValues(schema.filters, filters),
             }}
             beforeCreate={async () => {
-              if (!validateInBrowser()) throw new Error('请先修正看板配置，再创建定时任务。');
+              if (!validateInBrowser()) throw new Error(tr('请先修正看板配置，再创建定时任务。', 'Correct the dashboard configuration before creating a schedule.'));
               await persistDraft();
             }}
           />

@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import { ChatContext } from '@/app/chat-context';
 import { getDbList } from '@/client/api';
 import useChat from '@/hooks/use-chat';
@@ -28,6 +29,9 @@ function dashboardSource(source: IChatDbSchema): DataSource {
 
 /** A scoped entry to the existing planning/confirmation workflow. */
 export default function DashboardCreatePage() {
+  const tr = useUiText();
+  const trRef = useRef(tr);
+  trRef.current = tr;
   const router = useRouter();
   const { model, modelList } = useContext(ChatContext);
   const { chat, pendingQuestion, replyQuestion, rejectQuestion } = useChat({});
@@ -51,7 +55,7 @@ export default function DashboardCreatePage() {
     let disposed = false;
     void getDbList()
       .then(response => {
-        if (!response.data.success) throw new Error(response.data.err_msg || '数据源加载失败');
+        if (!response.data.success) throw new Error(response.data.err_msg || trRef.current('数据源加载失败', 'Failed to load data sources'));
         if (!disposed) {
           setSources(
             (response.data.data || []).map(dashboardSource).filter(source => source.db_name && source.db_type),
@@ -59,7 +63,7 @@ export default function DashboardCreatePage() {
         }
       })
       .catch(cause => {
-        if (!disposed) setError(cause instanceof Error ? cause.message : '数据源加载失败，请刷新后重试');
+        if (!disposed) setError(cause instanceof Error ? cause.message : trRef.current('数据源加载失败，请刷新后重试', 'Could not load data sources. Refresh and try again.'));
       });
     return () => {
       disposed = true;
@@ -71,7 +75,7 @@ export default function DashboardCreatePage() {
     if (active.current || !input.trim()) return;
     const source = sources.find(item => item.db_name === sourceName);
     if (!effectiveModel || (!source && !files.length && !datasetId.current)) {
-      setError('请选择可用模型，以及一个数据源或 CSV / Excel 文件。');
+      setError(tr('请选择可用模型，以及一个数据源或 CSV / Excel 文件。', 'Select an available model and a data source or CSV / Excel file.'));
       return;
     }
     const controller = new AbortController();
@@ -102,7 +106,7 @@ export default function DashboardCreatePage() {
         });
         const body = await upload.json();
         if (!upload.ok || !body.success || !body.data?.dataset_id) {
-          throw new Error(body.err_msg || '文件上传失败，文件已保留，可重新发送');
+          throw new Error(body.err_msg || tr('文件上传失败，文件已保留，可重新发送', 'Upload failed. The files are retained and can be sent again.'));
         }
         datasetId.current = body.data.dataset_id;
       }
@@ -138,7 +142,7 @@ export default function DashboardCreatePage() {
         },
       });
     } catch (cause) {
-      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '生成失败，请重试');
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : tr('生成失败，请重试', 'Generation failed. Please try again.'));
     } finally {
       if (active.current === controller) {
         active.current = null;
@@ -151,41 +155,41 @@ export default function DashboardCreatePage() {
     active.current?.abort();
     active.current = null;
     setBusy(false);
-    setError('已停止生成。已有规划和草稿仍保留，可修改需求后继续。');
+    setError(tr('已停止生成。已有规划和草稿仍保留，可修改需求后继续。', 'Generation stopped. Existing plans and drafts are retained; update your request to continue.'));
   };
 
   return (
     <main className='h-full overflow-auto p-4 md:p-8'>
       <Head>
-        <title>新建看板 · DB-GPT</title>
+        <title>{tr('新建看板 · DB-GPT', 'New dashboard · DB-GPT')}</title>
       </Head>
       <div className='mx-auto max-w-4xl space-y-5'>
         <div className='flex items-center justify-between gap-4'>
           <div>
-            <h1 className='text-xl font-semibold'>新建看板</h1>
-            <p className='mt-2 text-sm text-gray-500'>选择数据，描述要分析的问题，确认计划后生成图表。</p>
+            <h1 className='text-xl font-semibold'>{tr('新建看板', 'New dashboard')}</h1>
+            <p className='mt-2 text-sm text-gray-500'>{tr('选择数据，描述要分析的问题，确认计划后生成图表。', 'Choose data, describe the analysis, and confirm the plan to generate charts.')}</p>
           </div>
-          <Link href='/dashboards'>返回看板列表</Link>
+          <Link href='/dashboards'>{tr('返回看板列表', 'Back to dashboards')}</Link>
         </div>
         {error && <Alert type='warning' showIcon message={error} />}
         <div className='grid gap-4 md:grid-cols-2'>
           <label className='flex flex-col gap-2'>
-            数据源
+            {tr('数据源', 'Data source')}
             <Select
-              aria-label='数据源'
+              aria-label={tr('数据源', 'Data source')}
               value={sourceName || undefined}
-              placeholder='请选择数据源'
+              placeholder={tr('请选择数据源', 'Select a data source')}
               disabled={busy || hasRun || files.length > 0}
               options={sources.map(source => ({ value: source.db_name, label: source.db_name }))}
               onChange={setSourceName}
             />
           </label>
           <label className='flex flex-col gap-2'>
-            模型
+            {tr('模型', 'Model')}
             <Select
-              aria-label='模型'
+              aria-label={tr('模型', 'Model')}
               value={effectiveModel || undefined}
-              placeholder='请选择模型'
+              placeholder={tr('请选择模型', 'Select a model')}
               disabled={busy}
               options={modelList.map(value => ({ value, label: value }))}
               onChange={setSelectedModel}
@@ -193,9 +197,9 @@ export default function DashboardCreatePage() {
           </label>
         </div>
         <label className='flex flex-col gap-2 text-sm'>
-          或上传 CSV / Excel 文件（可多选）
+          {tr('或上传 CSV / Excel 文件（可多选）', 'Or upload CSV / Excel files (multiple files allowed)')}
           <input
-            aria-label='上传数据文件'
+            aria-label={tr('上传数据文件', 'Upload data files')}
             type='file'
             multiple
             accept='.csv,.xlsx,.xls'
@@ -226,7 +230,7 @@ export default function DashboardCreatePage() {
         {answer && (
           <div
             role='log'
-            aria-label='看板生成答复'
+            aria-label={tr('看板生成答复', 'Dashboard generation response')}
             className='whitespace-pre-wrap break-words rounded-lg border border-gray-200 p-4'
           >
             {answer}
@@ -243,9 +247,9 @@ export default function DashboardCreatePage() {
           className='space-y-3'
         >
           <label className='flex flex-col gap-2'>
-            分析需求
+            {tr('分析需求', 'Analysis request')}
             <Input.TextArea
-              aria-label='分析需求'
+              aria-label={tr('分析需求', 'Analysis request')}
               ref={element => {
                 textInput.current = element?.resizableTextArea?.textArea || null;
               }}
@@ -253,14 +257,14 @@ export default function DashboardCreatePage() {
               value={prompt}
               disabled={busy}
               onChange={event => setPrompt(event.target.value)}
-              placeholder='例如：分析门店月度销售额、增长趋势和排名，并增加日期筛选。'
+              placeholder={tr('例如：分析门店月度销售额、增长趋势和排名，并增加日期筛选。', 'For example: analyze monthly sales, growth trends and rankings, with a date filter.')}
             />
           </label>
           <Space wrap>
             <Button htmlType='submit' type='primary' loading={busy} disabled={!prompt.trim() || busy}>
-              发送需求
+              {tr('发送需求', 'Send request')}
             </Button>
-            {busy && <Button onClick={stop}>停止生成</Button>}
+            {busy && <Button onClick={stop}>{tr('停止生成', 'Stop generation')}</Button>}
             {hasRun && !busy && (
               <Button
                 onClick={() => {
@@ -272,7 +276,7 @@ export default function DashboardCreatePage() {
                   setError('');
                 }}
               >
-                开始新看板
+                {tr('开始新看板', 'Start a new dashboard')}
               </Button>
             )}
           </Space>

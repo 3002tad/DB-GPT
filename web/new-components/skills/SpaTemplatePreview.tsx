@@ -1,12 +1,14 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import styles from './TemplateMotion.module.css';
 
 /** Illustrative schedule, never presented as a queried business result. */
 export default function SpaTemplatePreview() {
+  const tr = useUiText();
   return (
     <svg
       viewBox='0 0 640 360'
       role='img'
-      aria-label='美业预约管理风格示意：梅色导航、周历与房间安排'
+      aria-label={tr('美业预约管理风格示意：梅色导航、周历与房间安排', 'Spa appointment design sample')}
       className={styles.spa}
     >
       <rect width='640' height='360' fill='#f8f2ee' />
@@ -17,10 +19,10 @@ export default function SpaTemplatePreview() {
         Serenity
       </text>
       <text x='22' y='104' fill='#d6c6d1' fontSize='10'>
-        预约 · 服务 · 会员
+        {tr('预约 · 服务 · 会员', 'Bookings · Services · Members')}
       </text>
       <rect x='12' y='138' width='102' height='34' rx='8' fill='#795e71' />
-      {['预约日历', '房间安排', '会员经营', '服务分析'].map((s, i) => (
+      {[tr('预约日历', 'Calendar'), tr('房间安排', 'Rooms'), tr('会员经营', 'Members'), tr('服务分析', 'Services')].map((s, i) => (
         <g key={s}>
           <circle cx='26' cy={155 + i * 39} r='3' fill={i === 0 ? '#e8c497' : '#a48c9b'} />
           <text x='38' y={159 + i * 39} fill={i === 0 ? '#fff4e9' : '#d4c3cf'} fontSize='11'>
@@ -35,30 +37,30 @@ export default function SpaTemplatePreview() {
         strokeWidth='1'
       />
       <text x='148' y='37' fill='#533d50' fontSize='23' fontFamily='Georgia, SimSun, serif'>
-        从容安排每一天
+        {tr('从容安排每一天', 'Plan each day')}
       </text>
       <text x='148' y='57' fill='#8f7e87' fontSize='10'>
-        服务有序，让每一份关注恰到好处
+        {tr('服务有序，让每一份关注恰到好处', 'A clear view of your services')}
       </text>
       <rect x='537' y='22' width='80' height='27' rx='13' fill='#533d50' />
       <text x='552' y='40' fill='#fff8f2' fontSize='10'>
-        ＋ 新建预约
+        {tr('＋ 新建预约', '+ New booking')}
       </text>
       <rect x='148' y='76' width='320' height='192' rx='12' fill='#fffdfb' />
       <text x='164' y='101' fill='#4c3d45' fontSize='13' fontWeight='600'>
-        本周预约
+        {tr('本周预约', 'Appointments')}
       </text>
       <text x='360' y='101' fill='#9a8892' fontSize='10'>
-        9 月 21 — 27 日
+        {tr('9 月 21 — 27 日', 'Sep 21–27')}
       </text>
       {[
-        ['一', '21'],
-        ['二', '22'],
-        ['三', '23'],
-        ['四', '24'],
-        ['五', '25'],
-        ['六', '26'],
-        ['日', '27'],
+        [tr('一', 'Mon'), '21'],
+        [tr('二', 'Tue'), '22'],
+        [tr('三', 'Wed'), '23'],
+        [tr('四', 'Thu'), '24'],
+        [tr('五', 'Fri'), '25'],
+        [tr('六', 'Sat'), '26'],
+        [tr('日', 'Sun'), '27'],
       ].map(([day, date], i) => (
         <g key={day}>
           <rect x={160 + i * 42} y='114' width='36' height='44' rx='10' fill={i === 1 ? '#f0dfe5' : '#fbf7f3'} />
@@ -77,7 +79,7 @@ export default function SpaTemplatePreview() {
           </text>
         </g>
       ))}
-      {['舒缓护理', '会员预约', '芳香护理'].map((s, i) => (
+      {[tr('舒缓护理', 'Relaxation'), tr('会员预约', 'Member booking'), tr('芳香护理', 'Aromatherapy')].map((s, i) => (
         <g key={s}>
           <text x='164' y={188 + i * 29} fontSize='10' fill='#a08d92'>
             {['09:30', '10:00', '11:30'][i]}
@@ -88,13 +90,13 @@ export default function SpaTemplatePreview() {
             {s}
           </text>
           <text x='394' y={189 + i * 29} fontSize='9' fill='#85948a'>
-            {i === 1 ? '待到店' : '已确认'}
+            {i === 1 ? tr('待到店', 'Expected') : tr('已确认', 'Confirmed')}
           </text>
         </g>
       ))}
       <rect x='480' y='76' width='137' height='192' rx='12' fill='#e9eee7' />
       <text x='494' y='101' fill='#516152' fontSize='12' fontWeight='600'>
-        房间负载
+        {tr('房间负载', 'Room usage')}
       </text>
       <circle cx='548' cy='151' r='31' fill='none' stroke='#d3ded1' strokeWidth='8' />
       <circle
@@ -113,7 +115,7 @@ export default function SpaTemplatePreview() {
         74%
       </text>
       <text x='496' y='210' fill='#738275' fontSize='9'>
-        房间可用时段
+        {tr('房间可用时段', 'Room availability')}
       </text>
       {[0, 1, 2, 3, 4, 5, 6].map(i => (
         <rect
@@ -129,9 +131,9 @@ export default function SpaTemplatePreview() {
       ))}
       <rect x='148' y='280' width='469' height='58' rx='12' fill='#fffdfb' />
       {[
-        ['本周预约', '128'],
-        ['到店率', '92%'],
-        ['服务收入', '¥18.6K'],
+        [tr('本周预约', 'Appointments'), '128'],
+        [tr('到店率', 'Visits'), '92%'],
+        [tr('服务收入', 'Service revenue'), '¥18.6K'],
       ].map(([label, value], i) => (
         <g key={label}>
           {i > 0 && <path d={`M${148 + i * 156} 293V325`} stroke='#ebe1dc' />}

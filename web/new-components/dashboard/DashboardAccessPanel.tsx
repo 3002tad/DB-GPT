@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import {
   getDashboardPermissions,
   listDashboardAudit,
@@ -37,53 +38,54 @@ interface DashboardAccessPanelProps {
   onClose: () => void;
 }
 
-const roleLabels: Record<DashboardRole, string> = {
-  owner: '所有者',
-  editor: '编辑者',
-  viewer: '查看者',
-};
-
-const actionLabels: Record<DashboardAction, string> = {
-  view: '查看',
-  edit: '编辑',
-  query: '刷新数据',
-  publish: '发布与分享',
-  manage_access: '管理成员',
-  manage_schedule: '管理定时任务',
-};
-
-const auditLabels: Record<string, string> = {
-  'dashboard.created': '创建看板',
-  'dashboard.updated': '保存看板',
-  'dashboard.archived': '归档看板',
-  'dashboard.restored': '恢复看板',
-  'dashboard.refreshed': '刷新数据',
-  'dashboard.published': '发布看板',
-  'dashboard.revision_restored': '恢复历史版本',
-  'member.upserted': '更新成员权限',
-  'member.removed': '移除成员',
-  'publication.rotated': '轮换分享链接',
-  'publication.revoked': '撤销分享链接',
-  'schedule.created': '创建定时任务',
-  'schedule.updated': '更新定时任务',
-  'schedule.deleted': '删除定时任务',
-};
-
 const roleColor: Record<DashboardRole, string> = {
   owner: 'blue',
   editor: 'green',
   viewer: 'default',
 };
 
-const describeError = (error: unknown) => {
+const describeError = (error: unknown, fallback: string) => {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail || error.response?.data?.err_msg;
     if (typeof detail === 'string') return detail;
   }
-  return error instanceof Error ? error.message : '管理信息加载失败';
+  return error instanceof Error ? error.message : fallback;
 };
 
 export default function DashboardAccessPanel({ dashboardId, open, onClose }: DashboardAccessPanelProps) {
+  const tr = useUiText();
+const roleLabels: Record<DashboardRole, string> = {
+  owner: tr('所有者', 'Owner'),
+  editor: tr('编辑者', 'Editor'),
+  viewer: tr('查看者', 'Viewer'),
+};
+
+const actionLabels: Record<DashboardAction, string> = {
+  view: tr('查看', 'View'),
+  edit: tr('编辑', 'Edit'),
+  query: tr('刷新数据', 'Refresh data'),
+  publish: tr('发布与分享', 'Publish and share'),
+  manage_access: tr('管理成员', 'Manage members'),
+  manage_schedule: tr('管理定时任务', 'Manage schedules'),
+};
+
+const auditLabels: Record<string, string> = {
+  'dashboard.created': tr('创建看板', 'Create dashboard'),
+  'dashboard.updated': tr('保存看板', 'Save dashboard'),
+  'dashboard.archived': tr('归档看板', 'Archive dashboard'),
+  'dashboard.restored': tr('恢复看板', 'Restore dashboard'),
+  'dashboard.refreshed': tr('刷新数据', 'Refresh data'),
+  'dashboard.published': tr('发布看板', 'Publish dashboard'),
+  'dashboard.revision_restored': tr('恢复历史版本', 'Restore previous version'),
+  'member.upserted': tr('更新成员权限', 'Update member access'),
+  'member.removed': tr('移除成员', 'Remove member'),
+  'publication.rotated': tr('轮换分享链接', 'Rotate share link'),
+  'publication.revoked': tr('撤销分享链接', 'Revoke share link'),
+  'schedule.created': tr('创建定时任务', 'Create schedule'),
+  'schedule.updated': tr('更新定时任务', 'Update schedule'),
+  'schedule.deleted': tr('删除定时任务', 'Delete schedule'),
+};
+
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -115,11 +117,11 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
       setMembers(memberResponse.data.data || []);
       setAudit(auditResponse.data.data || []);
     } catch (reason) {
-      setError(describeError(reason));
+      setError(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
     } finally {
       setLoading(false);
     }
-  }, [dashboardId]);
+  }, [dashboardId, tr]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -130,17 +132,17 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
   const addMember = async () => {
     const cleanPrincipal = principalId.trim();
     if (!cleanPrincipal) {
-      message.warning('请输入成员账号');
+      message.warning(tr('请输入成员账号', 'Enter a member account'));
       return;
     }
     setSaving(true);
     try {
       await upsertDashboardMember(dashboardId, cleanPrincipal, role);
       setPrincipalId('');
-      message.success('成员权限已保存');
+      message.success(tr('成员权限已保存', 'Member access saved'));
       await load();
     } catch (reason) {
-      message.error(describeError(reason));
+      message.error(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
     } finally {
       setSaving(false);
     }
@@ -149,20 +151,20 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
   const updateRole = async (member: DashboardMemberRecord, nextRole: Exclude<DashboardRole, 'owner'>) => {
     try {
       await upsertDashboardMember(dashboardId, member.principal_id, nextRole);
-      message.success('成员角色已更新');
+      message.success(tr('成员角色已更新', 'Member role updated'));
       await load();
     } catch (reason) {
-      message.error(describeError(reason));
+      message.error(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
     }
   };
 
   const removeMember = async (member: DashboardMemberRecord) => {
     try {
       await removeDashboardMember(dashboardId, member.principal_id);
-      message.success('成员已移除');
+      message.success(tr('成员已移除', 'Member removed'));
       await load();
     } catch (reason) {
-      message.error(describeError(reason));
+      message.error(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
     }
   };
 
@@ -172,32 +174,32 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
       title={
         <span className='inline-flex items-center gap-2'>
           <SafetyCertificateOutlined className='text-blue-500' />
-          权限与审计
+          {tr('权限与审计', 'Access and audit')}
         </span>
       }
       open={open}
       onClose={onClose}
-      extra={<Button aria-label='刷新权限信息' icon={<ReloadOutlined />} onClick={() => void load()} />}
+      extra={<Button aria-label={tr('刷新权限信息', 'Refresh access information')} icon={<ReloadOutlined />} onClick={() => void load()} />}
     >
       {loading ? (
         <Skeleton active paragraph={{ rows: 8 }} />
       ) : error ? (
-        <Alert type='error' showIcon message='无法读取管理信息' description={error} />
+        <Alert type='error' showIcon message={tr('无法读取管理信息', 'Could not load management information')} description={error} />
       ) : permission ? (
         <Tabs
           items={[
             {
               key: 'members',
-              label: '成员权限',
+              label: tr('成员权限', 'Member access'),
               children: (
                 <div className='space-y-5'>
                   <div className='rounded-xl border border-blue-100 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/20'>
                     <Descriptions size='small' column={1} colon={false}>
-                      <Descriptions.Item label='当前账号'>{permission.actor_id}</Descriptions.Item>
-                      <Descriptions.Item label='当前角色'>
+                      <Descriptions.Item label={tr('当前账号', 'Current account')}>{permission.actor_id}</Descriptions.Item>
+                      <Descriptions.Item label={tr('当前角色', 'Current role')}>
                         <Tag color={roleColor[permission.role]}>{roleLabels[permission.role]}</Tag>
                       </Descriptions.Item>
-                      <Descriptions.Item label='可执行操作'>
+                      <Descriptions.Item label={tr('可执行操作', 'Available actions')}>
                         <Space size={[4, 6]} wrap>
                           {permission.actions.map(action => (
                             <Tag key={action}>{actionLabels[action]}</Tag>
@@ -209,23 +211,23 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
 
                   {canManage ? (
                     <div>
-                      <div className='mb-2 font-medium'>添加或更新成员</div>
+                      <div className='mb-2 font-medium'>{tr('添加或更新成员', 'Add or update member')}</div>
                       <Space.Compact block>
                         <Input
-                          aria-label='成员账号'
-                          placeholder='输入 DB-GPT 用户账号'
+                          aria-label={tr('成员账号', 'Member account')}
+                          placeholder={tr('输入 DB-GPT 用户账号', 'Enter a DB-GPT account')}
                           value={principalId}
                           onChange={event => setPrincipalId(event.target.value)}
                           onPressEnter={() => void addMember()}
                         />
                         <select
-                          aria-label='成员角色'
+                          aria-label={tr('成员角色', 'Member role')}
                           className='w-32 border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900'
                           value={role}
                           onChange={event => setRole(event.target.value as Exclude<DashboardRole, 'owner'>)}
                         >
-                          <option value='viewer'>查看者</option>
-                          <option value='editor'>编辑者</option>
+                          <option value='viewer'>{tr('查看者', 'Viewer')}</option>
+                          <option value='editor'>{tr('编辑者', 'Editor')}</option>
                         </select>
                         <Button
                           type='primary'
@@ -233,15 +235,15 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
                           loading={saving}
                           onClick={() => void addMember()}
                         >
-                          保存成员
+                          {tr('保存成员', 'Save member')}
                         </Button>
                       </Space.Compact>
                       <p className='mt-2 text-xs text-gray-400'>
-                        查看者只能浏览；编辑者可以编辑并刷新；发布、成员管理和定时任务仅所有者可用。
+                        {tr('查看者只能浏览；编辑者可以编辑并刷新；发布、成员管理和定时任务仅所有者可用。', 'Viewers can browse; editors can edit and refresh. Only the owner can publish, manage members and schedules.')}
                       </p>
                     </div>
                   ) : (
-                    <Alert type='info' showIcon message='你可以访问此看板，但没有成员管理权限。' />
+                    <Alert type='info' showIcon message={tr('你可以访问此看板，但没有成员管理权限。', 'You can access this dashboard but cannot manage members.')} />
                   )}
 
                   {canManage ? (
@@ -254,14 +256,14 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
                           <div className='min-w-[180px] flex-1'>
                             <div className='font-medium text-gray-800 dark:text-gray-100'>{member.principal_id}</div>
                             <div className='mt-0.5 text-xs text-gray-400'>
-                              由 {member.created_by} 添加 · {new Date(member.updated_at).toLocaleString()}
+                              {tr('由 ', 'Added by ')}{member.created_by} {tr('添加 · ', ' · ')}{new Date(member.updated_at).toLocaleString()}
                             </div>
                           </div>
                           {member.role === 'owner' ? (
                             <Tag color={roleColor.owner}>{roleLabels.owner}</Tag>
                           ) : (
                             <select
-                              aria-label={`${member.principal_id}角色`}
+                              aria-label={tr(`${member.principal_id}角色`, `Role for ${member.principal_id}`)}
                               value={member.role}
                               className='h-8 w-28 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900'
                               onChange={event =>
@@ -274,16 +276,16 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
                           )}
                           {member.role === 'owner' ? null : (
                             <Popconfirm
-                              title={`移除成员 ${member.principal_id}？`}
-                              description='移除后，该成员将不能再访问这个看板。'
-                              okText='移除'
-                              cancelText='取消'
+                              title={tr(`移除成员 ${member.principal_id}？`, `Remove member ${member.principal_id}?`)}
+                              description={tr('移除后，该成员将不能再访问这个看板。', 'This member will no longer be able to access this dashboard.')}
+                              okText={tr('移除', 'Remove')}
+                              cancelText={tr('取消', 'Cancel')}
                               onConfirm={() => void removeMember(member)}
                             >
                               <Button
                                 danger
                                 type='text'
-                                aria-label={`移除成员 ${member.principal_id}`}
+                                aria-label={tr(`移除成员 ${member.principal_id}`, `Remove member ${member.principal_id}`)}
                                 icon={<DeleteOutlined />}
                               />
                             </Popconfirm>
@@ -297,7 +299,7 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
             },
             {
               key: 'audit',
-              label: `操作记录${audit.length ? ` (${audit.length})` : ''}`,
+              label: tr(`操作记录${audit.length ? ` (${audit.length})` : ''}`, `Activity log${audit.length ? ` (${audit.length})` : ''}`),
               disabled: !canManage,
               children: audit.length ? (
                 <Timeline
@@ -323,7 +325,7 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
                   }))}
                 />
               ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无操作记录' />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('暂无操作记录', 'No activity recorded')} />
               ),
             },
           ]}

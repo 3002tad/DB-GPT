@@ -34,7 +34,7 @@ module.exports = {
         default: '#0C75FC',
       },
       backgroundImage: {
-        'gradient-light': "url('/images/bg.png')",
+        'gradient-light': "url('/pictures/bg.png')",
         'gradient-dark': 'url("/images/bg_dark.png")',
         'button-gradient': 'linear-gradient(to right, theme("colors.gradientL"), theme("colors.gradientR"))',
       },

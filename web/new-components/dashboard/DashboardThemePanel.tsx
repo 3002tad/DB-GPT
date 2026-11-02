@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import {
   DashboardThemeDensity,
   DashboardThemeFontScale,
@@ -25,8 +26,20 @@ interface DashboardThemePanelProps {
 }
 
 const sameValue = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+const themeNames: Record<DashboardThemeId, string> = { clarity: 'Clarity', ocean: 'Ocean', warm: 'Warm', graphite: 'Graphite' };
+const auditEnglish: Record<string, string> = {
+  text_contrast: 'Text contrast against the card background is below 4.5:1.',
+  muted_contrast: 'Secondary text contrast against the card background is below 3:1.',
+  palette_duplicate: 'The chart palette contains duplicate colors.',
+};
+const englishAuditMessage = (code: string, original: string) => {
+  if (code === 'palette_contrast') return `Chart palette colors ${original.match(/第 (.+?) 个/)?.[1] || ''} have contrast below 3:1.`;
+  if (code === 'palette_colorblind_collision') return `Some color combinations are difficult to distinguish under color vision simulation: ${original.split('：')[1] || ''}`;
+  return auditEnglish[code] || original;
+};
 
 export default function DashboardThemePanel({ theme, onChange }: DashboardThemePanelProps) {
+  const tr = useUiText();
   const [customizing, setCustomizing] = useState(false);
   const resolved = useMemo(() => resolveDashboardTheme(theme), [theme]);
   const base = useMemo(
@@ -56,9 +69,9 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
       <div className={styles.themePanelHeading}>
         <div>
           <h3 id='dashboard-visual-theme-title' className={styles.sectionTitle}>
-            视觉主题
+            {tr('视觉主题', 'Visual theme')}
           </h3>
-          <p className={styles.themePanelHint}>只改变看板内容与发布页</p>
+          <p className={styles.themePanelHint}>{tr('只改变看板内容与发布页', 'Applies to dashboard content and published pages')}</p>
         </div>
         <BgColorsOutlined aria-hidden='true' />
       </div>
@@ -71,7 +84,7 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
             <button
               key={id}
               type='button'
-              aria-label={`选择${definition.label}主题`}
+              aria-label={tr(`选择${definition.label}主题`, `Select ${themeNames[id]} theme`)}
               aria-pressed={selected}
               data-testid={`dashboard-theme-${id}`}
               className={`${styles.themePresetCard} ${selected ? styles.themePresetCardSelected : ''}`}
@@ -83,7 +96,7 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
                 <span style={{ backgroundColor: preview.chartPalette[1] }} />
                 <span style={{ backgroundColor: preview.chartPalette[2] }} />
               </span>
-              <span style={{ color: preview.text }}>{definition.label}</span>
+              <span style={{ color: preview.text }}>{tr(definition.label, themeNames[id])}</span>
             </button>
           );
         })}
@@ -91,11 +104,11 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
       <Segmented
         block
         size='small'
-        aria-label='主题明暗模式'
+        aria-label={tr('主题明暗模式', 'Theme light or dark mode')}
         value={resolved.mode}
         options={[
-          { label: '浅色', value: 'light' },
-          { label: '深色', value: 'dark' },
+          { label: tr('浅色', 'Light'), value: 'light' },
+          { label: tr('深色', 'Dark'), value: 'dark' },
         ]}
         onChange={value => emit(overrides, resolved.id, value as DashboardThemeMode)}
       />
@@ -103,20 +116,20 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
         type='text'
         size='small'
         className={styles.themeCustomizeToggle}
-        aria-label={customizing ? '收起二次创作' : '展开二次创作'}
+        aria-label={customizing ? tr('收起二次创作', 'Collapse customization') : tr('展开二次创作', 'Expand customization')}
         aria-expanded={customizing}
         onClick={() => setCustomizing(current => !current)}
         icon={customizing ? <UpOutlined /> : <DownOutlined />}
       >
-        二次创作{overrideCount ? `（${overrideCount} 项）` : ''}
+        {tr('二次创作', 'Customize')}{overrideCount ? tr(`（${overrideCount} 项）`, ` (${overrideCount})`) : ''}
       </Button>
       {customizing && (
         <div className={styles.themeOverrideGrid} data-testid='dashboard-theme-overrides'>
           <label className={styles.themeField}>
-            <span>主色</span>
+            <span>{tr('主色', 'Primary color')}</span>
             <span className={styles.themeColorControl}>
               <input
-                aria-label='主题主色'
+                aria-label={tr('主题主色', 'Theme primary color')}
                 type='color'
                 value={resolved.primary}
                 onChange={event => setOverride('primary_color', event.target.value.toUpperCase(), base.primary)}
@@ -125,37 +138,37 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
             </span>
           </label>
           <label className={styles.themeField}>
-            <span>字号档位</span>
+            <span>{tr('字号档位', 'Font size')}</span>
             <Select
-              aria-label='主题字号档位'
+              aria-label={tr('主题字号档位', 'Theme font size')}
               size='small'
               value={resolved.fontScale}
               options={[
-                { value: 'compact', label: '紧凑' },
-                { value: 'standard', label: '标准' },
-                { value: 'large', label: '放大' },
+                { value: 'compact', label: tr('紧凑', 'Compact') },
+                { value: 'standard', label: tr('标准', 'Standard') },
+                { value: 'large', label: tr('放大', 'Large') },
               ]}
               onChange={(value: DashboardThemeFontScale) => setOverride('font_scale', value, base.fontScale)}
             />
           </label>
           <label className={styles.themeField}>
-            <span>留白密度</span>
+            <span>{tr('留白密度', 'Spacing density')}</span>
             <Select
-              aria-label='主题留白密度'
+              aria-label={tr('主题留白密度', 'Theme spacing density')}
               size='small'
               value={resolved.density}
               options={[
-                { value: 'compact', label: '紧凑' },
-                { value: 'comfortable', label: '舒适' },
-                { value: 'spacious', label: '宽松' },
+                { value: 'compact', label: tr('紧凑', 'Compact') },
+                { value: 'comfortable', label: tr('舒适', 'Comfortable') },
+                { value: 'spacious', label: tr('宽松', 'Spacious') },
               ]}
               onChange={(value: DashboardThemeDensity) => setOverride('density', value, base.density)}
             />
           </label>
           <label className={styles.themeField}>
-            <span>卡片圆角</span>
+            <span>{tr('卡片圆角', 'Card corners')}</span>
             <InputNumber
-              aria-label='主题卡片圆角'
+              aria-label={tr('主题卡片圆角', 'Theme card corners')}
               size='small'
               min={0}
               max={28}
@@ -165,54 +178,54 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
             />
           </label>
           <label className={styles.themeField}>
-            <span>卡片阴影</span>
+            <span>{tr('卡片阴影', 'Card shadow')}</span>
             <Select
-              aria-label='主题卡片阴影'
+              aria-label={tr('主题卡片阴影', 'Theme card shadow')}
               size='small'
               value={overrides.card_shadow || 'soft'}
               options={[
-                { value: 'none', label: '无' },
-                { value: 'soft', label: '柔和' },
-                { value: 'elevated', label: '悬浮' },
+                { value: 'none', label: tr('无', 'None') },
+                { value: 'soft', label: tr('柔和', 'Soft') },
+                { value: 'elevated', label: tr('悬浮', 'Elevated') },
               ]}
               onChange={(value: DashboardThemeShadow) => setOverride('card_shadow', value, 'soft')}
             />
           </label>
           <label className={styles.themeField}>
-            <span>KPI 样式</span>
+            <span>{tr('KPI 样式', 'KPI style')}</span>
             <Select
-              aria-label='主题 KPI 样式'
+              aria-label={tr('主题 KPI 样式', 'Theme KPI style')}
               size='small'
               value={resolved.kpiStyle}
               options={[
-                { value: 'quiet', label: '克制' },
-                { value: 'accent', label: '强调' },
-                { value: 'solid', label: '色块' },
+                { value: 'quiet', label: tr('克制', 'Quiet') },
+                { value: 'accent', label: tr('强调', 'Accent') },
+                { value: 'solid', label: tr('色块', 'Solid') },
               ]}
               onChange={(value: DashboardThemeKpiStyle) => setOverride('kpi_style', value, base.kpiStyle)}
             />
           </label>
           <label className={styles.themeField}>
-            <span>表格样式</span>
+            <span>{tr('表格样式', 'Table style')}</span>
             <Select
-              aria-label='主题表格样式'
+              aria-label={tr('主题表格样式', 'Theme table style')}
               size='small'
               value={resolved.tableStyle}
               options={[
-                { value: 'plain', label: '纯净' },
-                { value: 'striped', label: '斑马纹' },
-                { value: 'divided', label: '分隔线' },
+                { value: 'plain', label: tr('纯净', 'Plain') },
+                { value: 'striped', label: tr('斑马纹', 'Striped') },
+                { value: 'divided', label: tr('分隔线', 'Divided') },
               ]}
               onChange={(value: DashboardThemeTableStyle) => setOverride('table_style', value, base.tableStyle)}
             />
           </label>
           <div className={styles.themeFieldWide}>
-            <span>图表色板</span>
+            <span>{tr('图表色板', 'Chart palette')}</span>
             <div className={styles.themePaletteEditor}>
               {resolved.chartPalette.map((color, index) => (
                 <input
                   key={`${index}-${color}`}
-                  aria-label={`图表色板颜色 ${index + 1}`}
+                  aria-label={tr(`图表色板颜色 ${index + 1}`, `Chart palette color ${index + 1}`)}
                   type='color'
                   value={color}
                   onChange={event => {
@@ -225,17 +238,17 @@ export default function DashboardThemePanel({ theme, onChange }: DashboardThemeP
             </div>
           </div>
           {!!issues.length && (
-            <Alert className={styles.themeAuditAlert} type='error' showIcon message={issues[0].message} />
+            <Alert className={styles.themeAuditAlert} type='error' showIcon message={tr(issues[0].message, englishAuditMessage(issues[0].code, issues[0].message))} />
           )}
           <Button
             className={styles.themeResetButton}
             size='small'
             icon={<ReloadOutlined />}
-            aria-label='恢复主题默认'
+            aria-label={tr('恢复主题默认', 'Restore theme defaults')}
             disabled={!overrideCount}
             onClick={() => emit({})}
           >
-            恢复主题默认
+            {tr('恢复主题默认', 'Restore theme defaults')}
           </Button>
         </div>
       )}

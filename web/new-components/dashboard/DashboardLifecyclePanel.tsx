@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import {
   getDashboardEditVersion,
   listDashboardEditVersions,
@@ -36,7 +37,16 @@ const editSourceLabels: Record<string, string> = {
   migration: '迁移基线',
 };
 
+const editSourceEnglish: Record<string, string> = {
+  create: 'Created', agent_create: 'Created by AI', template_create: 'Created from template',
+  manual_save: 'Saved', manual_edit: 'Edited collaboratively', agent_edit: 'Edited by AI',
+  ai_edit: 'Edited by AI', ai_annotation: 'AI proposal applied', archive: 'Archived',
+  unarchive: 'Unarchived', edit_version_restore: 'Edit revision restored',
+  published_revision_restore: 'Published snapshot restored', migration: 'Migration baseline',
+};
+
 function DashboardVersionPreview({ version }: { version: DashboardEditVersionDetail }) {
+  const tr = useUiText();
   const widgetById = new Map(version.schema.widgets.map(widget => [widget.id, widget]));
   return (
     <div
@@ -44,13 +54,13 @@ function DashboardVersionPreview({ version }: { version: DashboardEditVersionDet
       data-testid='dashboard-version-preview'
     >
       <div className='flex flex-wrap items-center gap-2'>
-        <strong>修订 {version.revision} 预览</strong>
-        <Tag>{editSourceLabels[version.source] || version.source}</Tag>
-        <span className='text-xs text-[var(--app-muted)]'>只读结构预览，不执行历史 SQL</span>
+        <strong>{tr(`修订 ${version.revision} 预览`, `Revision ${version.revision} preview`)}</strong>
+        <Tag>{tr(editSourceLabels[version.source] || version.source, editSourceEnglish[version.source] || version.source)}</Tag>
+        <span className='text-xs text-[var(--app-muted)]'>{tr('只读结构预览，不执行历史 SQL', 'Read-only structure preview; historical SQL is not run')}</span>
       </div>
       <div className='mt-2 text-sm font-medium'>{version.schema.dashboard.title}</div>
       <div className='mt-1 text-xs text-[var(--app-muted)]'>
-        {version.schema.widgets.length} 个组件 · {version.schema.filters.length} 个筛选器
+        {tr(`${version.schema.widgets.length} 个组件 · ${version.schema.filters.length} 个筛选器`, `${version.schema.widgets.length} widgets · ${version.schema.filters.length} filters`)}
       </div>
       <div
         className='mt-3 grid gap-2 rounded-lg border border-dashed border-[var(--app-border)] bg-[var(--app-surface)] p-2'
@@ -98,6 +108,7 @@ export default function DashboardLifecyclePanel({
   onOpenPublish,
   onRecordChange,
 }: DashboardLifecyclePanelProps) {
+  const tr = useUiText();
   const { message, modal } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [shares, setShares] = useState<DashboardShareRecord[]>([]);
@@ -118,11 +129,11 @@ export default function DashboardLifecyclePanel({
       setRevisions(revisionResponse.data.data || []);
       setEditVersions(editVersionResponse.data.data || []);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载版本记录失败');
+      message.error(error instanceof Error ? error.message : tr('加载版本记录失败', 'Could not load version history'));
     } finally {
       setLoading(false);
     }
-  }, [dashboardId, message]);
+  }, [dashboardId, message, tr]);
 
   useEffect(() => {
     // Opening the drawer is the external event that starts the remote refresh.
@@ -133,10 +144,10 @@ export default function DashboardLifecyclePanel({
     const response = await rotateDashboardPublication(dashboardId, revision, 7 * 24 * 60 * 60);
     const url = `${window.location.origin}${response.data.data.share_path}`;
     modal.success({
-      title: '已轮换分享链接',
+      title: tr('已轮换分享链接', 'Share link rotated'),
       content: (
         <div>
-          <p className='mb-2 text-sm text-[var(--app-muted)]'>旧链接已立即失效，新链接将在 7 天后过期。</p>
+          <p className='mb-2 text-sm text-[var(--app-muted)]'>{tr('旧链接已立即失效，新链接将在 7 天后过期。', 'The old link is now inactive; the new link expires in seven days.')}</p>
           <Input value={url} readOnly onFocus={event => event.currentTarget.select()} />
           <Button
             className='mt-2'
@@ -144,13 +155,13 @@ export default function DashboardLifecyclePanel({
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(url);
-                message.success('已复制');
+                message.success(tr('已复制', 'Copied'));
               } catch {
-                message.info('请选中下方链接复制');
+                message.info(tr('请选中下方链接复制', 'Select and copy the link below'));
               }
             }}
           >
-            复制链接
+            {tr('复制链接', 'Copy link')}
           </Button>
         </div>
       ),
@@ -160,7 +171,7 @@ export default function DashboardLifecyclePanel({
 
   const revoke = async (revision: number) => {
     await revokeDashboardPublication(dashboardId, revision);
-    message.success('该发布版本的活动链接已撤销');
+    message.success(tr('该发布版本的活动链接已撤销', 'Active link for this publication revoked'));
     await load();
   };
 
@@ -168,10 +179,10 @@ export default function DashboardLifecyclePanel({
     try {
       const response = await restoreDashboardRevision(dashboardId, revision, currentRevision);
       onRecordChange(response.data.data);
-      message.success('已从发布快照创建新的草稿修订；旧快照保持不变');
+      message.success(tr('已从发布快照创建新的草稿修订；旧快照保持不变', 'A new draft was created from the published snapshot; the snapshot is unchanged.'));
       onClose();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '恢复版本失败');
+      message.error(error instanceof Error ? error.message : tr('恢复版本失败', 'Could not restore version'));
     }
   };
 
@@ -181,7 +192,7 @@ export default function DashboardLifecyclePanel({
       const response = await getDashboardEditVersion(dashboardId, revision);
       setPreviewVersion(response.data.data);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载编辑修订失败');
+      message.error(error instanceof Error ? error.message : tr('加载编辑修订失败', 'Could not load edit revision'));
     } finally {
       setPreviewLoading(false);
     }
@@ -191,16 +202,16 @@ export default function DashboardLifecyclePanel({
     try {
       const response = await restoreDashboardEditVersion(dashboardId, revision, currentRevision);
       onRecordChange(response.data.data);
-      message.success('已从编辑历史创建新的草稿修订；原修订保持不变');
+      message.success(tr('已从编辑历史创建新的草稿修订；原修订保持不变', 'A new draft was created from edit history; the original revision is unchanged.'));
       onClose();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '恢复编辑修订失败');
+      message.error(error instanceof Error ? error.message : tr('恢复编辑修订失败', 'Could not restore edit revision'));
     }
   };
 
   return (
     <Drawer
-      title='编辑版本、发布历史与分享'
+      title={tr('编辑版本、发布历史与分享', 'Edit versions, publication history and sharing')}
       className={styles.panel}
       rootStyle={themeStyle}
       width={640}
@@ -208,17 +219,17 @@ export default function DashboardLifecyclePanel({
       onClose={onClose}
     >
       <p className='mb-4 text-sm text-[var(--app-muted)]'>
-        合计保留最近 20 个版本，包含当前编辑和最新发布版本。编号持续递增，超期版本及对应固定链接会失效。
+        {tr('合计保留最近 20 个版本，包含当前编辑和最新发布版本。编号持续递增，超期版本及对应固定链接会失效。', 'The latest 20 versions are retained, including the current edit and latest publication. Expired versions and their fixed links become unavailable.')}
       </p>
-      <Button className='mb-5' type='primary' onClick={onOpenPublish}>发布与分享</Button>
+      <Button className='mb-5' type='primary' onClick={onOpenPublish}>{tr('发布与分享', 'Publish and share')}</Button>
       <Spin spinning={loading}>
         <div className='mb-3 flex items-center'>
-          <strong>编辑修订</strong>
+          <strong>{tr('编辑修订', 'Edit revisions')}</strong>
           <Tag className='ml-2' color='blue'>
-            当前 {currentRevision}
+            {tr(`当前 ${currentRevision}`, `Current ${currentRevision}`)}
           </Tag>
           <Button className='ml-auto' type='text' icon={<ReloadOutlined />} onClick={load}>
-            刷新
+            {tr('刷新', 'Refresh')}
           </Button>
         </div>
         {editVersions.length ? (
@@ -233,17 +244,17 @@ export default function DashboardLifecyclePanel({
                     icon={<EyeOutlined />}
                     onClick={() => viewEditVersion(version.revision)}
                   >
-                    查看
+                    {tr('查看', 'View')}
                   </Button>,
                   <Popconfirm
                     key='restore-edit'
-                    title='恢复这个编辑修订？'
-                    description='系统会追加一个新修订，不会覆盖现有修订或发布快照。'
+                    title={tr('恢复这个编辑修订？', 'Restore this edit revision?')}
+                    description={tr('系统会追加一个新修订，不会覆盖现有修订或发布快照。', 'A new revision will be added; existing revisions and snapshots remain unchanged.')}
                     disabled={version.revision === currentRevision}
                     onConfirm={() => restoreEditVersion(version.revision)}
                   >
                     <Button size='small' disabled={version.revision === currentRevision} icon={<UndoOutlined />}>
-                      恢复为新草稿
+                      {tr('恢复为新草稿', 'Restore as new draft')}
                     </Button>
                   </Popconfirm>,
                 ]}
@@ -251,9 +262,9 @@ export default function DashboardLifecyclePanel({
                 <List.Item.Meta
                   title={
                     <Space wrap>
-                      <span>编辑修订 {version.revision}</span>
-                      {version.revision === currentRevision && <Tag color='blue'>当前</Tag>}
-                      <Tag>{editSourceLabels[version.source] || version.source}</Tag>
+                      <span>{tr(`编辑修订 ${version.revision}`, `Edit revision ${version.revision}`)}</span>
+                      {version.revision === currentRevision && <Tag color='blue'>{tr('当前', 'Current')}</Tag>}
+                      <Tag>{tr(editSourceLabels[version.source] || version.source, editSourceEnglish[version.source] || version.source)}</Tag>
                     </Space>
                   }
                   description={`${version.actor_id} · ${new Date(version.created_at).toLocaleString()}`}
@@ -262,13 +273,13 @@ export default function DashboardLifecyclePanel({
             )}
           />
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无可回看的编辑修订' />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('暂无可回看的编辑修订', 'No edit revisions available')} />
         )}
         <Spin spinning={previewLoading}>{previewVersion && <DashboardVersionPreview version={previewVersion} />}</Spin>
 
         <Divider />
         <div className='mb-3 flex items-center'>
-          <strong>发布修订</strong>
+          <strong>{tr('发布修订', 'Published revisions')}</strong>
         </div>
         {revisions.length ? (
           <List
@@ -278,28 +289,28 @@ export default function DashboardLifecyclePanel({
                 actions={[
                   <Popconfirm
                     key='restore'
-                    title='恢复这个发布版本？'
-                    description='系统会创建一个新的草稿修订，不会覆盖或篡改旧发布快照。'
+                    title={tr('恢复这个发布版本？', 'Restore this published version?')}
+                    description={tr('系统会创建一个新的草稿修订，不会覆盖或篡改旧发布快照。', 'A new draft will be created; the published snapshot remains unchanged.')}
                     onConfirm={() => restore(revision.published_revision)}
                   >
                     <Button size='small' icon={<UndoOutlined />}>
-                      恢复为新草稿
+                      {tr('恢复为新草稿', 'Restore as new draft')}
                     </Button>
                   </Popconfirm>,
                 ]}
               >
                 <List.Item.Meta
-                  title={`发布版本 ${revision.published_revision}`}
+                  title={tr(`发布版本 ${revision.published_revision}`, `Published version ${revision.published_revision}`)}
                   description={new Date(revision.published_at).toLocaleString()}
                 />
               </List.Item>
             )}
           />
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='尚未发布过' />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('尚未发布过', 'Not published yet')} />
         )}
 
-        <div className='mb-3 mt-8 font-semibold'>分享链接记录</div>
+        <div className='mb-3 mt-8 font-semibold'>{tr('分享链接记录', 'Share link history')}</div>
         {shares.length ? (
           <List
             dataSource={shares}
@@ -307,36 +318,36 @@ export default function DashboardLifecyclePanel({
               <List.Item
                 actions={[
                   <Button key='rotate' size='small' onClick={() => rotate(share.published_revision)}>
-                    {share.active ? '轮换' : '重新签发'}
+                    {share.active ? tr('轮换', 'Rotate') : tr('重新签发', 'Reissue')}
                   </Button>,
                   <Popconfirm
                     key='revoke'
-                    title='立即撤销活动链接？'
+                    title={tr('立即撤销活动链接？', 'Revoke the active link now?')}
                     onConfirm={() => revoke(share.published_revision)}
                   >
                     <Button size='small' danger disabled={!share.active} icon={<StopOutlined />}>
-                      撤销
+                      {tr('撤销', 'Revoke')}
                     </Button>
                   </Popconfirm>,
                 ]}
               >
                 <Space direction='vertical' size={2}>
                   <Space>
-                    <span>发布版本 {share.published_revision}</span>
-                    <Tag color={share.active ? 'green' : 'default'}>{share.active ? '有效' : '已失效'}</Tag>
+                    <span>{tr(`发布版本 ${share.published_revision}`, `Published version ${share.published_revision}`)}</span>
+                    <Tag color={share.active ? 'green' : 'default'}>{share.active ? tr('有效', 'Active') : tr('已失效', 'Inactive')}</Tag>
                   </Space>
                   <span className='text-xs text-[var(--app-muted)]'>
-                    创建：{new Date(share.created_at).toLocaleString()}
+                    {tr('创建：', 'Created: ')}{new Date(share.created_at).toLocaleString()}
                   </span>
                   <span className='text-xs text-[var(--app-muted)]'>
-                    到期：{share.expires_at ? new Date(share.expires_at).toLocaleString() : '长期有效'}
+                    {tr('到期：', 'Expires: ')}{share.expires_at ? new Date(share.expires_at).toLocaleString() : tr('长期有效', 'No expiry')}
                   </span>
                 </Space>
               </List.Item>
             )}
           />
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无分享记录' />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('暂无分享记录', 'No share history')} />
         )}
       </Spin>
     </Drawer>

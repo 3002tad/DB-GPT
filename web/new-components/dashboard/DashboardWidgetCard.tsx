@@ -1,3 +1,5 @@
+import { useUiText } from '@/hooks/use-ui-text';
+import { visualizationEnglish } from './dashboard-visualization-english';
 import { AdvancedChart } from '@/new-components/charts';
 import {
   DashboardSelectionTarget,
@@ -225,6 +227,7 @@ export default function DashboardWidgetCard({
       fullFormat: dashboardNumberFormat(values, widget, false, sourceUnit).format,
     };
   }, [data, metricContext, renderData, result?.columns, widget]);
+  const tr = useUiText();
   const [tableSort, setTableSort] = useState<{ field: string | null; direction: DashboardSortDirection }>(() => ({
     field: widget.presentation?.default_sort.field || null,
     direction: widget.presentation?.default_sort.direction || 'default',
@@ -318,7 +321,7 @@ export default function DashboardWidgetCard({
       return (
         <div className='flex h-full items-center justify-center gap-2 text-sm text-[var(--app-muted)]'>
           <Spin size='small' />
-          <span>正在查询数据…</span>
+          <span>{tr('正在查询数据…', 'Querying data…')}</span>
         </div>
       );
     }
@@ -333,10 +336,10 @@ export default function DashboardWidgetCard({
               <CodeOutlined />
             </div>
             <div className='mt-3 text-sm font-medium text-[var(--app-text)]'>
-              {widget.error ? '查询生成失败，等待配置' : '尚未配置查询'}
+              {widget.error ? tr('查询生成失败，等待配置', 'Query generation failed; configuration needed') : tr('尚未配置查询', 'Query not configured')}
             </div>
             <div className='mx-auto mt-1 max-w-xs text-xs leading-5 text-[var(--app-muted)]'>
-              选择数据助理自动生成查询与字段映射，或直接手动编写 SQL。
+              {tr('选择数据助理自动生成查询与字段映射，或直接手动编写 SQL。', 'Ask the data assistant to generate a query and field mapping, or write SQL manually.')}
             </div>
             {editable && (onRequestAgentConfiguration || onOpenQueryEditor) && (
               <div className='mt-4 flex flex-wrap justify-center gap-2'>
@@ -344,7 +347,7 @@ export default function DashboardWidgetCard({
                   <Button
                     size='small'
                     type='primary'
-                    aria-label='让数据助理配置'
+                    aria-label={tr('让数据助理配置', 'Ask data assistant to configure')}
                     icon={<CommentOutlined />}
                     disabled={agentConfigurationDisabled}
                     onClick={event => {
@@ -352,27 +355,27 @@ export default function DashboardWidgetCard({
                       onRequestAgentConfiguration(event.currentTarget.getBoundingClientRect());
                     }}
                   >
-                    让数据助理配置
+                    {tr('让数据助理配置', 'Ask data assistant to configure')}
                   </Button>
                 )}
                 {onOpenQueryEditor && (
                   <Button
                     size='small'
-                    aria-label='手动配置 SQL'
+                    aria-label={tr('手动配置 SQL', 'Configure SQL manually')}
                     icon={<CodeOutlined />}
                     onClick={event => {
                       event.stopPropagation();
                       onOpenQueryEditor();
                     }}
                   >
-                    手动配置 SQL
+                    {tr('手动配置 SQL', 'Configure SQL manually')}
                   </Button>
                 )}
               </div>
             )}
             {editable && agentConfigurationDisabled && onRequestAgentConfiguration && (
               <div className='mt-2 text-[11px] text-[var(--app-muted)]'>
-                此看板没有可续接的数据助理任务，请手动配置 SQL。
+                {tr('此看板没有可续接的数据助理任务，请手动配置 SQL。', 'No data assistant task is available. Configure SQL manually.')}
               </div>
             )}
           </div>
@@ -385,19 +388,19 @@ export default function DashboardWidgetCard({
         <Alert
           type='error'
           showIcon
-          message='这个组件暂时不可用'
+          message={tr('这个组件暂时不可用', 'This widget is temporarily unavailable')}
           description={error.message}
           action={
             error.retryable && onRetry ? (
               <Button size='small' icon={<ReloadOutlined />} onClick={onRetry}>
-                重试
+                {tr('重试', 'Retry')}
               </Button>
             ) : undefined
           }
         />
       );
     }
-    if (!result || !data.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无数据' />;
+    if (!result || !data.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('暂无数据', 'No data')} />;
 
     if (visualization === 'kpi') {
       const valueField = encoding.value || result.columns[0];
@@ -460,7 +463,7 @@ export default function DashboardWidgetCard({
             className={styles.kpiContext}
             style={{ color: hero ? '#eef3eb' : theme?.kpiStyle === 'solid' ? theme.card : theme?.muted }}
           >
-            {widget.query.grain || '当前筛选范围'}
+            {widget.query.grain || tr('当前筛选范围', 'Current filter scope')}
           </div>
           {icon && (
             <span className={styles.kpiIcon} aria-hidden='true'>
@@ -521,12 +524,12 @@ export default function DashboardWidgetCard({
             >
               <span className='text-2xl font-semibold'>{gaugeFormat.format(current)}</span>
               <span className='mt-1 text-xs' style={{ color: theme?.muted }}>
-                {(ratio * 100).toFixed(1)}% {String(widget.style.progress_label || '目标')}
+                {(ratio * 100).toFixed(1)}% {String(widget.style.progress_label || tr('目标', 'Target'))}
               </span>
             </div>
           </div>
           <span className='mt-3 text-xs' style={{ color: theme?.muted }}>
-            {String(widget.style.target_label || '目标')}：{gaugeFormat.format(target)}
+            {String(widget.style.target_label || tr('目标', 'Target'))}：{gaugeFormat.format(target)}
           </span>
         </button>
       );
@@ -590,7 +593,7 @@ export default function DashboardWidgetCard({
                     title={
                       datum
                         ? `${row} / ${column}: ${formatField(datum[valueField], valueField)}`
-                        : `${row} / ${column}: 无数据`
+                        : tr(`${row} / ${column}: 无数据`, `${row} / ${column}: No data`)
                     }
                     className='min-h-10 rounded border border-[var(--app-border)] px-1 text-center text-xs hover:ring-2 hover:ring-[var(--app-accent)]'
                     style={{
@@ -683,14 +686,14 @@ export default function DashboardWidgetCard({
                       <Tooltip
                         title={
                           activeSort === 'default'
-                            ? '按此列升序'
+                            ? tr('按此列升序', 'Sort ascending')
                             : activeSort === 'ascending'
-                              ? '改为降序'
-                              : '恢复默认顺序'
+                              ? tr('改为降序', 'Sort descending')
+                              : tr('恢复默认顺序', 'Restore default order')
                         }
                       >
                         <Button
-                          aria-label={`${output?.label || field}排序`}
+                          aria-label={tr(`${output?.label || field}排序`, `Sort ${output?.label || field}`)}
                           type='text'
                           size='small'
                           className='!h-6 !w-6 !p-0'
@@ -862,7 +865,7 @@ export default function DashboardWidgetCard({
               <button
                 key={item.id}
                 type='button'
-                aria-label={'编辑批注 ' + item.number}
+                aria-label={tr('编辑批注 ' + item.number, 'Edit annotation ' + item.number)}
                 title={item.content}
                 className='flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--app-accent)] px-1 text-xs font-semibold text-white'
                 onClick={event => {
@@ -892,17 +895,17 @@ export default function DashboardWidgetCard({
           )}
           {!['kpi', 'table', 'gauge', 'heatmap'].includes(visualization) && chartFormat.unit && (
             <p className={styles.widgetSubtitle} style={{ color: theme?.muted }}>
-              单位：{chartFormat.unit}
+              {tr('单位：', 'Unit: ')}{chartFormat.unit}
             </p>
           )}
         </div>
         <Tag bordered={false} className={styles.widgetTypeTag}>
-          {visualizationLabels[visualization]}
+          {tr(visualizationLabels[visualization], visualizationEnglish[visualization])}
         </Tag>
         {onExpand && (
-          <Tooltip title='放大图表与明细'>
+          <Tooltip title={tr('放大图表与明细', 'Expand chart and details')}>
             <Button
-              aria-label={`查看明细：${widget.title}`}
+              aria-label={tr(`查看明细：${widget.title}`, `View details: ${widget.title}`)}
               size='small'
               type='text'
               icon={<ExpandOutlined />}
@@ -914,9 +917,9 @@ export default function DashboardWidgetCard({
           </Tooltip>
         )}
         {editable && (
-          <Tooltip title={annotationMode ? '批注此组件' : '编辑可视化设置'}>
+          <Tooltip title={annotationMode ? tr('批注此组件', 'Annotate this widget') : tr('编辑可视化设置', 'Edit visualization settings')}>
             <Button
-              aria-label={annotationMode ? '批注此组件' : '编辑可视化设置'}
+              aria-label={annotationMode ? tr('批注此组件', 'Annotate this widget') : tr('编辑可视化设置', 'Edit visualization settings')}
               size='small'
               type={!annotationMode && selected && editorMode === 'visual' ? 'primary' : 'text'}
               icon={annotationMode ? <CommentOutlined /> : <EditOutlined />}
@@ -932,9 +935,9 @@ export default function DashboardWidgetCard({
           </Tooltip>
         )}
         {editable && !annotationMode && onSelectAnnotationTarget && (
-          <Tooltip title='批注此组件'>
+          <Tooltip title={tr('批注此组件', 'Annotate this widget')}>
             <Button
-              aria-label='批注此组件'
+              aria-label={tr('批注此组件', 'Annotate this widget')}
               size='small'
               type='text'
               icon={<CommentOutlined />}
@@ -946,9 +949,9 @@ export default function DashboardWidgetCard({
           </Tooltip>
         )}
         {editable && !annotationMode && onOpenQueryEditor && (
-          <Tooltip title='SQL 与参数设置'>
+          <Tooltip title={tr('SQL 与参数设置', 'SQL and parameter settings')}>
             <Button
-              aria-label='SQL 与参数设置'
+              aria-label={tr('SQL 与参数设置', 'SQL and parameter settings')}
               size='small'
               type={selected && editorMode === 'query' ? 'primary' : 'text'}
               icon={<CodeOutlined />}
@@ -966,9 +969,9 @@ export default function DashboardWidgetCard({
       </div>
       {result && !result.error && (
         <footer className={styles.widgetFooter}>
-          <span>{result.row_count} 行</span>
+          <span>{tr(`${result.row_count} 行`, `${result.row_count} rows`)}</span>
           <span>
-            {result.duration_ms} ms{result.truncated ? ' · 已截断' : ''}
+            {result.duration_ms} ms{result.truncated ? tr(' · 已截断', ' · truncated') : ''}
           </span>
         </footer>
       )}

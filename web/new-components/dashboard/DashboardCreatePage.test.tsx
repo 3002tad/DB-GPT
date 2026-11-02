@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ chat: vi.fn(), push: vi.fn(), getDbList: vi.fn() }));
+vi.mock('@/hooks/use-ui-text', () => ({ useUiText: () => (zh: string) => zh }));
 vi.mock('@/app/chat-context', async () => {
   const { createContext } = await import('react');
   return { ChatContext: createContext({ model: 'selected-model', modelList: ['selected-model'] }) };

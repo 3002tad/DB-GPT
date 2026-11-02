@@ -2,6 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { App } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/hooks/use-ui-text', () => {
+  const zh = (text: string) => text;
+  return { useUiText: () => zh };
+});
+
 const api = vi.hoisted(() => ({
   getDashboardPermissions: vi.fn(),
   listDashboardAudit: vi.fn(),

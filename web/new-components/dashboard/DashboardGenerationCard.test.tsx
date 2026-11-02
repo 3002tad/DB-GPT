@@ -2,6 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import DashboardGenerationCard, { DashboardGenerationState } from './DashboardGenerationCard';
 
+// These existing assertions cover the Chinese locale explicitly.
+vi.mock('@/hooks/use-ui-text', () => ({ useUiText: () => (zh: string) => zh }));
+
 describe('DashboardGenerationCard', () => {
   it('lists completed trials separately from saves and offers only explicit recovery actions', () => {
     const onOpen = vi.fn(),
