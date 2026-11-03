@@ -11,6 +11,21 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# The unified DB-GPT process registers its model workers over HTTP to its own
+# loopback listener. These endpoints must never trust forwarded client IPs.
+_LOCAL_MODEL_ENDPOINTS = {
+    ("GET", "/api/health"),
+    ("GET", "/api/controller/models"),
+    ("POST", "/api/controller/models"),
+    ("DELETE", "/api/controller/models"),
+    ("POST", "/api/controller/heartbeat"),
+    ("POST", "/api/worker/generate_stream"),
+    ("POST", "/api/worker/generate"),
+    ("POST", "/api/worker/embeddings"),
+    ("POST", "/api/worker/count_token"),
+    ("POST", "/api/worker/model_metadata"),
+}
+
 @dataclass(frozen=True)
 class PipelineActor:
     id: str
@@ -115,6 +130,12 @@ class PipelineIdentityMiddleware:
         if scope["type"] != "http" or not protected:
             return await self.app(scope, receive, send)
         headers = scope.get("headers", [])
+        client = scope.get("client")
+        forwarded = {b"forwarded", b"x-forwarded-for", b"x-real-ip", b"cf-connecting-ip"}
+        if (client and client[0] in ("127.0.0.1", "::1")
+                and (scope.get("method"), path) in _LOCAL_MODEL_ENDPOINTS
+                and not any(name.lower() in forwarded or name.lower() == b"origin" for name, _ in headers)):
+            return await self.app(scope, receive, send)
         auth_headers = [value for name, value in headers if name.lower() == b"authorization"]
         origins = [value for name, value in headers if name.lower() == b"origin"]
         if path == "/api/auth/funnelmetry/session":

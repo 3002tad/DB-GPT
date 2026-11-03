@@ -257,6 +257,9 @@ def initialize_app(param: ApplicationConfig, args: List[str] = None):
         model_serve = ModelServe.get_instance(system_app)
         # Persistent model storage
         model_storage = ModelStorage(model_serve.model_storage)
+        if pipeline_identity_url:
+            # Integrated unified mode keeps internal worker calls on loopback.
+            param.service.model.worker.worker_register_host = "127.0.0.1"
         initialize_worker_manager_in_client(
             worker_params=param.service.model.worker,
             models_config=param.models,
@@ -311,6 +314,8 @@ def run_uvicorn(param: ServiceWebParameters):
         host=param.host,
         port=param.port,
         log_level=log_level,
+        # Preserve the real socket peer for the loopback-only model endpoints.
+        proxy_headers=not bool(pipeline_identity_url),
     )
 
 

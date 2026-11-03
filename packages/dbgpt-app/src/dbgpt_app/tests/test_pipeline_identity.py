@@ -132,6 +132,26 @@ def test_middleware_rejects_duplicate_auth_and_websocket_api():
     assert asyncio.run(run({"type": "http", "path": "/images/user-file.png", "headers": []}))[0]["status"] == 403
 
 
+def test_internal_model_calls_require_loopback_and_no_forwarded_identity():
+    calls = []
+    async def app(scope, receive, send):
+        calls.append(scope["path"])
+    middleware = PipelineIdentityMiddleware(app, verifier=None)
+    async def request(path, method, client, headers=()):
+        messages = []
+        async def send(message):
+            messages.append(message)
+        await middleware({"type": "http", "path": path, "method": method,
+                          "client": (client, 1234), "headers": list(headers)}, None, send)
+        return messages
+    assert asyncio.run(request("/api/controller/models", "POST", "127.0.0.1")) == []
+    assert asyncio.run(request("/api/worker/embeddings", "POST", "127.0.0.1")) == []
+    assert asyncio.run(request("/api/controller/models", "POST", "172.18.0.1"))[0]["status"] == 401
+    assert asyncio.run(request("/api/controller/models", "POST", "127.0.0.1", [(b"x-forwarded-for", b"127.0.0.1")]))[0]["status"] == 401
+    assert asyncio.run(request("/api/controller/models", "POST", "127.0.0.1", [(b"origin", b"https://ai.example")]))[0]["status"] == 401
+    assert asyncio.run(request("/api/worker/models/startup", "POST", "127.0.0.1"))[0]["status"] == 401
+
+
 def test_initial_policy_grants_only_reviewed_roles_methods_and_endpoints():
     analyst = PipelineActor(id="analyst-1", role="analyst")
     admin = PipelineActor(id="admin-1", role="super_admin")
