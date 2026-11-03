@@ -5,7 +5,7 @@ from http.cookies import CookieError, SimpleCookie
 import json
 import logging
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
@@ -139,7 +139,7 @@ class PipelineIdentityMiddleware:
         auth_headers = [value for name, value in headers if name.lower() == b"authorization"]
         origins = [value for name, value in headers if name.lower() == b"origin"]
         if path == "/api/auth/funnelmetry/session":
-            return await self._session(scope, headers, origins, send)
+            return await self._session(scope, headers, origins, receive, send)
         if len(auth_headers) > 1:
             return await self._reject(send, 401)
         cookie_auth = not auth_headers
@@ -207,7 +207,7 @@ class PipelineIdentityMiddleware:
             )
             raise
 
-    async def _session(self, scope, headers, origins, send):
+    async def _session(self, scope, headers, origins, receive, send):
         if not self.ui_origin or len(origins) != 1 or origins[0] != self.ui_origin.encode("ascii"):
             return await self._reject(send, 403)
         cors = [(b"access-control-allow-origin", origins[0]),
@@ -225,20 +225,47 @@ class PipelineIdentityMiddleware:
             await send({"type": "http.response.start", "status": 204, "headers": cors})
             return await send({"type": "http.response.body", "body": b""})
         auth = [value for name, value in headers if name.lower() == b"authorization"]
-        if method != "POST" or len(auth) != 1:
+        content_types = [value for name, value in headers if name.lower() == b"content-type"]
+        form_post = (method == "POST" and not auth and len(content_types) == 1
+                     and content_types[0].split(b";", 1)[0].strip().lower()
+                     == b"application/x-www-form-urlencoded")
+        if method != "POST" or (not form_post and len(auth) != 1):
             return await self._reject(send, 401)
         try:
-            authorization = auth[0].decode("ascii")
+            if form_post:
+                if receive is None:
+                    return await self._reject(send, 400)
+                body = bytearray()
+                while True:
+                    message = await receive()
+                    if message.get("type") != "http.request":
+                        return await self._reject(send, 400)
+                    body.extend(message.get("body", b""))
+                    if len(body) > 8192:
+                        return await self._reject(send, 413)
+                    if not message.get("more_body", False):
+                        break
+                form = parse_qs(body.decode("ascii"), keep_blank_values=True,
+                                strict_parsing=True, max_num_fields=2)
+                if set(form) != {"token"} or len(form["token"]) != 1:
+                    return await self._reject(send, 400)
+                authorization = "Bearer " + form["token"][0]
+            else:
+                authorization = auth[0].decode("ascii")
             await self.verifier.verify(authorization)
             token = authorization.removeprefix("Bearer ")
             if not token or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._" for c in token):
                 return await self._reject(send, 401)
-        except (UnicodeDecodeError, PipelineIdentityError) as exc:
+        except (UnicodeDecodeError, ValueError, PipelineIdentityError) as exc:
             return await self._reject(send, getattr(exc, "status_code", 401))
         cors.append((b"set-cookie", (
             "__Host-funnelmetry-ai=" + token + "; Path=/; Secure; HttpOnly; SameSite=Strict"
         ).encode("ascii")))
-        await send({"type": "http.response.start", "status": 204, "headers": cors})
+        if form_post:
+            if not self.ai_origin:
+                return await self._reject(send, 503)
+            cors.append((b"location", (self.ai_origin + "/").encode("ascii")))
+        await send({"type": "http.response.start", "status": 303 if form_post else 204, "headers": cors})
         return await send({"type": "http.response.body", "body": b""})
 
     @staticmethod

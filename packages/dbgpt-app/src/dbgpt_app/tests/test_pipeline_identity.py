@@ -282,6 +282,42 @@ def test_session_handoff_is_origin_bound_and_cookie_identity_is_revalidated():
     ]))[0]["status"] == 401
 
 
+def test_browser_form_handoff_validates_token_and_redirects_without_url_token():
+    class Verifier:
+        async def verify(self, authorization):
+            if authorization != "Bearer valid.token":
+                raise PipelineIdentityError(401)
+            return PipelineActor(id="analyst-1", role="analyst")
+
+    middleware = PipelineIdentityMiddleware(
+        None, verifier=Verifier(), ui_origin="https://analyst.example.test",
+        ai_origin="https://ai.example.test",
+    )
+    async def request(body, origin=b"https://analyst.example.test"):
+        messages = []
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+        async def send(message):
+            messages.append(message)
+        await middleware({"type": "http", "method": "POST",
+            "path": "/api/auth/funnelmetry/session", "headers": [
+                (b"origin", origin),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ]}, receive, send)
+        return messages
+
+    result = asyncio.run(request(b"token=valid.token"))
+    assert result[0]["status"] == 303
+    headers = dict(result[0]["headers"])
+    assert headers[b"location"] == b"https://ai.example.test/"
+    assert b"valid.token" not in headers[b"location"]
+    assert b"HttpOnly" in headers[b"set-cookie"] and b"Secure" in headers[b"set-cookie"]
+    assert asyncio.run(request(b"token=valid.token", b"https://evil.example"))[0]["status"] == 403
+    assert asyncio.run(request(b"token=revoked"))[0]["status"] == 401
+    assert asyncio.run(request(b"token=valid.token&token=valid.token"))[0]["status"] == 400
+    assert asyncio.run(request(b"token=" + b"x" * 8192))[0]["status"] == 413
+
+
 def test_cookie_role_changes_and_revocation_take_effect_on_next_request():
     class Verifier:
         actor = PipelineActor(id="alice", role="analyst")
