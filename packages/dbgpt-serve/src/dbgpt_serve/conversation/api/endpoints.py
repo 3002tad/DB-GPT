@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import uuid
 from functools import cache
 from typing import List, Literal, Optional
@@ -17,6 +18,20 @@ from ..service.service import Service
 from .schemas import MessageVo, ServeRequest, ServerResponse
 
 router = APIRouter()
+
+
+def _pipeline_actor(request: Optional[Request]):
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return None
+    actor = getattr(request.state, "pipeline_actor", None) if request else None
+    if actor is None:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    return actor
+
+
+def _require_conversation_owner(service: Service, conv_uid: str, actor_id: str):
+    if not service.get(ServeRequest(conv_uid=conv_uid, user_name=actor_id)):
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
 # Add your API endpoints here
 
@@ -108,7 +123,7 @@ async def test_auth():
     dependencies=[Depends(check_api_key)],
 )
 async def query(
-    request: ServeRequest, service: Service = Depends(get_service)
+    request: ServeRequest, service: Service = Depends(get_service), http_request: Request = None
 ) -> Result[ServerResponse]:
     """Query Conversation entities
 
@@ -118,6 +133,9 @@ async def query(
     Returns:
         ServerResponse: The response
     """
+    actor = _pipeline_actor(http_request)
+    if actor:
+        request.user_name = actor.id
     return Result.succ(service.get(request))
 
 
@@ -132,7 +150,11 @@ async def dialogue_new(
     user_name: str = None,
     user_id: str = None,
     sys_code: str = None,
+    http_request: Request = None,
 ):
+    actor = _pipeline_actor(http_request)
+    if actor:
+        user_name = actor.id
     user_name = user_name or user_id
     unique_id = uuid.uuid1()
     res = ServerResponse(
@@ -150,14 +172,17 @@ async def dialogue_new(
     "/delete",
     dependencies=[Depends(check_api_key)],
 )
-async def delete(con_uid: str, service: Service = Depends(get_service)):
+async def delete(con_uid: str, service: Service = Depends(get_service), http_request: Request = None):
     """Delete a Conversation entity
 
     Args:
         con_uid (str): The conversation UID
         service (Service): The service
     """
-    service.delete(ServeRequest(conv_uid=con_uid))
+    actor = _pipeline_actor(http_request)
+    if actor:
+        _require_conversation_owner(service, con_uid, actor.id)
+    service.delete(ServeRequest(conv_uid=con_uid, user_name=actor.id if actor else None))
     return Result.succ(None)
 
 
@@ -168,6 +193,7 @@ async def delete(con_uid: str, service: Service = Depends(get_service)):
 async def clear(
     con_uid: str,
     service: Service = Depends(get_service),
+    http_request: Request = None,
 ):
     """Clear a Conversation entity
 
@@ -175,7 +201,10 @@ async def clear(
         con_uid (str): The conversation UID
         service (Service): The service
     """
-    service.clear(ServeRequest(conv_uid=con_uid))
+    actor = _pipeline_actor(http_request)
+    if actor:
+        _require_conversation_owner(service, con_uid, actor.id)
+    service.clear(ServeRequest(conv_uid=con_uid, user_name=actor.id if actor else None))
     return Result.succ(None)
 
 
@@ -189,6 +218,7 @@ async def query_page(
     page: Optional[int] = Query(default=1, description="current page"),
     page_size: Optional[int] = Query(default=10, description="page size"),
     service: Service = Depends(get_service),
+    http_request: Request = None,
 ) -> Result[PaginationResult[ServerResponse]]:
     """Query Conversation entities
 
@@ -200,6 +230,9 @@ async def query_page(
     Returns:
         ServerResponse: The response
     """
+    actor = _pipeline_actor(http_request)
+    if actor:
+        request.user_name = actor.id
     return Result.succ(service.get_list_by_page(request, page, page_size))
 
 
@@ -215,10 +248,12 @@ async def list_latest_conv(
     page: Optional[int] = Query(default=1, description="current page"),
     page_size: Optional[int] = Query(default=10, description="page size"),
     service: Service = Depends(get_service),
+    http_request: Request = None,
 ) -> Result[List[ServerResponse]]:
     """Return latest conversations"""
+    actor = _pipeline_actor(http_request)
     request = ServeRequest(
-        user_name=user_name or user_id,
+        user_name=actor.id if actor else (user_name or user_id),
         sys_code=sys_code,
     )
     return Result.succ(service.get_list_by_page(request, page, page_size).items)
@@ -229,9 +264,14 @@ async def list_latest_conv(
     response_model=Result[List[MessageVo]],
     dependencies=[Depends(check_api_key)],
 )
-async def get_history_messages(con_uid: str, service: Service = Depends(get_service)):
+async def get_history_messages(con_uid: str, service: Service = Depends(get_service), http_request: Request = None):
     """Get the history messages of a conversation"""
-    return Result.succ(service.get_history_messages(ServeRequest(conv_uid=con_uid)))
+    actor = _pipeline_actor(http_request)
+    if actor:
+        _require_conversation_owner(service, con_uid, actor.id)
+    return Result.succ(service.get_history_messages(
+        ServeRequest(conv_uid=con_uid, user_name=actor.id if actor else None)
+    ))
 
 
 @router.get(
@@ -246,6 +286,7 @@ async def export_all_messages(
         "file", description="response format(file or json)"
     ),
     service: Service = Depends(get_service),
+    http_request: Request = None,
 ):
     """Export all conversations and messages for a user
 
@@ -259,6 +300,9 @@ async def export_all_messages(
     Returns:
         A dictionary containing all conversations and their messages
     """
+    actor = _pipeline_actor(http_request)
+    if actor:
+        user_name, user_id = actor.id, None
     # 1. Get all conversations for the user
     request = ServeRequest(
         user_name=user_name or user_id,

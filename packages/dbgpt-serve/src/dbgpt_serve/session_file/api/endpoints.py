@@ -11,6 +11,7 @@ closed with ``SESSION_FILE_SERVICE_UNAVAILABLE``.
 
 import json
 import logging
+import os
 import tempfile
 from functools import cache
 from typing import BinaryIO, List, Optional, Protocol, Tuple, Union
@@ -175,12 +176,17 @@ def _parse_api_keys(api_keys: str) -> List[str]:
 async def check_api_key(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(_get_bearer_token),
     config: ServeConfig = Depends(get_session_file_config),
+    request: Request = None,
 ) -> Optional[str]:
     """Check the Bearer token against the configured api_keys.
 
     If the api key is not set, allow all. Aligned with
     ``dbgpt_serve.file.api.endpoints.check_api_key``.
     """
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if request is None or getattr(request.state, "pipeline_actor", None) is None:
+            raise SessionFileApiError(401, SessionFileErrorCode.MISSING_AUTH_OWNER, "An authenticated owner is required.")
+        return None
     if config.api_keys:
         api_keys = _parse_api_keys(config.api_keys)
         if auth is None or auth.credentials not in api_keys:
@@ -197,6 +203,7 @@ def get_authenticated_owner(
     user_id: Optional[str] = Header(None),
     _checked_key: Optional[str] = Depends(check_api_key),
     config: ServeConfig = Depends(get_session_file_config),
+    request: Request = None,
 ) -> str:
     """Resolve the owner strictly from headers; never from the client.
 
@@ -208,7 +215,13 @@ def get_authenticated_owner(
     ``"001"``, mirroring ``get_user_from_headers`` so the module behaves
     identically to every other serve in that mode.
     """
-    owner = user_id.strip() if user_id else ""
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        actor = getattr(request.state, "pipeline_actor", None) if request else None
+        if actor is None:
+            raise SessionFileApiError(401, SessionFileErrorCode.MISSING_AUTH_OWNER, "An authenticated owner is required.")
+        owner = actor.id
+    else:
+        owner = user_id.strip() if user_id else ""
     if not owner:
         if config.api_keys:
             raise SessionFileApiError(

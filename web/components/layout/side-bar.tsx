@@ -4,7 +4,7 @@ import { apiInterceptors } from '@/client/api/tools/interceptors';
 import { DarkSvg, ModelSvg, SunnySvg } from '@/components/icons';
 import { useStartNewTask } from '@/modules/new-task';
 import type { IChatDialogueSchema } from '@/types/chat';
-import { STORAGE_LANG_KEY, STORAGE_THEME_KEY } from '@/utils/constants/index';
+import { STORAGE_LANG_KEY, STORAGE_THEME_KEY, STORAGE_USERINFO_KEY } from '@/utils/constants/index';
 import Icon, {
   ApartmentOutlined,
   ApiOutlined,
@@ -68,6 +68,13 @@ function SideBar() {
   const { isMenuExpand, setIsMenuExpand, mode, setMode } = useContext(ChatContext);
   const router = useRouter();
   const { pathname } = router;
+  const integrated = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
+  let role = '';
+  try {
+    if (typeof window !== 'undefined') role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || '';
+  } catch { role = ''; }
+  const canAnalyze = !integrated || role === 'analyst' || role === 'super_admin';
+  const canManage = !integrated || role === 'super_admin';
   const isSettingsActive =
     pathname.startsWith('/construct/app') ||
     pathname.startsWith('/construct/flow') ||
@@ -210,8 +217,12 @@ function SideBar() {
         path: '/construct/scheduled-tasks',
       },
     ];
-    return items;
-  }, [t, pathname, i18n.language]);
+    return items.filter(item => {
+      if (!integrated) return true;
+      if (item.key === 'datasources' || item.key === 'connectors') return canManage;
+      return canAnalyze;
+    });
+  }, [t, pathname, i18n.language, integrated, canManage, canAnalyze]);
 
   const settingsContent = (
     <div className='w-56 py-1'>
@@ -292,8 +303,8 @@ function SideBar() {
   }, [mode]);
 
   useEffect(() => {
-    fetchDialogueList();
-  }, [fetchDialogueList]);
+    if (canAnalyze) fetchDialogueList();
+  }, [fetchDialogueList, canAnalyze]);
 
   // ============ COLLAPSED SIDEBAR ============
   if (!isMenuExpand) {
@@ -336,7 +347,7 @@ function SideBar() {
         </div>
         <div className='py-4'>
           {/* Settings */}
-          <Popover
+          {canManage && <Popover
             content={settingsContent}
             trigger='click'
             placement='rightTop'
@@ -350,7 +361,7 @@ function SideBar() {
                 <SettingOutlined />
               </div>
             </Tooltip>
-          </Popover>
+          </Popover>}
           <Tooltip title={t(isMenuExpand ? 'Close_Sidebar' : 'Show_Sidebar')} placement='right'>
             <div className={smallMenuItemStyle()} onClick={handleToggleMenu}>
               <MenuUnfoldOutlined />
@@ -380,14 +391,14 @@ function SideBar() {
       </div>
 
       {/* New Task Button */}
-      <button
+      {canAnalyze && <button
         type='button'
         onClick={handleStartNewTask}
         className='flex items-center justify-center gap-2 w-full px-4 py-2.5 mb-4 border-0 bg-black dark:bg-white dark:text-black text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer'
       >
         <PlusOutlined className='text-xs' />
         <span>{t('new_task')}</span>
-      </button>
+      </button>}
 
       {/* Functions */}
       <div className='flex flex-col gap-1'>
@@ -420,7 +431,7 @@ function SideBar() {
       </div>
 
       {/* All Tasks Section */}
-      <div className='mt-4 mb-2 px-1'>
+      {canAnalyze && <div className='mt-4 mb-2 px-1'>
         <div className='flex items-center justify-between'>
           <span className='text-xs font-semibold text-gray-400 uppercase tracking-wider'>{t('all_tasks')}</span>
           <Link href='/conversations' className='inline-flex items-center'>
@@ -429,9 +440,9 @@ function SideBar() {
             </Tooltip>
           </Link>
         </div>
-      </div>
+      </div>}
       <div className='flex-1 overflow-y-auto min-h-0'>
-        {loadingDialogues ? (
+        {canAnalyze && (loadingDialogues ? (
           <div className='px-2 pt-2'>
             <Skeleton active title={false} paragraph={{ rows: 4, width: '100%' }} />
           </div>
@@ -470,13 +481,13 @@ function SideBar() {
             </div>
             <p className='text-xs text-gray-400'>{t('no_tasks')}</p>
           </div>
-        )}
+        ))}
       </div>
 
       {/* Bottom: Settings + toggles */}
       <div className='pt-4 pb-2'>
         {/* Settings */}
-        <Popover
+        {canManage && <Popover
           content={settingsContent}
           trigger='click'
           placement='rightTop'
@@ -496,7 +507,7 @@ function SideBar() {
             </div>
             <span className='text-sm'>{t('Setting')}</span>
           </div>
-        </Popover>
+        </Popover>}
         <div className='flex items-center justify-around py-4 mt-2 border-t border-dashed border-gray-200 dark:border-gray-700'>
           <Popover content={mode === 'dark' ? 'Light' : 'Dark'}>
             <div className='flex-1 flex items-center justify-center cursor-pointer text-xl' onClick={handleToggleTheme}>

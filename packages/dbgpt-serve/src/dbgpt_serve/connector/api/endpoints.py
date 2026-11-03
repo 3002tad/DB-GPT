@@ -1,6 +1,7 @@
 """REST API endpoints for connector management."""
 
 import logging
+import os
 from functools import cache
 from typing import Any, Dict, List, Optional
 
@@ -73,6 +74,10 @@ async def check_api_key(
         assert res.status_code == 200
 
     """
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if request is None or getattr(request.state, "pipeline_actor", None) is None:
+            raise HTTPException(status_code=401, detail="Authenticated user required")
+        return None
     if request.url.path.startswith("/api/v1"):
         return None
 
@@ -213,11 +218,27 @@ async def list_connectors(
     user_name: Optional[str] = Query(default=None, description="Filter by user name"),
     sys_code: Optional[str] = Query(default=None, description="Filter by system code"),
     service: ConnectorService = Depends(get_service),
+    http_request: Request = None,
 ) -> Result[List[ConnectorResponse]]:
     try:
-        return Result.succ(
-            service.list_connectors(user_name=user_name, sys_code=sys_code)
-        )
+        if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+            actor = getattr(http_request.state, "pipeline_actor", None) if http_request else None
+            if actor is None:
+                raise HTTPException(status_code=401, detail="Authenticated user required")
+            if actor.role == "analyst":
+                connectors = service.list_connectors(user_name=None, sys_code=None)
+                return Result.succ([
+                    ConnectorResponse(
+                        connector_id=item.connector_id,
+                        connector_type=item.connector_type,
+                        display_name=item.display_name,
+                        status=item.status,
+                        is_custom=item.is_custom,
+                    ) for item in connectors if item.status == "active"
+                ])
+        return Result.succ(service.list_connectors(user_name=user_name, sys_code=sys_code))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("List connectors failed")
         return Result.failed(msg=str(e))

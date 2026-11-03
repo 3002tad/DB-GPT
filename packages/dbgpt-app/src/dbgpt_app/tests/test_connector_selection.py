@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
+import pytest
+
 from dbgpt_app.openapi.api_v1.agentic_data_api import (
     _parse_connector_ids,
     _parse_uploaded_dataset_id,
@@ -112,7 +114,25 @@ class TestParseUploadedDatasetId:
 
 
 class TestDatabaseOwnership:
-    def test_private_datasource_is_visible_only_to_its_owner(self):
+    def test_pipeline_shared_source_does_not_depend_on_creator(self, monkeypatch):
+        monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "http://pipeline/identity")
+        monkeypatch.setenv("DBGPT_PIPELINE_ANALYTICAL_SOURCE", "analytics")
+        monkeypatch.setenv("DBGPT_PIPELINE_ANALYTICAL_DB_USER", "readonly")
+        monkeypatch.setenv("DBGPT_PIPELINE_ANALYTICAL_DB_HOST", "db.internal")
+        monkeypatch.setenv("DBGPT_PIPELINE_ANALYTICAL_DB_PORT", "5432")
+        manager = SimpleNamespace(storage=SimpleNamespace(
+            get_by_names=lambda name: SimpleNamespace(user_id="admin"),
+            get_db_config=lambda name: {"db_name": name, "db_type": "postgresql",
+                "db_user": "readonly", "db_host": "db.internal", "db_port": 5432},
+        ))
+        assert _require_database_access(manager, "analytics", "analyst")
+        with pytest.raises(PermissionError):
+            _require_database_access(manager, "other", "analyst")
+        with pytest.raises(PermissionError):
+            _require_database_access(manager, "analytics", None)
+
+    def test_private_datasource_is_visible_only_to_its_owner(self, monkeypatch):
+        monkeypatch.delenv("DBGPT_PIPELINE_IDENTITY_URL", raising=False)
         manager = SimpleNamespace(
             storage=SimpleNamespace(
                 get_by_names=lambda name: SimpleNamespace(user_id="alice")
@@ -126,7 +146,8 @@ class TestDatabaseOwnership:
         else:
             raise AssertionError("cross-user datasource access must be rejected")
 
-    def test_global_datasource_remains_available(self):
+    def test_global_datasource_remains_available(self, monkeypatch):
+        monkeypatch.delenv("DBGPT_PIPELINE_IDENTITY_URL", raising=False)
         manager = SimpleNamespace(
             storage=SimpleNamespace(
                 get_by_names=lambda name: SimpleNamespace(

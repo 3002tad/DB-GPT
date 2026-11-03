@@ -1,10 +1,11 @@
 import json
 import logging
+import os
 import re
 import time
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from dbgpt._private.config import Config
 from dbgpt.core.interface.message import OnceConversation
@@ -34,6 +35,22 @@ CFG = Config()
 CHAT_FACTORY = ChatFactory()
 
 logger = logging.getLogger(__name__)
+
+
+def _require_pipeline_editor_source(request: Optional[Request], db_name: str) -> bool:
+    """Enforce the deployment's analytical connection in Pipeline mode."""
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return False
+    actor = getattr(request.state, "pipeline_actor", None) if request else None
+    if actor is None:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    if actor.role not in ("analyst", "super_admin"):
+        raise HTTPException(status_code=403, detail="Analytical access required")
+    from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+    if not PipelineDataSourcePolicy(CFG.local_db_manager).can_query(actor.id, db_name):
+        raise HTTPException(status_code=403, detail="Data source is unavailable")
+    return True
 
 
 def get_conversation_serve() -> ConversationServe:
@@ -76,8 +93,9 @@ def resolve_editor_db_name(
 
 @router.get("/v1/editor/db/tables", response_model=Result[DataNode])
 async def get_editor_tables(
-    db_name: str, page_index: int, page_size: int, search_str: str = ""
+    db_name: str, page_index: int, page_size: int, search_str: str = "", http_request: Request = None
 ):
+    _require_pipeline_editor_source(http_request, db_name)
     logger.info(f"get_editor_tables:{db_name},{page_index},{page_size},{search_str}")
     db_conn = CFG.local_db_manager.get_connector(db_name)
     tables = db_conn.get_table_names()
@@ -209,20 +227,25 @@ def sanitize_sql(sql: str, db_type: str = None) -> Tuple[bool, str, dict]:
 async def editor_sql_run(
     run_param: dict = Body(),
     editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
-    logger.info(f"editor_sql_run:{run_param}")
     db_name = resolve_editor_db_name(run_param, editor_service)
     sql = run_param.get("sql")
 
     if not db_name or not sql:
         return Result.failed(msg="SQL run param error: db_name and sql are required")
+    integrated = _require_pipeline_editor_source(http_request, db_name)
+    if not integrated:
+        logger.info(f"editor_sql_run:{run_param}")
 
     # Get database connection
     conn = CFG.local_db_manager.get_connector(db_name)
     db_type = getattr(conn, "db_type", "").lower()
 
     # Sanitize and parameterize the SQL query
-    is_safe, result, params = sanitize_sql(sql, db_type)
+    # PostgreSQL privileges enforce read-only access for the configured role.
+    # Preserve the analyst's SQL, including CTEs, rather than rewriting it.
+    is_safe, result, params = (True, sql, {}) if integrated else sanitize_sql(sql, db_type)
     if not is_safe:
         logger.warning(f"Blocked dangerous SQL: {sql}")
         return Result.failed(msg=f"Operation not allowed: {result}")
@@ -295,21 +318,24 @@ async def get_editor_chart_info(
 async def chart_run(
     run_param: dict = Body(),
     editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
-    logger.info(f"chart_run:{run_param}")
     db_name = resolve_editor_db_name(run_param, editor_service)
     sql = run_param.get("sql")
     chart_type = run_param.get("chart_type")
 
     if not db_name or not sql:
         return Result.failed(msg="SQL run param error: db_name and sql are required")
+    integrated = _require_pipeline_editor_source(http_request, db_name)
+    if not integrated:
+        logger.info(f"chart_run:{run_param}")
 
     # Get database connection
     db_conn = CFG.local_db_manager.get_connector(db_name)
     db_type = getattr(db_conn, "db_type", "").lower()
 
     # Sanitize and parameterize the SQL query
-    is_safe, result, params = sanitize_sql(sql, db_type)
+    is_safe, result, params = (True, sql, {}) if integrated else sanitize_sql(sql, db_type)
     if not is_safe:
         logger.warning(f"Blocked dangerous SQL: {sql}")
         return Result.failed(msg=f"Operation not allowed: {result}")

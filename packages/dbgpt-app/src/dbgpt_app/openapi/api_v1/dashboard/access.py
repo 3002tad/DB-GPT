@@ -116,6 +116,10 @@ class DashboardAuthorizationService:
         policy_path = os.getenv("DBGPT_DASHBOARD_DATA_SOURCE_POLICY", "").strip()
         if self._data_source_policy is None and policy_path:
             self._data_source_policy = load_dashboard_data_source_policy(policy_path)
+        if self._data_source_policy is None and os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+            from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+            self._data_source_policy = PipelineDataSourcePolicy()
         if self._data_source_policy is None and data_source_authorizer is not None:
             self._data_source_policy = CallableDashboardDataSourcePolicy(
                 data_source_authorizer
@@ -125,7 +129,9 @@ class DashboardAuthorizationService:
                 "DBGPT_DASHBOARD_REQUIRE_DATA_SOURCE_AUTHORIZATION", ""
             ).strip().lower() in {"1", "true", "yes", "on"} or os.getenv(
                 "DBGPT_DASHBOARD_PRODUCTION_MODE", ""
-            ).strip().lower() in {"1", "true", "yes", "on"}
+            ).strip().lower() in {"1", "true", "yes", "on"} or bool(
+                os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip()
+            )
         self._require_data_source_authorizer = require_data_source_authorizer
 
     @staticmethod

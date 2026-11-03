@@ -13,7 +13,7 @@ import { GET, POST } from '../index';
  */
 export const searchDocumentList = (spaceName: string, data: SearchDocumentParams) => {
   return POST<SearchDocumentParams, { data: string[]; total: number; page: number }>(
-    `/knowledge/${spaceName}/document/list`,
+    `/api/v1/knowledge/${spaceName}/document/list`,
     data,
   );
 };
@@ -33,7 +33,7 @@ export const editChunk = (
   data: { questions: string[]; doc_id: string | number; doc_name: string },
 ) => {
   return POST<{ questions: string[]; doc_id: string | number; doc_name: string }, null>(
-    `/knowledge/${knowledgeName}/document/edit`,
+    `/api/v1/knowledge/${knowledgeName}/document/edit`,
     data,
   );
 };
@@ -48,18 +48,18 @@ export const recallTestRecommendQuestion = (id: string) => {
  * 召回方法选项
  */
 export const recallMethodOptions = (id: string) => {
-  return GET<{ id: string }, string[]>(`/knowledge/${id}/recall_retrievers`);
+  return GET<{ id: string }, string[]>(`/api/v1/knowledge/${id}/recall_retrievers`);
 };
 /**
  * 召回测试
  */
 export const recallTest = (data: RecallTestProps, id: string) => {
-  return POST<RecallTestProps, RecallTestChunk[]>(`/knowledge/${id}/recall_test`, data);
+  return POST<RecallTestProps, RecallTestChunk[]>(`/api/v1/knowledge/${id}/recall_test`, data);
 };
 
 // chunk模糊搜索
 export const searchChunk = (data: { document_id: string; content: string }, name: string) => {
-  return POST<{ document_id: string; content: string }, string[]>(`/knowledge/${name}/chunk/list`, data);
+  return POST<{ document_id: string; content: string }, string[]>(`/api/v1/knowledge/${name}/chunk/list`, data);
 };
 
 // chunk添加问题

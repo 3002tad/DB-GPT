@@ -1,7 +1,8 @@
 from functools import cache
+import os
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 
 from dbgpt.component import SystemApp
@@ -47,6 +48,7 @@ def _parse_api_keys(api_keys: str) -> List[str]:
 async def check_api_key(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(get_bearer_token),
     service: Service = Depends(get_service),
+    request: Request = None,
 ) -> Optional[str]:
     """Check the api key
 
@@ -64,6 +66,10 @@ async def check_api_key(
         assert res.status_code == 200
 
     """
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if request is None or getattr(request.state, "pipeline_actor", None) is None:
+            raise HTTPException(status_code=401, detail="Authenticated user required")
+        return None
     if service.config.api_keys:
         api_keys = _parse_api_keys(service.config.api_keys)
         if auth is None or (token := auth.credentials) not in api_keys:
@@ -189,6 +195,7 @@ async def query_page(
         None, description="Database type, e.g. sqlite, mysql, etc."
     ),
     service: Service = Depends(get_service),
+    http_request: Request = None,
 ) -> Result[List[DatasourceQueryResponse]]:
     """Query Space entities
 
@@ -200,6 +207,25 @@ async def query_page(
     res = await blocking_func_to_async(
         global_system_app, service.get_list, db_type=db_type
     )
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        actor = getattr(http_request.state, "pipeline_actor", None) if http_request else None
+        if actor is None:
+            raise HTTPException(status_code=401, detail="Authenticated user required")
+        if actor.role == "analyst":
+            from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+            policy = PipelineDataSourcePolicy(service.datasource_manager)
+            res = [
+                DatasourceQueryResponse(
+                    type=item.type,
+                    id=item.id,
+                    db_name=item.db_name,
+                    description=item.description,
+                    params={"database": item.db_name},
+                )
+                for item in res
+                if item.db_name and policy.can_query(actor.id, item.db_name)
+            ]
     return Result.succ(res)
 
 

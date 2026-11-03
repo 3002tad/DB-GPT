@@ -67,7 +67,6 @@ function DatabaseForm({
     try {
       setLoading(true);
 
-      console.log('dbNames:', dbNames);
 
       // Check if database name is duplicated
       // if (!editValue && dbNames.includes(values.database)) {
@@ -88,7 +87,6 @@ function DatabaseForm({
         data.id = editValue;
       }
 
-      console.log('Form submitted:', data);
 
       const [testErr] = await apiInterceptors(postDbTestConnect(data));
       if (testErr) return;

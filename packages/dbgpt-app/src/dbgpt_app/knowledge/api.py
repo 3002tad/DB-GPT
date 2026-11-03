@@ -4,7 +4,7 @@ import os
 import shutil
 from typing import List
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 
 from dbgpt._private.config import Config
@@ -13,7 +13,7 @@ from dbgpt.configs.model_config import (
     KNOWLEDGE_UPLOAD_ROOT_PATH,
 )
 from dbgpt.core.awel.dag.dag_manager import DAGManager
-from dbgpt.core.interface.file import FileStorageClient
+from dbgpt.core.interface.file import FileStorageClient, FileStorageURI
 from dbgpt.rag.retriever import BaseRetriever
 from dbgpt.rag.retriever.embedding import EmbeddingRetriever
 from dbgpt.util.executor_utils import blocking_func_to_async
@@ -88,7 +88,9 @@ async def space_add(
     request: KnowledgeSpaceRequest,
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
-    logger.info(f"/space/add params: {request}")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        request.owner = user_token.user_id
+    logger.info("Knowledge space create requested")
     try:
         await blocking_func_to_async(
             get_executor(), knowledge_space_service.create_knowledge_space, request
@@ -100,7 +102,7 @@ async def space_add(
 
 @router.post("/knowledge/space/list")
 async def space_list(request: KnowledgeSpaceRequest):
-    logger.info(f"/space/list params: {request}")
+    logger.info("Knowledge space list requested")
     try:
         res = await blocking_func_to_async(
             get_executor(), knowledge_space_service.get_knowledge_space, request
@@ -113,7 +115,7 @@ async def space_list(request: KnowledgeSpaceRequest):
 
 @router.post("/knowledge/space/delete")
 def space_delete(request: KnowledgeSpaceRequest):
-    logger.info(f"/space/delete params: {request}")
+    logger.info("Knowledge space delete requested")
     try:
         # delete Files in 'pilot/data/
         safe_space_name = os.path.basename(request.name)
@@ -163,7 +165,7 @@ async def recall_test(
     request: DocumentRecallTestRequest,
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
-    logger.info(f"/knowledge/{space_name}/recall_test params: {request}")
+    logger.info("Knowledge recall test requested")
     try:
         return Result.succ(
             await knowledge_space_service.recall_test(space_name, request)
@@ -233,7 +235,9 @@ async def arguments_save(
 
 @router.post("/knowledge/{space_name}/document/add")
 async def document_add(space_name: str, request: KnowledgeDocumentRequest):
-    logger.info(f"/document/add params: {space_name}, {request}")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() and request.doc_type != "TEXT":
+        raise HTTPException(status_code=403, detail="This document source is not enabled")
+    logger.info("Knowledge document create requested")
     try:
         res = await blocking_func_to_async(
             get_executor(),
@@ -253,7 +257,13 @@ def document_edit(
     request: KnowledgeDocumentRequest,
     service: Service = Depends(get_rag_service),
 ):
-    logger.info(f"/document/edit params: {space_name}, {request}")
+    logger.info("Knowledge document edit requested")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if not request.doc_id:
+            raise HTTPException(status_code=400, detail="Document ID is required")
+        document = service.get_document({"id": request.doc_id})
+        if document is None or document.space != space_name:
+            raise HTTPException(status_code=404, detail="Document is unavailable")
     space = service.get({"name": space_name})
     if space is None:
         return Result.failed(
@@ -360,7 +370,7 @@ def document_list(
     query_request: DocumentQueryRequest,
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
-    logger.info(f"/document/list params: {space_name}, {query_request}")
+    logger.info("Knowledge document list requested")
     try:
         return Result.succ(
             knowledge_space_service.get_knowledge_documents(space_name, query_request)
@@ -372,7 +382,7 @@ def document_list(
 
 @router.post("/knowledge/{space_name}/graphvis")
 def graph_vis(space_name: str, query_request: GraphVisRequest):
-    logger.info(f"/document/list params: {space_name}, {query_request}")
+    logger.info("Knowledge document list requested")
     try:
         return Result.succ(
             knowledge_space_service.query_graph(
@@ -440,7 +450,9 @@ async def codegraph_visualize(space_name: str):
 
 @router.post("/knowledge/{space_name}/document/delete")
 def document_delete(space_name: str, query_request: DocumentQueryRequest):
-    print(f"/document/list params: {space_name}, {query_request}")
+    logger.info("Knowledge document delete requested")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() and not (query_request.doc_name or "").strip():
+        raise HTTPException(status_code=400, detail="Document name is required")
     try:
         return Result.succ(
             knowledge_space_service.delete_document(space_name, query_request.doc_name)
@@ -457,6 +469,8 @@ async def document_upload(
     doc_file: UploadFile = File(...),
     fs: FileStorageClient = Depends(get_fs),
 ):
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() and doc_type != "DOCUMENT":
+        raise HTTPException(status_code=403, detail="Invalid document type")
     print(f"/document/upload params: {space_name}")
     try:
         if doc_file:
@@ -519,13 +533,35 @@ async def document_upload(
         return Result.failed(code="E000X", msg=f"document add error {e}")
 
 
+def _require_pipeline_sync_document(service: Service, space_name: str, doc_id: int):
+    document = service.get_document({"id": doc_id})
+    if document is None or document.space != space_name:
+        raise HTTPException(status_code=404, detail="Document is unavailable")
+    if document.doc_type == "DOCUMENT":
+        try:
+            uri = FileStorageURI.parse(document.content or "")
+            if uri.bucket != "dbgpt_knowledge_file":
+                raise ValueError("Unexpected bucket")
+            metadata = service.get_fs().storage_system.get_file_metadata_by_uri(document.content)
+            if metadata is None or (metadata.custom_metadata or {}).get("space_name") != space_name:
+                raise ValueError("File is unavailable in this space")
+        except (ValueError, TypeError, AttributeError):
+            raise HTTPException(status_code=404, detail="Document is unavailable")
+    elif document.doc_type != "TEXT":
+        raise HTTPException(status_code=404, detail="Document is unavailable")
+
+
 @router.post("/knowledge/{space_name}/document/sync")
 async def document_sync(
     space_name: str,
     request: DocumentSyncRequest,
     service: Service = Depends(get_rag_service),
 ):
-    logger.info(f"Received params: {space_name}, {request}")
+    logger.info("Knowledge document sync requested")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if not request.doc_ids or len(request.doc_ids) != 1:
+            raise HTTPException(status_code=400, detail="Exactly one document is required")
+        _require_pipeline_sync_document(service, space_name, request.doc_ids[0])
     try:
         space = service.get({"name": space_name})
         if space is None:
@@ -554,7 +590,12 @@ async def batch_document_sync(
     request: List[KnowledgeSyncRequest],
     service: Service = Depends(get_rag_service),
 ):
-    logger.info(f"Received params: {space_name}, {request}")
+    logger.info("Knowledge document batch sync requested")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if not request or any(item.doc_id is None for item in request):
+            raise HTTPException(status_code=400, detail="Document IDs are required")
+        for item in request:
+            _require_pipeline_sync_document(service, space_name, item.doc_id)
     try:
         space = service.get({"name": space_name})
         for sync_request in request:
@@ -575,7 +616,7 @@ def chunk_list(
     query_request: ChunkQueryRequest,
     service: Service = Depends(get_rag_service),
 ):
-    print(f"/chunk/list params: {space_name}, {query_request}")
+    logger.info("Knowledge chunk list requested")
     try:
         # space_name is the authorization boundary for this endpoint: the
         # chunk table has no space column, so the listing must be scoped
@@ -627,7 +668,7 @@ def chunk_edit(
     edit_request: ChunkEditRequest,
     service: Service = Depends(get_rag_service),
 ):
-    print(f"/chunk/edit params: {space_name}, {edit_request}")
+    logger.info("Knowledge chunk edit requested")
     try:
         if not edit_request.chunk_id:
             # A {"id": None} chunk query would list the whole chunk
@@ -662,7 +703,7 @@ def similarity_query(
     query_request: KnowledgeQueryRequest,
     service: Service = Depends(get_rag_service),
 ):
-    print(f"Received params: {space_name}, {query_request}")
+    logger.info("Knowledge query requested")
     # The route historically declared {vector_name} while the handler
     # read a *query* parameter named space_name, silently discarding the
     # path value. The space in the path is authoritative and must exist.
@@ -687,7 +728,7 @@ def similarity_query(
 
 @router.post("/knowledge/document/summary")
 async def document_summary(request: DocumentSummaryRequest):
-    print(f"/document/summary params: {request}")
+    logger.info("Knowledge document summary requested")
     try:
         with root_tracer.start_span(
             "get_chat_instance", span_type=SpanType.CHAT, metadata=request

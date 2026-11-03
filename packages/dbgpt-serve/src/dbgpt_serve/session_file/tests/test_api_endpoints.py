@@ -10,6 +10,7 @@ import hashlib
 import importlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
@@ -207,6 +208,34 @@ def _assert_error(response, status_code, err_code):
     assert payload["success"] is False
     assert payload["err_code"] == err_code
     return payload
+
+
+def test_pipeline_session_files_use_verified_actor_over_client_header(tmp_path, monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    service = _StubSessionFileService(tmp_path / "blobs")
+    endpoints_module.init_endpoints(MagicMock(), service, ServeConfig())
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def inject_verified_actor(request, call_next):
+        actor = request.headers.get("x-test-actor")
+        if actor:
+            request.state.pipeline_actor = SimpleNamespace(id=actor, role="analyst")
+        return await call_next(request)
+
+    app.include_router(endpoints_module.router, prefix=PREFIX)
+    client = TestClient(app)
+    headers = {"x-test-actor": "alice", "user-id": "bob"}
+    uploaded = client.post(PREFIX, data={"session_id": "conv-1"}, files=[_csv_file()], headers=headers)
+    assert uploaded.status_code == 200, uploaded.text
+    file_id = uploaded.json()["data"][0]["file_id"]
+    # Forging alice's header cannot grant bob access to alice's stored file.
+    stolen = client.get(f"{PREFIX}/{file_id}/preview", params={"session_id": "conv-1"},
+                        headers={"x-test-actor": "bob", "user-id": "alice"})
+    assert stolen.status_code == 404
+    own = client.get(f"{PREFIX}/{file_id}/preview", params={"session_id": "conv-1"}, headers=headers)
+    assert own.status_code == 200
+    assert client.get(PREFIX, params={"session_id": "conv-1"}, headers={"user-id": "alice"}).status_code == 401
 
 
 # ---------------------------------------------------------------------------

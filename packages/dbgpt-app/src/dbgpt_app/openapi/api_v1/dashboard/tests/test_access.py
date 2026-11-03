@@ -73,6 +73,17 @@ def test_role_matrix_is_deny_by_default(authorization):
         authorization.require("dashboard-rbac", "mallory", DashboardAction.VIEW)
 
 
+def test_pipeline_mode_rejects_an_unconfigured_data_source(authorization, monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "http://pipeline/api/auth/ai-identity")
+    secured = DashboardAuthorizationService(
+        dashboard_dao=authorization.dashboard_dao,
+        access_dao=authorization.access_dao,
+        audit_dao=authorization.audit_dao,
+    )
+    with pytest.raises(DashboardAccessDeniedError, match="cannot query data source"):
+        secured.require_data_sources("alice", ["sales"])
+
+
 def test_owner_invariant_and_accessible_list(authorization):
     authorization.upsert_member("dashboard-rbac", "alice", "bob", DashboardRole.EDITOR)
     assert [item.id for item in authorization.list_accessible("bob")] == [

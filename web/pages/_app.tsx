@@ -61,12 +61,31 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { isMenuExpand, mode } = useContext(ChatContext);
   const { i18n } = useTranslation();
   const [isLogin, setIsLogin] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   const router = useRouter();
 
   // 登录检测
   const handleAuth = async () => {
     setIsLogin(false);
+    if (process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1') {
+      try {
+        const response = await fetch('/api/auth/funnelmetry/me', { credentials: 'same-origin', cache: 'no-store' });
+        if (!response.ok) throw new Error('session_unavailable');
+        const data = await response.json();
+        if (!data?.actor?.id || !['super_admin', 'analyst'].includes(data.actor.role)) throw new Error('invalid_actor');
+        localStorage.setItem(STORAGE_USERINFO_KEY, JSON.stringify({
+          user_id: data.actor.id, user_no: data.actor.id, nick_name: data.actor.id, role: data.actor.role,
+        }));
+        localStorage.setItem(STORAGE_USERINFO_VALID_TIME_KEY, Date.now().toString());
+        setAuthError('');
+        setIsLogin(true);
+      } catch {
+        localStorage.removeItem(STORAGE_USERINFO_KEY);
+        setAuthError('Phiên đăng nhập AI không khả dụng. Hãy mở lại AI từ Funnelmetry.');
+      }
+      return;
+    }
     // 如果已有登录信息，直接展示首页
     // if (localStorage.getItem(STORAGE_USERINFO_KEY)) {
     //   setIsLogin(true);
@@ -92,7 +111,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   const isPublicShare = router.pathname.startsWith('/share') || router.pathname.startsWith('/dashboard-share');
   if (!isLogin && !isPublicShare) {
-    return null;
+    return authError ? <div role='alert' style={{ padding: 24 }}>{authError}</div> : null;
   }
 
   const renderContent = () => {

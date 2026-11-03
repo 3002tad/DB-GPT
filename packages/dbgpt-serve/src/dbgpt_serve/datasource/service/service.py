@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import List, Optional, Union
 
 from fastapi import HTTPException
@@ -30,6 +31,34 @@ from ..config import SERVE_SERVICE_COMPONENT_NAME, ServeConfig
 
 logger = logging.getLogger(__name__)
 CFG = Config()
+
+
+def _private_key(key):
+    return any(part in key.lower() for part in ("password", "passwd", "secret", "token", "api_key", "credential", "db_pwd"))
+
+
+def _public_parameters(value):
+    """Keep connection secrets server-side in Pipeline integration mode."""
+    if isinstance(value, dict):
+        return {
+            key: _public_parameters(item)
+            for key, item in value.items()
+            if not _private_key(key)
+        }
+    if isinstance(value, list):
+        return [_public_parameters(item) for item in value]
+    return value
+
+
+def _preserve_private_parameters(new, old):
+    """Keep an existing secret when an edit omits its redacted field."""
+    result = dict(new)
+    for key, value in old.items():
+        if _private_key(key) and (key not in result or result[key] in ("", None)):
+            result[key] = value
+        elif isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _preserve_private_parameters(result[key], value)
+    return result
 
 
 class Service(
@@ -175,6 +204,19 @@ class Service(
         Returns:
             DatasourceQueryResponse: The response
         """
+        if (os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip()
+                and isinstance(request, DatasourceCreateRequest) and request.id):
+            previous = self._dao.get_one({"id": request.id})
+            if previous is None or previous.db_type != request.type:
+                raise HTTPException(status_code=400, detail="Datasource does not match")
+            param_cls = self.datasource_manager._get_param_cls(previous.db_type)
+            prior_params = param_cls.from_persisted_state(model_to_dict(previous)).to_dict()
+            incoming_name = request.params.get("database")
+            if incoming_name and incoming_name != previous.db_name:
+                raise HTTPException(status_code=400, detail="Datasource does not match")
+            request = request.model_copy(update={
+                "params": _preserve_private_parameters(request.params, prior_params)
+            })
         str_db_type = (
             request.type
             if isinstance(request, DatasourceCreateRequest)
@@ -267,6 +309,8 @@ class Service(
         param_cls = self.datasource_manager._get_param_cls(res.db_type)
         param = param_cls.from_persisted_state(model_to_dict(res))
         param_dict = param.to_dict()
+        if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+            param_dict = _public_parameters(param_dict)
         return DatasourceQueryResponse(
             type=res.db_type,
             params=param_dict,
@@ -294,6 +338,18 @@ class Service(
         Returns:
             bool: The test result
         """
+        if (os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() and request.id):
+            previous = self._dao.get_one({"id": request.id})
+            if previous is None or previous.db_type != request.type:
+                raise HTTPException(status_code=400, detail="Datasource does not match")
+            incoming_name = request.params.get("database")
+            if incoming_name and incoming_name != previous.db_name:
+                raise HTTPException(status_code=400, detail="Datasource does not match")
+            param_cls = self.datasource_manager._get_param_cls(previous.db_type)
+            prior_params = param_cls.from_persisted_state(model_to_dict(previous)).to_dict()
+            request = request.model_copy(update={
+                "params": _preserve_private_parameters(request.params, prior_params)
+            })
         return self.datasource_manager.test_connection(request)
 
     def refresh(self, datasource_id: str) -> bool:

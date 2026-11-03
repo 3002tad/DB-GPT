@@ -29,6 +29,15 @@ from ..models.scheduled_run_model import ScheduledRunEntity  # noqa: F401
 from ..models.scheduled_task_model import ScheduledTaskEntity  # noqa: F401
 from ..service.chat_replay_runner import ChatReplayRunner, run_scheduled_task
 
+
+@pytest.mark.asyncio
+async def test_pipeline_identity_mode_denies_scheduled_and_manual_replay(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "http://pipeline/api/auth/ai-identity")
+    with patch("dbgpt_serve.scheduled_task.service.chat_replay_runner.ScheduledTaskDao") as dao:
+        assert await run_scheduled_task("existing-task") is False
+        assert await run_scheduled_task("existing-task", allow_disabled=True) is False
+        dao.assert_not_called()
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

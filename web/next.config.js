@@ -44,6 +44,7 @@ const nextConfig = {
     // Static UI is served by DB-GPT itself; browsers must use its public
     // origin, not their own loopback interface. Keep local dev configurable.
     API_BASE_URL: staticExport ? "" : (process.env.API_BASE_URL ?? "http://127.0.0.1:5670"),
+    NEXT_PUBLIC_FUNNELMETRY_IDENTITY: process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY ?? "",
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GET_USER_URL: process.env.GET_USER_URL,

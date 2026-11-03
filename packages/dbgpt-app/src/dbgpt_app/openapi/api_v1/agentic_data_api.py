@@ -457,11 +457,20 @@ def _require_database_access(
     database_record = connector_manager.storage.get_by_names(database_name)
     if database_record is None:
         raise ValueError("Selected database does not exist")
-    # Match the upstream data-source listing: an empty user_id is shared.
-    # A display name is not a stable ownership identifier.
-    database_owner = getattr(database_record, "user_id", None)
-    if database_owner and database_owner != owner_id:
-        raise PermissionError("Selected database is not available")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+        if not PipelineDataSourcePolicy(connector_manager).can_query(
+            owner_id or "", database_name
+        ):
+            raise PermissionError("Selected database is not available")
+    else:
+        # Outside integration mode, preserve DB-GPT's personal datasource rules.
+        # In Pipeline mode the configured analytical source is shared by both
+        # roles, regardless of which administrator created its DB-GPT record.
+        database_owner = getattr(database_record, "user_id", None)
+        if database_owner and database_owner != owner_id:
+            raise PermissionError("Selected database is not available")
     return database_record
 
 
@@ -669,7 +678,9 @@ async def list_skills(
                         .relative_to(skills_dir_resolved)
                     )
                 except Exception:
-                    pass
+                    # Do not disclose absolute paths outside the skill root.
+                    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+                        continue
 
             # Determine type based on directory structure
             skill_type_category = "official"
@@ -746,7 +757,9 @@ async def skill_detail(
         }
         if path.is_dir():
             children = sorted(
-                [p for p in path.iterdir() if not p.name.startswith(".")],
+                [p for p in path.iterdir() if not p.name.startswith(".") and (
+                    not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() or not p.is_symlink()
+                )],
                 key=lambda p: (not p.is_dir(), p.name.lower()),
             )
             node["children"] = [build_tree(child, base) for child in children]
@@ -755,6 +768,8 @@ async def skill_detail(
     tree = build_tree(root_dir, root_dir)
 
     skill_md_path = root_dir / "SKILL.md"
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() and skill_md_path.is_symlink():
+        return Result.failed(code="E4002", msg="Invalid skill file path")
     frontmatter = ""
     instructions = ""
     raw_content = ""
@@ -4955,6 +4970,17 @@ def _conversation_owner_user_name(conv_uid: str) -> Optional[str]:
     return None if entity is None else (entity.user_name or "")
 
 
+def _guard_pipeline_conversation_owner(conv_uid: Optional[str], actor_id: Optional[str]) -> None:
+    """Permit a new conversation, but never reopen a different actor's thread."""
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() or not conv_uid:
+        return
+    if not actor_id:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    owner = _conversation_owner_user_name(conv_uid)
+    if owner is not None and owner != actor_id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+
 def _require_owned_conversation(conv_uid: str, actor_id: str) -> None:
     """Return a uniform 404 for absent and non-owned conversations."""
 
@@ -5214,6 +5240,7 @@ async def chat_react_agent(
         dialogue.model_name,
     )
     dialogue.user_name = user_token.user_id if user_token else dialogue.user_name
+    _guard_pipeline_conversation_owner(dialogue.conv_uid, dialogue.user_name)
     # Pre-flight: 400/404 surface before the stream (and agent) is built.
     attachment_ctx = await _open_turn_attachments(dialogue, user_token)
     headers = {
@@ -5262,6 +5289,7 @@ async def chat_knowledge_agent(
         dialogue.model_name,
     )
     dialogue.user_name = user_token.user_id if user_token else dialogue.user_name
+    _guard_pipeline_conversation_owner(dialogue.conv_uid, dialogue.user_name)
     # Pre-flight: 400/404 surface before the stream (and agent) is built.
     attachment_ctx = await _open_turn_attachments(dialogue, user_token)
     headers = {

@@ -26,6 +26,7 @@ the session file registry.
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -50,6 +51,13 @@ async def run_scheduled_task(task_id: str, allow_disabled: bool = False) -> bool
     The database lease prevents two scheduler instances from running the same
     task concurrently.  The task type selects a chat or dashboard runner.
     """
+    # Pipeline sessions are request-scoped and cannot be reused by a cron job.
+    # Until scheduled execution has its own revalidated principal and policy,
+    # do not run legacy jobs or manual replay around the HTTP authorization.
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        logger.warning("Scheduled execution is unavailable in Pipeline identity mode")
+        return False
+
     task_dao = ScheduledTaskDao()
     task = task_dao.get_one({"task_id": task_id})
     if task is None:

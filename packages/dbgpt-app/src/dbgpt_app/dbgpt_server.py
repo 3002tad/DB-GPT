@@ -50,6 +50,19 @@ app = create_app(
 # Use custom router to support priority
 replace_router(app)
 
+pipeline_identity_url = os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip()
+if pipeline_identity_url:
+    from dbgpt_app.pipeline_authorization import authorize_pipeline_request
+    from dbgpt_app.pipeline_identity import PipelineIdentityMiddleware, PipelineIdentityVerifier
+
+    app.add_middleware(
+        PipelineIdentityMiddleware,
+        verifier=PipelineIdentityVerifier(pipeline_identity_url),
+        policy=authorize_pipeline_request,
+        ui_origin=os.getenv("DBGPT_PIPELINE_UI_ORIGIN", "").strip(),
+        ai_origin=os.getenv("DBGPT_PIPELINE_AI_ORIGIN", "").strip(),
+    )
+
 system_app = SystemApp(app)
 
 

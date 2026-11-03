@@ -17,7 +17,9 @@ working unchanged.
 """
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
+import pytest
+from fastapi import HTTPException
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -35,12 +37,127 @@ from dbgpt_app.knowledge.api import (
 from dbgpt_app.knowledge.request.request import (
     ChunkEditRequest,
     ChunkQueryRequest,
+    KnowledgeDocumentRequest,
+    DocumentSyncRequest,
+    DocumentQueryRequest,
 )
-from dbgpt_serve.rag.api.schemas import ChunkServeResponse
+from dbgpt_serve.rag.api.schemas import ChunkServeResponse, KnowledgeSyncRequest
 
 
 def _space(name="space_a", space_id=1):
     return SimpleNamespace(id=space_id, name=name)
+
+
+def test_document_edit_does_not_log_knowledge_content(caplog):
+    service = Mock()
+    service.get.return_value = _space()
+    service.update_document.return_value = None
+    request = KnowledgeDocumentRequest(doc_id=1, doc_name="example", content="private-knowledge-content")
+    with caplog.at_level("INFO", logger=knowledge_api.__name__):
+        knowledge_api.document_edit("space_a", request, service)
+    assert "Knowledge document edit requested" in caplog.text
+    assert "private-knowledge-content" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_pipeline_rejects_external_document_sources(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    with pytest.raises(HTTPException) as error:
+        await knowledge_api.document_add("space_a", KnowledgeDocumentRequest(doc_type="URL", content="http://internal"))
+    assert error.value.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("space,kind", [("other", "TEXT"), ("space_a", "DOCUMENT"), ("space_a", "URL")])
+async def test_pipeline_sync_rejects_wrong_space_or_external_source(monkeypatch, space, kind):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    service = Mock()
+    service.get_document.return_value = SimpleNamespace(space=space, doc_type=kind)
+    with pytest.raises(HTTPException) as error:
+        await knowledge_api.document_sync("space_a", DocumentSyncRequest(doc_ids=[1]), service)
+    assert error.value.status_code == 404
+    service.sync_document.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_sync_accepts_text_in_selected_space(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    service = Mock()
+    service.get_document.return_value = SimpleNamespace(space="space_a", doc_type="TEXT")
+    service.get.return_value = _space()
+    service.sync_document = AsyncMock(return_value=[1])
+    result = await knowledge_api.document_sync("space_a", DocumentSyncRequest(doc_ids=[1]), service)
+    assert result.success is True
+    service.sync_document.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_sync_checks_uploaded_file_metadata(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    from dbgpt.core.interface.file import FileStorageURI
+    uri = str(FileStorageURI("local", "dbgpt_knowledge_file", "file-1"))
+    service = Mock()
+    service.get_document.return_value = SimpleNamespace(space="space_a", doc_type="DOCUMENT", content=uri)
+    service.get.return_value = _space()
+    service.sync_document = AsyncMock(return_value=[1])
+    lookup = service.get_fs.return_value.storage_system.get_file_metadata_by_uri
+    lookup.return_value = SimpleNamespace(custom_metadata={"space_name": "other"})
+    with pytest.raises(HTTPException):
+        await knowledge_api.document_sync("space_a", DocumentSyncRequest(doc_ids=[1]), service)
+    service.sync_document.assert_not_called()
+    lookup.return_value = SimpleNamespace(custom_metadata={"space_name": "space_a"})
+    result = await knowledge_api.document_sync("space_a", DocumentSyncRequest(doc_ids=[1]), service)
+    assert result.success is True
+    service.sync_document.assert_awaited_once()
+
+
+def test_pipeline_document_edit_checks_space(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    service = Mock()
+    service.get.return_value = _space()
+    service.get_document.return_value = SimpleNamespace(space="other")
+    request = KnowledgeDocumentRequest(doc_id=1, doc_name="updated")
+    with pytest.raises(HTTPException) as error:
+        knowledge_api.document_edit("space_a", request, service)
+    assert error.value.status_code == 404
+    service.update_document.assert_not_called()
+    service.get_document.return_value = SimpleNamespace(space="space_a")
+    service.update_document.return_value = None
+    assert knowledge_api.document_edit("space_a", request, service).success
+    service.update_document.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_batch_checks_all_documents_before_sync(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    service = Mock()
+    service.get_document.side_effect = [
+        SimpleNamespace(space="space_a", doc_type="TEXT"),
+        SimpleNamespace(space="other", doc_type="TEXT"),
+    ]
+    service.sync_document = AsyncMock(return_value=[1, 2])
+    requests = [KnowledgeSyncRequest(doc_id=1), KnowledgeSyncRequest(doc_id=2)]
+    with pytest.raises(HTTPException):
+        await knowledge_api.batch_document_sync("space_a", requests, service)
+    service.sync_document.assert_not_called()
+    service.get_document.side_effect = None
+    service.get_document.return_value = SimpleNamespace(space="space_a", doc_type="TEXT")
+    service.get.return_value = _space()
+    assert (await knowledge_api.batch_document_sync("space_a", requests, service)).success
+    assert all(str(item.space_id) == "1" for item in requests)
+    service.sync_document.assert_awaited_once()
+
+
+def test_pipeline_delete_requires_explicit_document_name(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "https://pipeline/identity")
+    service = Mock()
+    monkeypatch.setattr(knowledge_api, "knowledge_space_service", service)
+    with pytest.raises(HTTPException) as error:
+        knowledge_api.document_delete("space_a", DocumentQueryRequest())
+    assert error.value.status_code == 400
+    service.delete_document.assert_not_called()
+    knowledge_api.document_delete("space_a", DocumentQueryRequest(doc_name="example"))
+    service.delete_document.assert_called_once_with("space_a", "example")
 
 
 def _fake_service(
