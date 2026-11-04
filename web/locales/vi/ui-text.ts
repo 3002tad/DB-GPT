@@ -42,6 +42,7 @@ export const viUiText: Record<string, string> = {
   'Download ZIP': 'Tải ZIP',
   'items': 'mục',
   'Select a file to view its contents': 'Chọn tệp để xem nội dung',
+  'Original text contains Chinese — expand to view': 'Nội dung gốc có tiếng Trung — mở để xem',
   'Recent': 'Gần đây',
   'Templates': 'Mẫu',
   'Dashboard categories': 'Danh mục bảng điều khiển',

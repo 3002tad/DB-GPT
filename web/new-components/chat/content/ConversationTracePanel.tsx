@@ -19,6 +19,7 @@ import { apiInterceptors, getConversationUsage, getObservabilityTrace, searchObs
 import { Empty, Spin, Tag } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUiText } from '@/hooks/use-ui-text';
 
 interface ConversationTracePanelProps {
   conversationId: string;
@@ -191,6 +192,23 @@ const KIND_META: Record<MessageKind, { color: string; bg: string }> = {
   reply: { color: '#1677ff', bg: 'bg-blue-50 dark:bg-blue-900/20' },
 };
 
+function TraceText({ value, className, asPre = false }: { value: string; className: string; asPre?: boolean }) {
+  const { i18n } = useTranslation();
+  const tr = useUiText();
+  const content = asPre
+    ? <pre className={className}>{value}</pre>
+    : <div className={className}>{value}</div>;
+  if (i18n.language?.startsWith('zh') || !/[\u4e00-\u9fff]/.test(value)) return content;
+  return (
+    <details className='rounded border border-gray-200/70 px-2 py-1 dark:border-gray-700'>
+      <summary className='cursor-pointer text-[11px] text-gray-500 dark:text-gray-400'>
+        {tr('原文包含中文，展开查看', 'Original text contains Chinese — expand to view')}
+      </summary>
+      {content}
+    </details>
+  );
+}
+
 function MessageBubble({ msg }: { msg: TraceMessage }) {
   const { t } = useTranslation();
   const meta = KIND_META[msg.kind];
@@ -214,12 +232,12 @@ function MessageBubble({ msg }: { msg: TraceMessage }) {
 
       {msg.intention && (
         <div className='text-[11px] text-gray-500 mb-0.5'>
-          {t('observability_intention')}：{msg.intention}
+          {t('observability_intention')}: <TraceText value={msg.intention} className='inline whitespace-pre-wrap break-words' />
         </div>
       )}
       {msg.reason && (
         <div className='text-[11px] text-gray-500 mb-0.5'>
-          {t('observability_reason')}：{msg.reason}
+          {t('observability_reason')}: <TraceText value={msg.reason} className='inline whitespace-pre-wrap break-words' />
         </div>
       )}
 
@@ -231,28 +249,23 @@ function MessageBubble({ msg }: { msg: TraceMessage }) {
           {msg.actionInput && (
             <div>
               <div className='text-[10px] text-gray-400 mb-0.5'>{t('observability_input')}</div>
-              <pre className='text-[11px] font-mono text-gray-600 dark:text-gray-300 bg-white/60 dark:bg-black/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all'>
-                {msg.actionInput}
-              </pre>
+              <TraceText value={msg.actionInput} asPre className='text-[11px] font-mono text-gray-600 dark:text-gray-300 bg-white/60 dark:bg-black/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all' />
             </div>
           )}
           {msg.output && (
             <div>
               <div className='text-[10px] text-gray-400 mb-0.5'>{t('observability_output')}</div>
-              <pre className='text-[11px] font-mono text-gray-600 dark:text-gray-300 bg-white/60 dark:bg-black/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all'>
-                {msg.output}
-              </pre>
+              <TraceText value={msg.output} asPre className='text-[11px] font-mono text-gray-600 dark:text-gray-300 bg-white/60 dark:bg-black/20 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all' />
             </div>
           )}
         </div>
       ) : (
-        <div
+        <TraceText
+          value={msg.content}
           className={`text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words ${
             isSystem ? 'max-h-40 overflow-y-auto' : ''
           }`}
-        >
-          {msg.content}
-        </div>
+        />
       )}
     </div>
   );

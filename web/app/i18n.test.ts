@@ -99,7 +99,7 @@ describe('Vietnamese interface locale', () => {
   it('covers literal bilingual execution and trace panel labels', () => {
     const chat = join(process.cwd(), 'new-components/chat/content');
     const missing = new Set<string>();
-    for (const name of ['ManusLeftPanel.tsx', 'ManusRightPanel.tsx']) {
+    for (const name of ['ManusLeftPanel.tsx', 'ManusRightPanel.tsx', 'ConversationTracePanel.tsx']) {
       const source = readFileSync(join(chat, name), 'utf8');
       const pairs = source.matchAll(/\btr\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'\s*\)/g);
       for (const pair of pairs) {
