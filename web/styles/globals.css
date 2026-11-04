@@ -202,3 +202,8 @@ table {
 .rc-md-editor .editor-container>.section {
   border-right: none !important;
 }
+body.funnelmetry-ai-embedded .db-gpt-home-header,
+body.funnelmetry-ai-embedded .db-gpt-home-title,
+body.funnelmetry-ai-embedded .db-gpt-home-subtitle {
+  display: none;
+}

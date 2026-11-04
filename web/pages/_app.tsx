@@ -3,7 +3,7 @@ import SideBar from '@/components/layout/side-bar';
 import { NewTaskProvider } from '@/modules/new-task';
 import FloatHelper from '@/new-components/layout/FloatHelper';
 import DashboardRouteFrame from '@/new-components/dashboard/DashboardRouteFrame';
-import { STORAGE_LANG_KEY, STORAGE_USERINFO_KEY, STORAGE_USERINFO_VALID_TIME_KEY } from '@/utils/constants/index';
+import { STORAGE_LANG_KEY, STORAGE_THEME_KEY, STORAGE_USERINFO_KEY, STORAGE_USERINFO_VALID_TIME_KEY } from '@/utils/constants/index';
 import { App, ConfigProvider, MappingAlgorithm, theme } from 'antd';
 import enUS from 'antd/locale/en_US';
 import viVN from 'antd/locale/vi_VN';
@@ -58,11 +58,12 @@ function CssWrapper({ children }: { children: React.ReactElement }) {
 }
 
 function LayoutWrapper({ children }: { children: React.ReactNode }) {
-  const { isMenuExpand, mode } = useContext(ChatContext);
+  const { isMenuExpand, mode, setMode } = useContext(ChatContext);
   const { i18n } = useTranslation();
   const [isLogin, setIsLogin] = useState(false);
   const [authError, setAuthError] = useState('');
   const [pipelineRole, setPipelineRole] = useState('');
+  const [embedded, setEmbedded] = useState(false);
 
   const router = useRouter();
 
@@ -111,6 +112,43 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
     handleAuth();
   }, []);
 
+  useEffect(() => {
+    const framed = window.self !== window.top && process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
+    setEmbedded(framed);
+    document.body.classList.toggle('funnelmetry-ai-embedded', framed);
+    if (!framed) return;
+    const parentOrigin = process.env.NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN;
+    if (!parentOrigin) return;
+    i18n.changeLanguage('vi');
+    localStorage.setItem(STORAGE_LANG_KEY, 'vi');
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.origin !== parentOrigin) return;
+      const data = event.data;
+      if (data?.type === 'funnelmetry:ai-theme' && (data.theme === 'light' || data.theme === 'dark')) {
+        setMode(data.theme);
+        localStorage.setItem(STORAGE_THEME_KEY, data.theme);
+      }
+      if (data?.type === 'funnelmetry:ai-navigate' && typeof data.path === 'string' &&
+          ['/', '/construct/skills', '/dashboards', '/construct/knowledge',
+           '/construct/scheduled-tasks', '/construct/database', '/construct/connectors',
+           '/construct/models-config'].includes(data.path)) {
+        void router.push(data.path);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => {
+      document.body.classList.remove('funnelmetry-ai-embedded');
+      window.removeEventListener('message', onMessage);
+    };
+  }, [i18n, router, setMode]);
+
+  useEffect(() => {
+    const parentOrigin = process.env.NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN;
+    if (embedded && isLogin && parentOrigin) {
+      window.parent.postMessage({ type: 'funnelmetry:ai-ready', path: router.pathname }, parentOrigin);
+    }
+  }, [embedded, isLogin, router.pathname]);
+
   const isPublicShare = router.pathname.startsWith('/share') || router.pathname.startsWith('/dashboard-share');
   if (!isLogin && !isPublicShare) {
     return authError ? <div role='alert' style={{ padding: 24 }}>{authError}</div> : null;
@@ -135,7 +173,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
         <Head>
           <meta name='viewport' content='initial-scale=1.0, width=device-width, maximum-scale=1' />
         </Head>
-        {router.pathname !== '/construct/app/extra' && !hideSidebar && (
+        {router.pathname !== '/construct/app/extra' && !hideSidebar && !embedded && (
           <div className={classNames('transition-[width]', isMenuExpand ? 'w-60' : 'w-20', 'hidden', 'md:block')}>
             <SideBar />
           </div>
@@ -143,7 +181,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
         <div className='flex flex-col flex-1 relative overflow-hidden'>
           {router.pathname.startsWith('/dashboards') ? <DashboardRouteFrame>{children}</DashboardRouteFrame> : children}
         </div>
-        {!hideSidebar && <FloatHelper />}
+        {!hideSidebar && !embedded && <FloatHelper />}
       </div>
     );
   };
