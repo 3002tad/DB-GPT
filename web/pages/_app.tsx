@@ -128,12 +128,6 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
         setMode(data.theme);
         localStorage.setItem(STORAGE_THEME_KEY, data.theme);
       }
-      if (data?.type === 'funnelmetry:ai-navigate' && typeof data.path === 'string' &&
-          ['/', '/construct/skills', '/dashboards', '/construct/knowledge',
-           '/construct/scheduled-tasks', '/construct/database', '/construct/connectors',
-           '/construct/models-config'].includes(data.path)) {
-        void router.push(data.path);
-      }
     };
     window.addEventListener('message', onMessage);
     return () => {
@@ -173,7 +167,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
         <Head>
           <meta name='viewport' content='initial-scale=1.0, width=device-width, maximum-scale=1' />
         </Head>
-        {router.pathname !== '/construct/app/extra' && !hideSidebar && !embedded && (
+        {router.pathname !== '/construct/app/extra' && !hideSidebar && (
           <div className={classNames('transition-[width]', isMenuExpand ? 'w-60' : 'w-20', 'hidden', 'md:block')}>
             <SideBar />
           </div>
