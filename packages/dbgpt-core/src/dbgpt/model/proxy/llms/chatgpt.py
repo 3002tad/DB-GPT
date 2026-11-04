@@ -295,6 +295,11 @@ class OpenAILLMClient(ProxyLLMClient):
         # Apply openai kwargs
         for k, v in self._openai_kwargs.items():
             payload[k] = v
+        if stream:
+            # OpenAI-compatible providers such as Model Studio return usage in
+            # a final choices=[] chunk only when requested. Keep an explicit
+            # provider override for endpoints that do not support this option.
+            payload.setdefault("stream_options", {"include_usage": True})
         if request.temperature:
             payload["temperature"] = request.temperature
         if request.max_new_tokens:
@@ -353,7 +358,7 @@ class OpenAILLMClient(ProxyLLMClient):
         if hasattr(message_obj, "reasoning_content"):
             reasoning_content = message_obj.reasoning_content
         text = chat_completion.choices[0].message.content
-        usage = chat_completion.usage.dict()
+        usage = chat_completion.usage.model_dump() if chat_completion.usage else None
         tool_calls = None
         raw_tool_calls = getattr(message_obj, "tool_calls", None) or None
         if raw_tool_calls:
@@ -389,7 +394,7 @@ class OpenAILLMClient(ProxyLLMClient):
         tool_calls_acc: Optional[List[Dict[str, Any]]] = None
         async for r in chat_completion:
             if getattr(r, "usage", None) is not None:
-                usage = r.usage.dict()
+                usage = r.usage.model_dump()
             if len(r.choices) == 0:
                 continue
             finish_reason = r.choices[0].finish_reason or finish_reason

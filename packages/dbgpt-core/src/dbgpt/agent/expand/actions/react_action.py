@@ -507,6 +507,20 @@ class ReActAction(ToolAction):
                             ),
                         )
                 logger.warning(f"Failed to parse the args: {action_input}")
+        if name == "sql_query" and (
+            not isinstance(tool_args, dict)
+            or not isinstance(tool_args.get("sql"), str)
+            or not tool_args["sql"].strip()
+        ):
+            return ActionOutput(
+                is_exe_success=False,
+                action=name,
+                content=(
+                    'sql_query requires a non-empty SQL string. Retry with '
+                    'Action: sql_query followed by Action Input: '
+                    '{"sql":"SELECT ..."}. Do not invent missing SQL.'
+                ),
+            )
         # Log resolved args for html_interpreter before execution
         if name == "html_interpreter":
             html_len = (

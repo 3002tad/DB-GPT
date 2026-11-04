@@ -62,6 +62,12 @@ def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
     method = scope.get("method")
     path = scope.get("path", "")
     if actor.role in ("analyst", "super_admin") and method == "GET" and (
+        path in ("/api/v1/observability/traces", "/api/v1/observability/usage")
+        or re.fullmatch(r"/api/v1/observability/traces/[A-Za-z0-9_-]{1,128}", path)
+    ):
+        # Endpoint additionally checks Analyst conversation ownership and scope.
+        return True
+    if actor.role in ("analyst", "super_admin") and method == "GET" and (
         _KNOWLEDGE_STATS.fullmatch(path) or path == "/api/v2/serve/datasource-types"
     ):
         # Shared knowledge statistics and supported datasource types contain no credentials.

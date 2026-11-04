@@ -8,9 +8,10 @@ wrapped in :class:`Result`, matching the DB-GPT frontend envelope
 
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
+import os
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from dbgpt.component import SystemApp
 from dbgpt.observability.models import (
@@ -26,6 +27,22 @@ from ..config import SERVE_SERVICE_COMPONENT_NAME, ServeConfig
 from ..service.service import Service
 
 router = APIRouter()
+
+
+def _pipeline_trace_actor(request: Request, conversation_id: Optional[str]) -> Optional[str]:
+    """Scope Analyst traces to a verified, owned conversation."""
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return None
+    actor = getattr(request.state, "pipeline_actor", None)
+    if not actor:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    if actor.role == "super_admin":
+        return None
+    if actor.role != "analyst" or not conversation_id:
+        raise HTTPException(status_code=403, detail="Conversation required")
+    from dbgpt_app.openapi.api_v1.agentic_data_api import _require_owned_conversation
+    _require_owned_conversation(conversation_id, actor.id)
+    return conversation_id
 
 global_system_app: Optional[SystemApp] = None
 
@@ -98,6 +115,7 @@ async def model_usage(
 
 @router.get("/traces")
 async def search_traces(
+    request: Request,
     trace_id: Optional[str] = Query(default=None),
     agent_name: Optional[str] = Query(default=None),
     model_name: Optional[str] = Query(default=None),
@@ -111,6 +129,7 @@ async def search_traces(
     offset: int = Query(default=0, ge=0),
     service: Service = Depends(get_service),
 ) -> Result:
+    _pipeline_trace_actor(request, conversation_id)
     flt = TraceFilter(
         trace_id=trace_id,
         agent_name=agent_name,
@@ -127,8 +146,27 @@ async def search_traces(
     return Result.succ(_dump(service.provider.search_traces(flt)))
 
 
+@router.get("/usage")
+async def conversation_usage(request: Request, conversation_id: str = Query(..., min_length=1, max_length=128), service: Service = Depends(get_service)) -> Result:
+    """Provider-reported usage for LLM calls in an owned conversation."""
+    _pipeline_trace_actor(request, conversation_id)
+    read_usage = getattr(service.provider, "conversation_usage", None)
+    if read_usage is None:
+        raise HTTPException(status_code=503, detail="Conversation usage unavailable")
+    models = read_usage(conversation_id)
+    return Result.succ({"conversation_id": conversation_id, "source": "provider",
+                        "models": models})
+
+
 @router.get("/traces/{trace_id}")
-async def get_trace(trace_id: str, service: Service = Depends(get_service)) -> Result:
+async def get_trace(trace_id: str, request: Request, conversation_id: Optional[str] = Query(default=None), service: Service = Depends(get_service)) -> Result:
+    scoped_conversation = _pipeline_trace_actor(request, conversation_id)
+    if scoped_conversation:
+        try:
+            trace = service.provider.get_trace(trace_id, conversation_id=scoped_conversation)
+        except TypeError:
+            raise HTTPException(status_code=403, detail="Scoped traces unavailable")
+        return Result.succ(_dump(trace))
     return Result.succ(_dump(service.provider.get_trace(trace_id)))
 
 

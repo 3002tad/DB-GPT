@@ -262,18 +262,23 @@ class AIWrapper:
         if params.get("tool_choice") is not None:
             payload["tool_choice"] = params["tool_choice"]
         logger.info(f"Request: \n{payload}")
+        span_metadata = self._get_span_metadata(payload)
+        if conv_id:
+            span_metadata["conversation_id"] = conv_id
+        if sender:
+            span_metadata["sender"] = sender
         span = root_tracer.start_span(
             "Agent.llm_client.no_streaming_call",
-            metadata=self._get_span_metadata(payload),
+            metadata=span_metadata,
         )
         payload["span_id"] = span.span_id
         payload["model_cache_enable"] = self.model_cache_enable
         if params.get("context") is not None:
             payload["context"] = ModelRequestContext(extra=params["context"])
+        model_output: Optional[ModelOutput] = None
         try:
             model_request = _build_model_request(payload)
             str_prompt = model_request.messages_to_string()
-            model_output: Optional[ModelOutput] = None
             previous_text = ""
             previous_thinking_text = ""
 
@@ -363,6 +368,9 @@ class AIWrapper:
             end_meta["status"] = "OK"
             if model_output is not None:
                 usage = model_output.usage or {}
+                if usage:
+                    end_meta["usage"] = usage
+                end_meta["usage_source"] = "provider" if usage else "unavailable"
                 end_meta["model_name"] = llm_model
                 end_meta["prompt_tokens"] = usage.get("prompt_tokens")
                 end_meta["completion_tokens"] = usage.get("completion_tokens")
@@ -370,11 +378,6 @@ class AIWrapper:
                 cost = usage.get("cost")
                 if cost is not None:
                     end_meta["cost"] = cost
-                metrics = model_output.metrics
-                if metrics is not None:
-                    end_meta.setdefault("prompt_tokens", metrics.prompt_tokens)
-                    end_meta.setdefault("completion_tokens", metrics.completion_tokens)
-                    end_meta.setdefault("total_tokens", metrics.total_tokens)
             # If an exception is in flight, record error status and re-raise path
             # handles it; here we just mark the span.
             if sys.exc_info()[1] is not None:

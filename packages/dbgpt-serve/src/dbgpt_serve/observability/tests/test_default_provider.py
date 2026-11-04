@@ -84,6 +84,35 @@ def provider(tmp_path):
     return DefaultObservabilityProvider(sqlite_path=sqlite_path)
 
 
+def test_conversation_usage_preserves_unknown_and_does_not_mix_owners(provider):
+    with provider._session as session:
+        for sid, conv, prompt, completion, total in [
+            ("usage-1", "owned", 10, 4, 14),
+            ("usage-2", "other", 100, 10, 110),
+        ]:
+            session.add(ObservabilitySpanEntity(trace_id="usage", span_id=sid,
+                operation_name="Agent.llm_client.no_streaming_call", conversation_id=conv,
+                model_name="qwen", start_time=BASE, prompt_tokens=prompt,
+                completion_tokens=completion, total_tokens=total))
+        session.commit()
+    assert provider.conversation_usage("owned")[0]["total_tokens"] == 14
+    assert provider.conversation_usage("owned")[0]["complete"] is True
+    with provider._session as session:
+        session.add(ObservabilitySpanEntity(trace_id="usage", span_id="usage-3",
+            operation_name="Agent.llm_client.no_streaming_call", conversation_id="owned",
+            model_name="qwen", start_time=BASE))
+        session.commit()
+    result = provider.conversation_usage("owned")[0]
+    assert result["calls"] == 2 and result["complete"] is False
+    assert result["total_tokens"] is None
+
+
+def test_trace_detail_can_be_filtered_to_one_conversation(provider):
+    tree = provider.get_trace("t1", conversation_id="conv_0")
+    assert tree.conversation_id == "conv_0"
+    assert tree.span_count == 3
+
+
 def _window() -> TimeWindow:
     return TimeWindow(
         start=BASE - timedelta(hours=1),

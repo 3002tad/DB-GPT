@@ -7,6 +7,7 @@ seeds one trace, then exercises the read endpoints via an in-process
 """
 
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
@@ -20,10 +21,24 @@ from dbgpt.observability.span_store import (
 from dbgpt.util import AppConfig
 from dbgpt.util.fastapi import create_app
 
-from ..api.endpoints import init_endpoints, router
+from ..api.endpoints import _pipeline_trace_actor, init_endpoints, router
 from ..config import ServeConfig
 
 BASE = datetime(2026, 1, 1, 10, 0, 0)
+
+
+def test_analyst_trace_requires_owned_conversation(monkeypatch):
+    from fastapi import HTTPException
+    from dbgpt_app.openapi.api_v1 import agentic_data_api
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "http://identity")
+    seen = []
+    monkeypatch.setattr(agentic_data_api, "_require_owned_conversation", lambda conv, actor: seen.append((conv, actor)))
+    request = SimpleNamespace(state=SimpleNamespace(pipeline_actor=SimpleNamespace(role="analyst", id="a1")))
+    with pytest.raises(HTTPException) as exc:
+        _pipeline_trace_actor(request, None)
+    assert exc.value.status_code == 403
+    assert _pipeline_trace_actor(request, "conv1") == "conv1"
+    assert seen == [("conv1", "a1")]
 
 
 def _seed(sqlite_path: str) -> None:

@@ -289,6 +289,7 @@ class LiteLLMClient(ProxyLLMClient):
             text = ""
             reasoning_content = ""
             usage: Optional[Dict[str, Any]] = None
+            last_emitted_usage: Optional[Dict[str, Any]] = None
             tool_calls_acc: Optional[List[Dict[str, Any]]] = None
             async for chunk in response:
                 # Some providers (Anthropic, Bedrock via LiteLLM) attach usage on
@@ -323,8 +324,9 @@ class LiteLLMClient(ProxyLLMClient):
                 # Only yield when this chunk carried new content/reasoning so we
                 # don't emit duplicate frames on finish-only chunks.
                 if new_content or new_reasoning:
+                    last_emitted_usage = usage
                     yield ModelOutput.build(text, reasoning_content, usage=usage)
-            if tool_calls_acc:
+            if tool_calls_acc or (usage is not None and usage != last_emitted_usage):
                 yield ModelOutput.build(
                     text, reasoning_content, usage=usage, tool_calls=tool_calls_acc
                 )

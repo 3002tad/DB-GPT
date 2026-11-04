@@ -172,6 +172,25 @@ class DefaultObservabilityProvider(ObservabilityProvider):
                 for r in rows
             ]
 
+    def conversation_usage(self, conversation_id: str) -> List[Dict[str, Any]]:
+        """Sum provider-reported LLM usage, retaining missing-data status."""
+        e = ObservabilitySpanEntity
+        with self._session as session:
+            rows = (session.query(e.model_name, func.count(e.span_id),
+                    func.count(e.prompt_tokens), func.count(e.completion_tokens), func.count(e.total_tokens),
+                    func.sum(e.prompt_tokens), func.sum(e.completion_tokens), func.sum(e.total_tokens))
+                    .filter(e.conversation_id == conversation_id,
+                            e.operation_name == "Agent.llm_client.no_streaming_call")
+                    .group_by(e.model_name).all())
+        result = []
+        for name, calls, nprompt, ncompletion, ntotal, prompt, completion, total in rows:
+            complete = calls == nprompt == ncompletion == ntotal
+            result.append({"model": name, "calls": calls, "complete": complete,
+                           "prompt_tokens": int(prompt) if complete else None,
+                           "completion_tokens": int(completion) if complete else None,
+                           "total_tokens": int(total) if complete else None})
+        return result
+
     # ---- traces ----
     def search_traces(self, filter: TraceFilter) -> List[TraceSummary]:
         with self._session as session:
@@ -223,14 +242,14 @@ class DefaultObservabilityProvider(ObservabilityProvider):
                 for r in rows
             ]
 
-    def get_trace(self, trace_id: str) -> Optional[TraceTree]:
+    def get_trace(self, trace_id: str, conversation_id: Optional[str] = None) -> Optional[TraceTree]:
         with self._session as session:
-            rows = (
-                session.query(ObservabilitySpanEntity)
-                .filter(ObservabilitySpanEntity.trace_id == trace_id)
-                .order_by(ObservabilitySpanEntity.start_time.asc())
-                .all()
+            query = session.query(ObservabilitySpanEntity).filter(
+                ObservabilitySpanEntity.trace_id == trace_id
             )
+            if conversation_id:
+                query = query.filter(ObservabilitySpanEntity.conversation_id == conversation_id)
+            rows = query.order_by(ObservabilitySpanEntity.start_time.asc()).all()
             if not rows:
                 return None
             import json
@@ -260,7 +279,12 @@ class DefaultObservabilityProvider(ObservabilityProvider):
                     nodes[node.parent_span_id].children.append(node)
                 else:
                     roots.append(node)
-            root = roots[0] if roots else None
+            if conversation_id and len(roots) > 1:
+                # The original parent can belong to an unscoped span. Keep all
+                # owned roots visible without exposing spans from other actors.
+                root = SpanNode(span_id="conversation-scoped-root", operation_name="conversation.trace", children=roots)
+            else:
+                root = roots[0] if roots else None
             starts = [r.start_time for r in rows if r.start_time]
             ends = [r.end_time for r in rows if r.end_time]
             start_time = min(starts, default=None)

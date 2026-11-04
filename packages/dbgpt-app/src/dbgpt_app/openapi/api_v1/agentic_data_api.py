@@ -2032,6 +2032,7 @@ async def _react_agent_stream_impl(
     user_input = dialogue.user_input
     if not isinstance(user_input, str):
         user_input = str(user_input or "")
+    conv_id = dialogue.conv_uid or str(uuid.uuid4())
 
     file_paths: List[str] = []
     file_path = None
@@ -2381,6 +2382,16 @@ async def _react_agent_stream_impl(
   - kb_cat: Read the content of a specific file
   - semantic_search: Semantic search (use when kb_grep returns insufficient results){codegraph_tools_desc}{wiki_tools_desc}
 """
+            from .knowledge_prefetch import prefetch_knowledge
+
+            prefetched = await prefetch_knowledge(
+                CFG.SYSTEM_APP, knowledge_space, user_input, conv_id
+            )
+            knowledge_context += prefetched or (
+                "\nNo knowledge excerpts were retrieved automatically. "
+                "Use the available knowledge tools or inspect the datasource "
+                "schema before relying on column names.\n"
+            )
             logger.info(
                 f"Loaded knowledge space resource: {knowledge_space} "
                 f"(name: {knowledge_resource.retriever_name})"
@@ -3187,7 +3198,6 @@ async def _react_agent_stream_impl(
     else:
         llm_config = LLMConfig(llm_client=llm_client)
 
-    conv_id = dialogue.conv_uid or str(uuid.uuid4())
     react_state["conv_id"] = conv_id
     artifact_sink: Optional[InMemoryArtifactSink] = None
     try:

@@ -73,21 +73,18 @@ def _extract(meta: Dict[str, Any]) -> Dict[str, Any]:
     if status is None and error is not None:
         status = "ERROR"
     usage = meta.get("usage") or {}
+    def first_present(*values):
+        return next((value for value in values if value is not None), None)
+    details = usage.get("prompt_tokens_details") or {}
     # Prompt-cache split across providers:
     #   DeepSeek:   prompt_cache_hit_tokens / prompt_cache_miss_tokens
     #   Anthropic:  cache_read_input_tokens / cache_creation_input_tokens
     #   OpenAI:     cached_tokens (inside prompt_tokens_details)
-    cache_hit = (
-        meta.get("cache_hit_tokens")
-        or usage.get("prompt_cache_hit_tokens")
-        or usage.get("cache_read_input_tokens")
-        or usage.get("cached_tokens")
-    )
-    cache_miss = (
-        meta.get("cache_miss_tokens")
-        or usage.get("prompt_cache_miss_tokens")
-        or usage.get("cache_creation_input_tokens")
-    )
+    cache_hit = first_present(meta.get("cache_hit_tokens"), usage.get("prompt_cache_hit_tokens"),
+                              usage.get("cache_read_input_tokens"), usage.get("cached_tokens"),
+                              details.get("cached_tokens"))
+    cache_miss = first_present(meta.get("cache_miss_tokens"), usage.get("prompt_cache_miss_tokens"),
+                               usage.get("cache_creation_input_tokens"))
     return dict(
         agent_name=_as_str(
             meta.get("agent_name") or meta.get("agent") or meta.get("sender")
@@ -99,11 +96,11 @@ def _extract(meta: Dict[str, Any]) -> Dict[str, Any]:
         conversation_id=_as_str(conversation_id),
         session_id=_as_str(meta.get("session_id")),
         status=_as_str(status),
-        prompt_tokens=_as_int(meta.get("prompt_tokens") or usage.get("prompt_tokens")),
+        prompt_tokens=_as_int(first_present(meta.get("prompt_tokens"), usage.get("prompt_tokens"))),
         completion_tokens=_as_int(
-            meta.get("completion_tokens") or usage.get("completion_tokens")
+            first_present(meta.get("completion_tokens"), usage.get("completion_tokens"))
         ),
-        total_tokens=_as_int(meta.get("total_tokens") or usage.get("total_tokens")),
+        total_tokens=_as_int(first_present(meta.get("total_tokens"), usage.get("total_tokens"))),
         cache_hit_tokens=_as_int(cache_hit),
         cache_miss_tokens=_as_int(cache_miss),
         cost=_as_float(meta.get("cost")),

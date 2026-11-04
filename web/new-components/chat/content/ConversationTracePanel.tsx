@@ -14,8 +14,8 @@
  *   observation   agent.act.run.action_out.observations
  *   reply         agent.generate_reply.reply_message (terminate.action_input.result)
  */
-import type { SpanNode, TraceSummary, TraceTree } from '@/client/api';
-import { apiInterceptors, getObservabilityTrace, searchObservabilityTraces } from '@/client/api';
+import type { ConversationUsage, SpanNode, TraceSummary, TraceTree } from '@/client/api';
+import { apiInterceptors, getConversationUsage, getObservabilityTrace, searchObservabilityTraces } from '@/client/api';
 import { Empty, Spin, Tag } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -259,13 +259,14 @@ function MessageBubble({ msg }: { msg: TraceMessage }) {
 }
 
 const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ conversationId }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
   const [tree, setTree] = useState<TraceTree | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
+  const [usage, setUsage] = useState<ConversationUsage | null>(null);
 
   // Load the list of traces linked to this conversation.
   // NOTE: use functional setActiveTraceId to avoid depending on `activeTraceId`
@@ -292,7 +293,15 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
     setActiveTraceId(null);
     setTraces([]);
     setTree(null);
+    setUsage(null);
     void loadTraces();
+    let cancelled = false;
+    const refreshUsage = () => apiInterceptors(getConversationUsage(conversationId)).then(([, data]) => {
+      if (!cancelled) setUsage(data || null);
+    }).catch(() => { if (!cancelled) setUsage(null); });
+    void refreshUsage();
+    const timer = window.setInterval(() => void refreshUsage(), 10000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [conversationId, loadTraces]);
 
   // Load the span tree for the selected trace.
@@ -303,7 +312,7 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
     }
     let cancelled = false;
     setTreeLoading(true);
-    apiInterceptors(getObservabilityTrace(activeTraceId))
+    apiInterceptors(getObservabilityTrace(activeTraceId, conversationId))
       .then(([, data]) => {
         if (!cancelled) setTree(data || null);
       })
@@ -316,7 +325,7 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
     return () => {
       cancelled = true;
     };
-  }, [activeTraceId]);
+  }, [activeTraceId, conversationId]);
 
   const messages = useMemo(() => {
     if (!tree?.root) return [];
@@ -347,6 +356,15 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
 
   return (
     <div className='flex h-full flex-col overflow-y-auto p-4 space-y-3'>
+      {usage && <div className='rounded border border-gray-200 p-2 text-xs dark:border-gray-700'>
+        <strong>{i18n.language?.startsWith('vi') ? 'Token theo provider · hội thoại' : 'Provider token usage · conversation'}</strong>
+        {usage.models.length === 0 && <div>{i18n.language?.startsWith('vi') ? 'Chưa có dữ liệu usage' : 'No usage data yet'}</div>}
+        {usage.models.map((item, index) => <div key={`${item.model || 'unknown'}-${index}`}>
+          {item.model || 'Unknown model'} · {item.calls} {i18n.language?.startsWith('vi') ? 'lượt' : 'calls'} · {item.complete
+            ? `Input ${item.prompt_tokens} · Output ${item.completion_tokens} · Total ${item.total_tokens}`
+            : (i18n.language?.startsWith('vi') ? 'Chưa đủ usage từ provider' : 'Provider usage incomplete')}
+        </div>)}
+      </div>}
       {/* Trace selector */}
       {traces.length > 1 && (
         <div className='flex items-center gap-2 text-xs'>

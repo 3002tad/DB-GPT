@@ -108,8 +108,15 @@ export interface TraceQuery {
 export const searchObservabilityTraces = (params: TraceQuery) =>
   GET<typeof params, TraceSummary[]>(`${BASE}/traces`, params);
 
-export const getObservabilityTrace = (traceId: string) =>
-  GET<null, TraceTree>(`${BASE}/traces/${encodeURIComponent(traceId)}`);
+export const getObservabilityTrace = (traceId: string, conversationId?: string) =>
+  GET<{ conversation_id?: string }, TraceTree>(`${BASE}/traces/${encodeURIComponent(traceId)}`, conversationId ? { conversation_id: conversationId } : undefined);
+
+export interface ConversationUsage {
+  source: 'provider';
+  models: { model: string | null; calls: number; complete: boolean; prompt_tokens: number | null; completion_tokens: number | null; total_tokens: number | null }[];
+}
+export const getConversationUsage = (conversationId: string) =>
+  GET<{ conversation_id: string }, ConversationUsage>(`${BASE}/usage`, { conversation_id: conversationId });
 
 export const getObservabilitySessions = (params?: { agent_name?: string; limit?: number }) =>
   GET<typeof params, SessionSummary[]>(`${BASE}/sessions`, params);

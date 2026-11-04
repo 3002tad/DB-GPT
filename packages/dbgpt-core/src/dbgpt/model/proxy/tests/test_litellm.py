@@ -307,8 +307,9 @@ class TestLiteLLMGenerateStream:
             ],
         )
         texts = [o.text for o in outputs]
-        # No duplicate text frames at the tail.
-        assert texts == ["1", "1, 2", "1, 2, 3"]
+        # The final cumulative frame carries the provider's usage-only chunk.
+        assert texts == ["1", "1, 2", "1, 2, 3", "1, 2, 3"]
+        assert outputs[-1].usage == usage
         assert outputs[-1].error_code == 0
 
     def test_anthropic_style_inline_usage(self):
