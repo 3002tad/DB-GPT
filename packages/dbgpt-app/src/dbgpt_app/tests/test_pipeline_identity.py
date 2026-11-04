@@ -12,6 +12,25 @@ from dbgpt_app.pipeline_identity import (
 from dbgpt_app.pipeline_authorization import authorize_pipeline_request
 
 
+@pytest.mark.parametrize("role", ["analyst", "super_admin"])
+def test_shared_knowledge_stats_and_datasource_types(role):
+    actor = PipelineActor(id="user", role=role)
+    for path in ("/api/v2/serve/knowledge/3/stats", "/api/v2/serve/datasource-types"):
+        assert authorize_pipeline_request(actor, {"method": "GET", "path": path})
+        assert not authorize_pipeline_request(actor, {"method": "DELETE", "path": path})
+
+
+@pytest.mark.parametrize("method,path", [
+    ("GET", "/api/v2/serve/awel/flows"),
+    ("POST", "/api/v1/app/list"),
+    ("GET", "/api/v2/serve/model/providers"),
+])
+def test_administration_lists_remain_admin_only(method, path):
+    scope = {"method": method, "path": path}
+    assert authorize_pipeline_request(PipelineActor(id="admin", role="super_admin"), scope)
+    assert not authorize_pipeline_request(PipelineActor(id="analyst", role="analyst"), scope)
+
+
 def verify(handler, authorization="Bearer test-token"):
     verifier = PipelineIdentityVerifier(
         "http://pipeline.internal/api/auth/ai-identity",

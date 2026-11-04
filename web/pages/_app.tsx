@@ -62,6 +62,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { i18n } = useTranslation();
   const [isLogin, setIsLogin] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [pipelineRole, setPipelineRole] = useState('');
 
   const router = useRouter();
 
@@ -79,6 +80,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
         }));
         localStorage.setItem(STORAGE_USERINFO_VALID_TIME_KEY, Date.now().toString());
         setAuthError('');
+        setPipelineRole(data.actor.role);
         setIsLogin(true);
       } catch {
         localStorage.removeItem(STORAGE_USERINFO_KEY);
@@ -112,6 +114,12 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const isPublicShare = router.pathname.startsWith('/share') || router.pathname.startsWith('/dashboard-share');
   if (!isLogin && !isPublicShare) {
     return authError ? <div role='alert' style={{ padding: 24 }}>{authError}</div> : null;
+  }
+  if (process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1' && pipelineRole === 'analyst' &&
+      ['/construct/app', '/construct/flow', '/construct/models-config'].some(
+        path => router.pathname === path || router.pathname.startsWith(`${path}/`),
+      )) {
+    return <div role='alert' style={{ padding: 24 }}>Trang cấu hình này chỉ dành cho quản trị viên.</div>;
   }
 
   const renderContent = () => {

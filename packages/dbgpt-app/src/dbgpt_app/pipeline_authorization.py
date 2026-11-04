@@ -26,6 +26,7 @@ _KNOWLEDGE_READ = re.compile(
     r"(?:document/list|chunk/list|query|recall_test)$"
 )
 _KNOWLEDGE_RETRIEVERS = re.compile(r"^/api/v1/knowledge/[^/\\]{1,128}/recall_retrievers$")
+_KNOWLEDGE_STATS = re.compile(r"^/api/v2/serve/knowledge/[A-Za-z0-9_-]{1,128}/stats$")
 _KNOWLEDGE_TEXT_WRITE = re.compile(
     r"^/api/v1/knowledge/[^/\\]{1,128}/"
     r"(?:document/(?:add|upload|sync|sync_batch|edit|delete)|chunk/edit)$"
@@ -60,6 +61,16 @@ _ADMIN_MODEL_PATHS = {
 def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
     method = scope.get("method")
     path = scope.get("path", "")
+    if actor.role in ("analyst", "super_admin") and method == "GET" and (
+        _KNOWLEDGE_STATS.fullmatch(path) or path == "/api/v2/serve/datasource-types"
+    ):
+        # Shared knowledge statistics and supported datasource types contain no credentials.
+        return True
+    if actor.role == "super_admin" and (method, path) in {
+        ("GET", "/api/v2/serve/awel/flows"),
+        ("POST", "/api/v1/app/list"),
+    }:
+        return True
     if actor.role in ("analyst", "super_admin") and method == "POST" and path in {
         "/api/v1/chat/react-agent",
         "/api/v1/chat/knowledge-agent",

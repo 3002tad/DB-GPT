@@ -12,6 +12,7 @@ import { ConfigProvider, Tabs } from 'antd';
 import { t } from 'i18next';
 import { useRouter } from 'next/router';
 import React from 'react';
+import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
 import './style.css';
 
 function ConstructLayout({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -93,6 +94,12 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
     // },
   ];
   const router = useRouter();
+  let role = '';
+  try {
+    if (typeof window !== 'undefined') role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || '';
+  } catch { role = ''; }
+  const canManage = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY !== '1' || role === 'super_admin';
+  const visibleItems = canManage ? items : items.filter(item => !['app', 'flow', 'models-config'].includes(item.key));
   const activeKey = router.pathname.split('/')[2];
   // const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches; // unused
 
@@ -121,7 +128,7 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
           //   color: !isDarkMode ? 'white' : 'black',
           // }}
           activeKey={activeKey}
-          items={items.map(items => {
+          items={visibleItems.map(items => {
             return {
               key: items.key,
               label: items.name,
