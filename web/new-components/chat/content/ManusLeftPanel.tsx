@@ -38,6 +38,7 @@ import { Button, Tooltip, message } from 'antd';
 import classNames from 'classnames';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUiText } from '@/hooks/use-ui-text';
 import ObservationFormatter from './ObservationFormatter';
 import TaskPlanCard, { TaskItem } from './TaskPlanCard';
 
@@ -1072,6 +1073,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
   onReportClick,
 }) => {
   const { t } = useTranslation();
+  const tr = useUiText();
   const isTaskPlanComplete =
     !taskPlan?.length || taskPlan.every(task => task.status === 'completed' || task.status === 'cancelled');
   const handleStepClick = useCallback(
@@ -1257,7 +1259,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
                 className='mt-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-blue-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-300'
               >
                 <BookOutlined aria-hidden />
-                查看 {citationIndexes.length} 条参考来源
+                {tr('查看参考来源', 'View reference sources')} · {citationIndexes.length}
               </button>
             )}
             {reportId && reportRunId && onReportClick && (
@@ -1267,7 +1269,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
                 className='mt-3 ml-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-blue-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-300'
               >
                 <FileTextOutlined aria-hidden />
-                查看分析报告与证据
+                {tr('查看分析报告与证据', 'View analysis report and evidence')}
               </button>
             )}
           </div>

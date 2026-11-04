@@ -95,4 +95,18 @@ describe('Vietnamese interface locale', () => {
     }
     expect([...missing].sort()).toEqual([]);
   });
+
+  it('covers literal bilingual execution and trace panel labels', () => {
+    const chat = join(process.cwd(), 'new-components/chat/content');
+    const missing = new Set<string>();
+    for (const name of ['ManusLeftPanel.tsx', 'ManusRightPanel.tsx']) {
+      const source = readFileSync(join(chat, name), 'utf8');
+      const pairs = source.matchAll(/\btr\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'\s*\)/g);
+      for (const pair of pairs) {
+        const english = pair[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+        if (!(english in viUiText)) missing.add(english);
+      }
+    }
+    expect([...missing].sort()).toEqual([]);
+  });
 });
