@@ -99,7 +99,9 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
     if (typeof window !== 'undefined') role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || '';
   } catch { role = ''; }
   const canManage = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY !== '1' || role === 'super_admin';
-  const visibleItems = canManage ? items : items.filter(item => !['app', 'flow', 'models-config'].includes(item.key));
+  const visibleItems = canManage
+    ? items
+    : items.filter(item => !['models-config', 'database', 'connectors', 'scheduled-tasks'].includes(item.key));
   const activeKey = router.pathname.split('/')[2];
   // const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches; // unused
 
