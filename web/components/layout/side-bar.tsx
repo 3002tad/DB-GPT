@@ -6,13 +6,14 @@ import { useStartNewTask } from '@/modules/new-task';
 import type { IChatDialogueSchema } from '@/types/chat';
 import { STORAGE_LANG_KEY, STORAGE_THEME_KEY, STORAGE_USERINFO_KEY } from '@/utils/constants/index';
 import Icon, {
-  ApartmentOutlined,
   ApiOutlined,
+  AppstoreOutlined,
   ClockCircleOutlined,
   DashboardOutlined,
   DeleteOutlined,
   GlobalOutlined,
   HomeOutlined,
+  ForkOutlined,
   LineChartOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -193,7 +194,7 @@ function SideBar() {
         name: t('my_apps'),
         isActive: pathname.startsWith('/construct/app'),
         iconSrc: '',
-        IconComponent: props => <ApartmentOutlined {...props} />,
+        IconComponent: props => <AppstoreOutlined {...props} />,
         path: '/construct/app',
       },
       {
@@ -201,7 +202,7 @@ function SideBar() {
         name: t('awel_workflow'),
         isActive: pathname.startsWith('/construct/flow'),
         iconSrc: '',
-        IconComponent: props => <ApartmentOutlined {...props} />,
+        IconComponent: props => <ForkOutlined {...props} />,
         path: '/construct/flow',
       },
       {
@@ -247,7 +248,7 @@ function SideBar() {
     ];
     return items.filter(item => {
       if (!integrated) return true;
-      if (item.key === 'datasources' || item.key === 'connectors' || item.key === 'scheduled-tasks') return canManage;
+      if (item.key === 'datasources' || item.key === 'connectors') return canManage;
       return canAnalyze;
     });
   }, [t, pathname, i18n.language, integrated, canManage, canAnalyze]);

@@ -40,6 +40,15 @@ _DATASOURCE_ITEM = re.compile(
 _SESSION_FILE = re.compile(r"^/api/v1/agent/files/[A-Za-z0-9_-]{1,128}(?:/(?:preview|download))?$")
 _AWEL_FLOW = re.compile(r"^/api/v2/serve/awel/flows/[A-Za-z0-9_-]{1,128}$")
 _AWEL_EXPORT = re.compile(r"^/api/v2/serve/awel/flow/export/[A-Za-z0-9_-]{1,128}$")
+_SCHEDULED_TASK = re.compile(
+    r"^/api/v2/serve/scheduled-tasks/[A-Za-z0-9_-]{1,128}"
+    r"(?:/(?:toggle|runs(?:/[A-Za-z0-9_-]{1,128})?))?$"
+)
+_DASHBOARD_SCHEDULE = re.compile(
+    r"^/api/v1/dashboards/[A-Za-z0-9_-]{1,128}/"
+    r"(?:scheduler-status|schedules(?:/[A-Za-z0-9_-]{1,128}"
+    r"(?:/(?:toggle|run|runs))?)?)$"
+)
 _ADMIN_MODEL_PATHS = {
     ("GET", "/api/v2/serve/model/model-types"),
     ("GET", "/api/v2/serve/model/models"),
@@ -63,6 +72,17 @@ _ADMIN_MODEL_PATHS = {
 def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
     method = scope.get("method")
     path = scope.get("path", "")
+    if actor.role in ("analyst", "super_admin") and (
+        (path in ("/api/v2/serve/scheduled-tasks", "/api/v2/serve/scheduled-tasks/")
+         and method in ("GET", "POST"))
+        or (method in ("GET", "PUT", "POST", "DELETE")
+            and _SCHEDULED_TASK.fullmatch(path))
+        or (method in ("GET", "POST", "PUT", "DELETE")
+            and _DASHBOARD_SCHEDULE.fullmatch(path))
+    ):
+        # Task handlers bind each task to the verified actor; dashboard schedule
+        # handlers additionally enforce MANAGE_SCHEDULE on the dashboard.
+        return True
     if actor.role in ("analyst", "super_admin") and method == "GET" and (
         path in ("/api/v1/observability/traces", "/api/v1/observability/usage")
         or re.fullmatch(r"/api/v1/observability/traces/[A-Za-z0-9_-]{1,128}", path)

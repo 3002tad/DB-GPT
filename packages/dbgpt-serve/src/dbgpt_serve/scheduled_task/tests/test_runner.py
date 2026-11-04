@@ -31,12 +31,25 @@ from ..service.chat_replay_runner import ChatReplayRunner, run_scheduled_task
 
 
 @pytest.mark.asyncio
-async def test_pipeline_identity_mode_denies_scheduled_and_manual_replay(monkeypatch):
+async def test_pipeline_identity_mode_skips_legacy_tasks_without_owner(monkeypatch):
     monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "http://pipeline/api/auth/ai-identity")
     with patch("dbgpt_serve.scheduled_task.service.chat_replay_runner.ScheduledTaskDao") as dao:
+        dao.return_value.get_one.return_value = {"task_id": "existing-task", "owner_id": None}
         assert await run_scheduled_task("existing-task") is False
         assert await run_scheduled_task("existing-task", allow_disabled=True) is False
-        dao.assert_not_called()
+        assert dao.return_value.try_acquire_lease.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_pipeline_owned_task_can_enter_scheduler(monkeypatch):
+    monkeypatch.setenv("DBGPT_PIPELINE_IDENTITY_URL", "http://pipeline/api/auth/ai-identity")
+    with patch("dbgpt_serve.scheduled_task.service.chat_replay_runner.ScheduledTaskDao") as dao:
+        dao.return_value.get_one.return_value = {
+            "task_id": "owned-task", "owner_id": "analyst-id", "payload_json": "{}",
+        }
+        dao.return_value.try_acquire_lease.return_value = False
+        assert await run_scheduled_task("owned-task") is False
+        dao.return_value.try_acquire_lease.assert_called_once()
 
 # ---------------------------------------------------------------------------
 # Helpers

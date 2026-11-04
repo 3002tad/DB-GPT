@@ -101,7 +101,7 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
   const canManage = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY !== '1' || role === 'super_admin';
   const visibleItems = canManage
     ? items
-    : items.filter(item => !['models-config', 'database', 'connectors', 'scheduled-tasks'].includes(item.key));
+    : items.filter(item => !['models-config', 'database', 'connectors'].includes(item.key));
   const activeKey = router.pathname.split('/')[2];
   // const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches; // unused
 

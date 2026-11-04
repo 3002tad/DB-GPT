@@ -149,7 +149,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   }
   if (process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1' && pipelineRole === 'analyst' &&
       ['/construct/models-config', '/construct/connectors', '/construct/database',
-       '/construct/scheduled-tasks', '/models_evaluation', '/observability'].some(
+       '/models_evaluation', '/observability'].some(
         path => router.pathname === path || router.pathname.startsWith(`${path}/`),
       )) {
     return <div role='alert' style={{ padding: 24 }}>Trang cấu hình này chỉ dành cho quản trị viên.</div>;

@@ -43,6 +43,11 @@ def test_workflows_and_apps_remain_available_to_both_pipeline_roles(role):
         ("POST", "/api/v1/app/create"),
         ("POST", "/api/v1/app/edit"),
         ("GET", "/api/v1/team-mode/list"),
+        ("GET", "/api/v2/serve/scheduled-tasks/"),
+        ("POST", "/api/v2/serve/scheduled-tasks/"),
+        ("GET", "/api/v2/serve/scheduled-tasks/task-1/runs"),
+        ("POST", "/api/v2/serve/scheduled-tasks/task-1/toggle"),
+        ("POST", "/api/v1/dashboards/dashboard-1/schedules"),
     ):
         assert authorize_pipeline_request(actor, {"method": method, "path": path})
     for method, path in (
