@@ -29,6 +29,17 @@ yarn install
 rm -rf ../web/out/
 yarn compile
 
+if [ "${NEXT_PUBLIC_FUNNELMETRY_IDENTITY:-}" = "1" ]; then
+  if [ -z "${NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN:-}" ]; then
+    echo "NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN is required for the Pipeline return button" >&2
+    exit 1
+  fi
+  if ! grep -R -q 'funnelmetry:ai-back' ../web/out/_next/static/chunks; then
+    echo "The compiled UI is missing the Pipeline return button" >&2
+    exit 1
+  fi
+fi
+
 rm -rf $TARGET_DIR \
   && mkdir -p $TARGET_DIR \
   && cp -R ../web/out/* $TARGET_DIR

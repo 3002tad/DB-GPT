@@ -38,6 +38,8 @@ _DATASOURCE_ITEM = re.compile(
     r"^/api/v2/serve/datasources/[A-Za-z0-9_-]{1,128}(?:/refresh)?$"
 )
 _SESSION_FILE = re.compile(r"^/api/v1/agent/files/[A-Za-z0-9_-]{1,128}(?:/(?:preview|download))?$")
+_AWEL_FLOW = re.compile(r"^/api/v2/serve/awel/flows/[A-Za-z0-9_-]{1,128}$")
+_AWEL_EXPORT = re.compile(r"^/api/v2/serve/awel/flow/export/[A-Za-z0-9_-]{1,128}$")
 _ADMIN_MODEL_PATHS = {
     ("GET", "/api/v2/serve/model/model-types"),
     ("GET", "/api/v2/serve/model/models"),
@@ -72,10 +74,37 @@ def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
     ):
         # Shared knowledge statistics and supported datasource types contain no credentials.
         return True
-    if actor.role == "super_admin" and (method, path) in {
-        ("GET", "/api/v2/serve/awel/flows"),
-        ("POST", "/api/v1/app/list"),
-    }:
+    if actor.role in ("analyst", "super_admin") and (
+        (method in ("GET", "POST") and path == "/api/v2/serve/awel/flows")
+        or (method in ("GET", "PUT", "DELETE") and _AWEL_FLOW.fullmatch(path))
+        or (method == "GET" and (path in {
+            "/api/v2/serve/awel/nodes", "/api/v2/serve/awel/flow/templates",
+            "/api/v2/serve/awel/variables/keys", "/api/v2/serve/awel/variables",
+        } or _AWEL_EXPORT.fullmatch(path)))
+        or (method == "POST" and path in {
+            "/api/v2/serve/awel/nodes/refresh", "/api/v2/serve/awel/flow/import",
+            "/api/v2/serve/awel/flow/debug",
+        })
+    ):
+        # DEC-148 keeps native workflows available to both trusted KLTN roles.
+        return True
+    if actor.role in ("analyst", "super_admin") and (
+        (method == "POST" and path in {
+            "/api/v1/app/list", "/api/v1/app/create", "/api/v1/app/edit",
+            "/api/v1/app/remove", "/api/v1/app/publish", "/api/v1/app/unpublish",
+            "/api/v1/app/collect", "/api/v1/app/uncollect",
+            "/api/v1/app/hot/list",
+            "/prompt/query_page", "/api/v1/prompt/query_page",
+        })
+        or (method == "GET" and path in {
+            "/api/v1/team-mode/list", "/api/v1/agents/list",
+            "/api/v1/llm-strategy/list", "/api/v1/llm-strategy/value/list",
+            "/api/v1/resource-type/list", "/api/v1/app/resources/list",
+            "/api/v1/native_scenes", "/api/v1/app/info",
+            "/api/v1/question/list",
+        })
+    ):
+        # App administration and model-provider credentials stay Admin-only.
         return True
     if actor.role in ("analyst", "super_admin") and method == "POST" and path in {
         "/api/v1/chat/react-agent",

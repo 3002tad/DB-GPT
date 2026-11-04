@@ -21,14 +21,39 @@ def test_shared_knowledge_stats_and_datasource_types(role):
 
 
 @pytest.mark.parametrize("method,path", [
-    ("GET", "/api/v2/serve/awel/flows"),
-    ("POST", "/api/v1/app/list"),
     ("GET", "/api/v2/serve/model/providers"),
 ])
 def test_administration_lists_remain_admin_only(method, path):
     scope = {"method": method, "path": path}
     assert authorize_pipeline_request(PipelineActor(id="admin", role="super_admin"), scope)
     assert not authorize_pipeline_request(PipelineActor(id="analyst", role="analyst"), scope)
+
+
+@pytest.mark.parametrize("role", ["analyst", "super_admin"])
+def test_workflows_and_apps_remain_available_to_both_pipeline_roles(role):
+    actor = PipelineActor(id="user", role=role)
+    for method, path in (
+        ("GET", "/api/v2/serve/awel/flows"),
+        ("POST", "/api/v2/serve/awel/flows"),
+        ("GET", "/api/v2/serve/awel/nodes"),
+        ("GET", "/api/v2/serve/awel/flow/templates"),
+        ("GET", "/api/v2/serve/awel/flows/flow-1"),
+        ("PUT", "/api/v2/serve/awel/flows/flow-1"),
+        ("POST", "/api/v1/app/list"),
+        ("POST", "/api/v1/app/create"),
+        ("POST", "/api/v1/app/edit"),
+        ("GET", "/api/v1/team-mode/list"),
+    ):
+        assert authorize_pipeline_request(actor, {"method": method, "path": path})
+    for method, path in (
+        ("POST", "/api/v1/app/admins/update"),
+        ("GET", "/api/v2/serve/awel/flows/../../secrets"),
+    ):
+        assert not authorize_pipeline_request(actor, {"method": method, "path": path})
+    if role == "analyst":
+        assert not authorize_pipeline_request(actor, {
+            "method": "POST", "path": "/api/v2/serve/model/providers/custom",
+        })
 
 
 def verify(handler, authorization="Bearer test-token"):

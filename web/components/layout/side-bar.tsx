@@ -189,6 +189,22 @@ function SideBar() {
         path: '/construct/skills',
       },
       {
+        key: 'apps',
+        name: t('my_apps'),
+        isActive: pathname.startsWith('/construct/app'),
+        iconSrc: '',
+        IconComponent: props => <ApartmentOutlined {...props} />,
+        path: '/construct/app',
+      },
+      {
+        key: 'awel',
+        name: t('awel_workflow'),
+        isActive: pathname.startsWith('/construct/flow'),
+        iconSrc: '',
+        IconComponent: props => <ApartmentOutlined {...props} />,
+        path: '/construct/flow',
+      },
+      {
         key: 'dashboards',
         name: i18n.language.startsWith('zh') ? '看板' : i18n.language.startsWith('vi') ? 'Bảng điều khiển' : 'Dashboards',
         isActive: pathname.startsWith('/dashboards'),
@@ -231,7 +247,7 @@ function SideBar() {
     ];
     return items.filter(item => {
       if (!integrated) return true;
-      if (item.key === 'datasources' || item.key === 'connectors') return canManage;
+      if (item.key === 'datasources' || item.key === 'connectors' || item.key === 'scheduled-tasks') return canManage;
       return canAnalyze;
     });
   }, [t, pathname, i18n.language, integrated, canManage, canAnalyze]);
@@ -254,21 +270,6 @@ function SideBar() {
       >
         <Icon component={ModelSvg} className='text-cyan-500' />
         <span>{t('model_provider_config')}</span>
-      </div>
-      <div
-        onClick={() => {
-          router.push('/construct/flow');
-          setSettingsOpen(false);
-        }}
-        className={cls(
-          'flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors',
-          {
-            'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400': pathname.startsWith('/construct/flow'),
-          },
-        )}
-      >
-        <ApartmentOutlined className='text-green-500' />
-        <span>{t('awel_workflow')}</span>
       </div>
       <div
         onClick={() => {
