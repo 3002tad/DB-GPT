@@ -512,6 +512,22 @@ const getTodoStepBadge = (t: (key: string, options?: Record<string, any>) => str
   return todoMeta.state === 'init' ? t('task_plan_new_badge') : '';
 };
 
+function GeneratedText({ text, className = '' }: { text: string; className?: string }) {
+  const { i18n } = useTranslation();
+  const tr = useUiText();
+  if (i18n.language?.startsWith('zh') || !/[\u4e00-\u9fff]/.test(text)) {
+    return <span className={className}>{text}</span>;
+  }
+  return (
+    <details className='min-w-0' onClick={event => event.stopPropagation()}>
+      <summary className='cursor-pointer text-[11px] text-gray-500 dark:text-gray-400'>
+        {tr('原文包含中文，展开查看', 'Original text contains Chinese — expand to view')}
+      </summary>
+      <span className={`${className} whitespace-pre-wrap break-words`}>{text}</span>
+    </details>
+  );
+}
+
 const StepCard: React.FC<{
   step: ExecutionStep;
   isActive: boolean;
@@ -589,9 +605,11 @@ const StepCard: React.FC<{
             <span className='text-[10px] font-semibold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80'>
               {isWaiting ? t('waiting_for_user') || 'Waiting for User' : t('step_type_question') || 'Ask User'}
             </span>
-            <span className='text-sm font-medium text-slate-800 dark:text-slate-200 truncate'>
-              {step.title === 'question' ? t('user_confirmation') || '需要您的确认' : step.title}
-            </span>
+            <div className='text-sm font-medium text-slate-800 dark:text-slate-200 truncate'>
+              {step.title === 'question'
+                ? t('user_confirmation')
+                : <GeneratedText text={step.title} />}
+            </div>
           </div>
           <div className='flex-shrink-0'>
             {isWaiting ? (
@@ -723,24 +741,26 @@ const StepCard: React.FC<{
         {getTypeLabel(step.type, t)}
       </span>
       <div className='flex flex-col min-w-0 flex-1'>
-        <span className='text-sm font-medium text-gray-800 dark:text-gray-200 truncate'>{step.title}</span>
+        <GeneratedText text={step.title} className='text-sm font-medium text-gray-800 dark:text-gray-200' />
         {thought &&
           (() => {
             const [intention, ...reasonLines] = (typeof thought === 'string' ? thought : '').split('\n');
             const reason = reasonLines.join('\n').trim();
             return (
               <div className='mt-0.5'>
-                <span className='text-[12px] leading-4 text-slate-600 dark:text-slate-300'>
-                  {step.status === 'running' ? <StreamingText text={intention} /> : intention}
-                </span>
+                <div className='text-[12px] leading-4 text-slate-600 dark:text-slate-300'>
+                  {/[\u4e00-\u9fff]/.test(intention)
+                    ? <GeneratedText text={intention} />
+                    : step.status === 'running' ? <StreamingText text={intention} /> : intention}
+                </div>
                 {reason && (
-                  <span className='block text-[11px] leading-4 text-slate-400 dark:text-slate-500'>{reason}</span>
+                  <GeneratedText text={reason} className='block text-[11px] leading-4 text-slate-400 dark:text-slate-500' />
                 )}
               </div>
             );
           })()}
         {!thought && step.subtitle && (
-          <span className='text-[11px] text-gray-500 dark:text-gray-400 truncate'>{step.subtitle}</span>
+          <GeneratedText text={step.subtitle} className='text-[11px] text-gray-500 dark:text-gray-400' />
         )}
       </div>
       <div className='flex-shrink-0'>
@@ -803,7 +823,7 @@ const ParallelDispatchSummary: React.FC<{ actionInput: unknown }> = memo(({ acti
                 className='flex min-w-0 items-start gap-1.5 text-[11px] leading-5 text-slate-400 dark:text-slate-500'
               >
                 <span className='mt-[8px] h-1 w-1 flex-shrink-0 rounded-full bg-slate-300 dark:bg-slate-600' />
-                <span className='line-clamp-2 min-w-0 break-words'>{task.title}</span>
+                <GeneratedText text={task.title} className='line-clamp-2 min-w-0 break-words' />
               </li>
             ))}
           </ul>
@@ -936,10 +956,12 @@ const ThoughtBubble: React.FC<{ text: string | Record<string, unknown> }> = memo
 
   return (
     <div className='min-w-0 px-1 py-1 text-[13px] leading-relaxed text-gray-900 dark:text-gray-100'>
-      <p className='m-0 break-words'>
-        <StreamingText text={intention} />
-      </p>
-      {reason && <p className='m-0 mt-1 break-words text-gray-600 dark:text-gray-300'>{reason}</p>}
+      <div className='m-0 break-words'>
+        {/[\u4e00-\u9fff]/.test(intention)
+          ? <GeneratedText text={intention} />
+          : <StreamingText text={intention} />}
+      </div>
+      {reason && <GeneratedText text={reason} className='block mt-1 text-gray-600 dark:text-gray-300' />}
     </div>
   );
 });
@@ -987,7 +1009,9 @@ const SectionBlock: React.FC<{
         </div>
 
         {/* Section title */}
-        <span className='text-sm font-medium text-gray-800 dark:text-gray-200 flex-1'>{section.title}</span>
+        <div className='flex-1 min-w-0'>
+          <GeneratedText text={section.title} className='text-sm font-medium text-gray-800 dark:text-gray-200' />
+        </div>
 
         {/* Progress indicator */}
         {totalCount > 0 && (
