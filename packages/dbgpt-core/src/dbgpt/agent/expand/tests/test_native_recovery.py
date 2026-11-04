@@ -4,15 +4,37 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from dbgpt.agent.core.agent import AgentContext, AgentMessage
 from dbgpt.agent.core.action.base import ActionOutput
 from dbgpt.agent.core.base_agent import ConversableAgent
 from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
+from dbgpt.agent.expand.actions.tool_action import ToolCallSpec, run_tools_batch
 from dbgpt.agent.util.llm.llm import LLMStrategyType
 
 
 class NativeRecoveryTest(unittest.TestCase):
+    def test_batch_keeps_distinct_observation_without_repeating_equal_content(self):
+        async def fake_run_tool(name, *_args, **_kwargs):
+            if name == "preview":
+                return ActionOutput(content="preview", observations="full evidence",
+                                    persisted_path="/tmp/evidence", is_exe_success=True)
+            return ActionOutput(content="104", observations="104",
+                                is_exe_success=True)
+
+        with patch("dbgpt.agent.expand.actions.tool_action.run_tool", fake_run_tool):
+            result = asyncio.run(run_tools_batch(
+                [ToolCallSpec(name="count", args={}),
+                 ToolCallSpec(name="preview", args={})],
+                resource=None,
+            ))
+        rows = json.loads(result.observations)
+        self.assertEqual(rows[0]["content"], "104")
+        self.assertNotIn("observation", rows[0])
+        self.assertEqual(rows[1]["content"], "preview")
+        self.assertEqual(rows[1]["observation"], "full evidence")
+
     def test_repeated_incomplete_sql_stops_with_explicit_reason(self):
         state = {}
         agent = SimpleNamespace(

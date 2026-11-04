@@ -388,7 +388,10 @@ async def run_tools_batch(
             "call_id": spec.call_id,
             "success": out.is_exe_success,
             "content": out.content,
-            "observation": out.observations,
+            # Both values are identical for common SQL results. Keep the full
+            # observation when content is a persisted-output preview instead.
+            **({"observation": out.observations}
+               if out.observations != out.content else {}),
             "terminate": out.terminate,
             "persisted_path": out.persisted_path,
         }

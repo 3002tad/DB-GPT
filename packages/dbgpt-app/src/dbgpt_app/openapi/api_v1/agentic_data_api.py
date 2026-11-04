@@ -3357,7 +3357,7 @@ async def _react_agent_stream_impl(
         gpts_app_code="react_agent",
         gpts_app_name="ReAct",
         language=react_state["_report_language"],
-        temperature=dialogue.temperature or 0.2,
+        temperature=0.2 if dialogue.temperature is None else dialogue.temperature,
         enable_context_management=True,
         enable_native_function_calling=True,
         pin_selected_model=bool(dialogue.model_name),
@@ -3500,124 +3500,43 @@ When all requested deliverables are complete, call terminate with output.
         )
 
     if is_skill_mode:
-        # Simplified prompt for skill mode - only skill-related tools +
-        # html_interpreter
+        # Native function schemas carry tool descriptions/arguments. Keep only
+        # workflow guidance here; all registered tools remain available.
         workflow_prompt = f"""
-You are the DB-GPT intelligent assistant, executing the skill task selected by the user.
+You are the DB-GPT assistant executing the user's selected skill.
 {language_instruction}
 
-## Autonomous Decision Principles
-1. Strictly follow the instructions of the loaded skill.
-2. For each step, call the supplied native function with JSON arguments.
-3. Wait for the system to return Observation before deciding on the next step.
-4. {traceable_report_capability.prompt_fragment}
-5. If the task does not require generating a report, directly call terminate to
-return the final result with {{"output": "final answer"}}.
+## Execution
+Follow the loaded skill within the user's requested deliverables. Use the supplied
+native function schemas for tool names and complete JSON arguments; wait for actual
+results before drawing conclusions. Other registered tools remain available.
+For a short question, use only necessary queries and call terminate with the final
+answer once evidence is sufficient. Do not generate a report unless requested by
+the task or skill. For a complex task (3+ steps), use todowrite with the full list,
+one item in_progress, and update completed/next items together at transitions.
 
 {skill_prompt_context}
 {execution_instruction}
 
-## Skill Execution Norms
-### Resource Usage
-- **Need to execute skill script** -> Use `execute_skill_script_file` with
-parameters {{"skill_name": "skill name", "script_file_name": "script file name",
-"args": {{parameters}}}}. This tool will automatically handle image copying and
-data recording.
-For command-line scripts use `argv` instead of `args`, e.g.
-{{"skill_name": "skill-creator", "script_file_name": "init_skill.py",
-"argv": ["sql-data-analysis", "--path", "absolute destination directory"]}}.
-Pass each CLI argument separately. Never pass both args and argv.
-- **Need to understand indicator definitions/analysis framework** -> Use
-`get_skill_resource` and specify the `references/xxx.md` path to read the
-reference document.
-- **Encounter image file** -> If the model does not support image input, it will
-return an error prompt.
-- **Need to generate report** -> Call `generate_report` with the report title, the
-required sections and the requested recommendation count. A dedicated report agent
-owns the template, the evidence-bound spec and every repair; do not write report HTML
-yourself, do not call `code_interpreter` for the report and do not re-run analysis.
-- **Need to create or edit skill files** -> Use `code_interpreter` with Python
-pathlib to write UTF-8 files and inspect existing directories. Skill script tools
-only run existing scripts; never invent a script name or put comments in tool names.
-Keep new skills in the persistent user-skills directory:
+## Skill resources and files
+Use get_skill_resource for references/templates and execute_skill_script_file for
+existing scripts. Use args for structured parameters or argv for CLI arguments,
+never both. Pass CLI arguments as separate strings. Never invent script names.
+For creating/editing skills, inspect existing files and use code_interpreter with
+UTF-8 pathlib operations. Store new skills under
 {json.dumps(str(Path(DEFAULT_SKILLS_DIR).resolve() / "user"), ensure_ascii=False)}.
-Pass this absolute directory to init_skill.py --path. If a directory exists, inspect
-and finish it; do not repeatedly initialize it in per-execution temporary folders.
-Use execute_skill_script_file with argv to test scripts and package the skill.
-Do not generate an analysis report for a skill-creation task.
+For init_skill.py, pass the positional skill name and --path with this absolute
+directory; finish an existing skill instead of repeatedly initializing it.
+Test/package through execute_skill_script_file. A skill-creation task does not
+require an analysis report. Use supplied image tools only when supported.
 
-## Available Tools Description
-1. **execute_skill_script_file** (recommended for executing skill scripts): Execute
-script files in the skills scripts directory, automatically handling
-post-processing such as copying images to the static directory and recording
-calculation results.
-   Parameters: {{"skill_name": "skill name", "script_file_name": "script file
-name", "args": {{parameters}}}}
-   - Example: {{"skill_name": "{_skill_name}",
-"script_file_name": "calculate_ratios.py",
-"args": {{"input_data": "..."}}}}
-   - For CLI scripts replace args with argv (a list of strings). init_skill.py
-requires positional skill name followed by --path and the destination directory.
-   - **Must use this tool when executing skill scripts**, do not use
-shell_interpreter.
-2. **get_skill_resource**: Read reference documents, configurations, templates, and
-other non-script resource files in the skill.
-   Parameters: {{"skill_name": "skill name", "resource_path": "resource path"}}
-   - Read reference document: {{"skill_name": "{_skill_name}",
-"resource_path": "references/analysis_framework.md"}}
-   - Note: For long reports reuse a suitable existing template with `data`.
-Use concise inline HTML when there is no applicable template.
-3. **execute_skill_script**: Execute the inline script defined in the skill
-(backup). Parameters: {{"skill_name": "skill name", "script_name": "script name",
-"args": {{"parameter name": "parameter value"}}}}
-4. **generate_report**: Hand the analysis report to the dedicated report agent (it
-owns `report_evidence_manifest`, the report template and every spec repair).
-Parameters: {{"instructions": "report title, required sections, recommendation count"}}
-   - Only use this if the skill's documentation explicitly provides template paths.
-If a template fails, fix the indicated input or select an existing suitable template.
-For a saved HTML candidate, use {{"retry_saved": true, "repair_patches":
-[{{"old": "exact text at the reported location", "new": "corrected text"}}]}}.
-For truncation, new must preserve the tail anchor and add the missing remainder.
-Never regenerate the entire document or rerun completed analysis after failure.
-   {available_images_hint}
-5. **sql_query**: Execute a read-only SQL query against the selected database.
-Parameters: {{"sql": "SELECT statement"}}
-5.1. **chart_query**: Execute read-only SQL and return a DB-GPT native interactive chart.
-Parameters: {{"sql": "SELECT statement", "display_type": "response_line_chart", "thought": "chart purpose"}}
-6. **todowrite**: Create and manage a structured task list. Use for complex tasks
-(3+ steps) to plan and track progress. Pass the FULL list every time. Each item:
-{{"content": "description", "status": "pending|in_progress|completed|cancelled",
-"priority": "high|medium|low"}}. Only ONE task in_progress at a time.
-IMPORTANT: You MUST call todowrite again after EACH task completes to update status.
-The user sees progress in real time — never skip an update.
-Parameters: {{"todos": [{{...}}]}}
-7. **question**: Ask the user a question and wait for their response. Use this tool
-   when you need user input, clarification, or a decision to proceed. The tool blocks
-   until the user answers.
-   Parameters: {{"questions": [{{"question": "...", "header": "...", "options": [
-   {{"label": "...", "description": "..."}}, ...]}}]}}. Set multiple=true to allow
-   multiple selections. The tool returns the user's selected answers.
-8. **terminate**: Return the final answer when the task is completed.
-Parameters: {{"output": "your final answer content"}}.
-
-## Task Management
-For complex tasks that require 3 or more steps, use the `todowrite` tool to create
-a structured task plan BEFORE starting work. This helps users track your progress.
-- Call `todowrite` with the FULL todo list (all items) each time you update.
-- Mark exactly ONE task as `in_progress` at a time.
-- Mark tasks `completed` immediately after finishing each one.
-- Do NOT use todowrite for simple single-step tasks.
-
-CRITICAL: You MUST call `todowrite` to update the task list at EVERY transition:
-1. BEFORE starting a task: mark it `in_progress` (call todowrite)
-2. AFTER finishing a task: mark it `completed` AND mark the next one
-   `in_progress` (call todowrite)
-3. Never skip updating — the user sees this progress in real time.
-Example flow for 3 tasks:
-- Create plan: [task1=in_progress, task2=pending, task3=pending] → call todowrite
-- Finish task1: [task1=completed, task2=in_progress, task3=pending] → call todowrite
-- Finish task2: [task1=completed, task2=completed, task3=in_progress] → call todowrite
-- Finish task3: [task1=completed, task2=completed, task3=completed] → call todowrite
+## Reports when requested
+{traceable_report_capability.prompt_fragment}
+Tell generate_report the title, required sections and recommendation count; its
+report agent owns templates, evidence bindings and repairs. Reuse completed
+analysis and follow the latest renderer result. Do not write report HTML yourself
+or invent template paths. Do not retry accepted patches or non-retryable failures.
+{available_images_hint}
 
 {file_context}
 {knowledge_context}
@@ -3629,7 +3548,8 @@ Example flow for 3 tasks:
             # Knowledge-chat mode: only kb tools + todowrite + terminate.
             # No skill/shell/sql/html/code tools to keep the agent focused.
             tool_pack = ToolPack(
-                [todowrite_tool, question_tool, Terminate()]
+                kb_tool_list
+                + [todowrite_tool, question_tool, Terminate()]
                 + business_tools
                 + connector_tool_extras
             )
@@ -3648,6 +3568,7 @@ Example flow for 3 tasks:
                     question_tool,
                     Terminate(),
                 ]
+                + kb_tool_list
                 + business_tools
                 + connector_tool_extras
             )
@@ -3682,156 +3603,38 @@ Example flow for 3 tasks:
             if wiki_available
             else ""
         )
+        # Native tool schemas already contain names, descriptions and arguments.
         workflow_prompt = f"""
-You are the DB-GPT intelligent assistant, capable of autonomously selecting tools
-to solve problems based on user tasks.
+You are the DB-GPT assistant. Choose the registered tools needed for the user's
+request, call them with complete JSON arguments and use actual results. When
+sufficient evidence is available, call terminate with the final answer.
 {language_instruction}
+{traceable_report_capability.prompt_fragment}
 
-## Autonomous Decision Principles
-1. Carefully analyze the user's task requirements.
-2. Autonomously select required tools based on requirements (do not follow a fixed
-order, select as needed).
-3. For each step, call the supplied native function with JSON arguments.
-4. Wait for the system to return Observation before deciding on the next step.
-5. When the task is completed, call the terminate tool to return the final result.
-Parameters: {{"output": "final answer"}}.
-6. {traceable_report_capability.prompt_fragment}
+## Planning and skill use
+Use todowrite for tasks of 3+ steps or multiple independent tasks. Pass the full
+list, keep one visible item in_progress, and update status at each transition.
+For independent items already split in the todo list, dispatch_parallel_tasks
+may run them concurrently. Follow the loaded skill's relevant workflow and
+explicit skip conditions. To run an existing skill script, use
+execute_skill_script_file with args or separate argv values. Read skill
+references with get_skill_resource; do not invent script names.
 
-7. **[Database-report execution rule]** Use the available tools that best fit the
-analysis. `chart_query` returns DB-GPT's native SQL chart when a database chart is
-useful; `code_interpreter` remains available for advanced calculations or custom
-visualizations. Do not use `shell_interpreter` to test an environment, create
-charts, or prepare an HTML report; the shell tool is intentionally unavailable in
-this workflow. Call the supplied functions directly with complete JSON arguments.
+## Analysis and reports
+Use chart_query for a native database chart and code_interpreter when advanced
+calculations or custom visuals are needed. For a report, set REPORT_RESULT to a
+JSON-compatible value for computed metrics and tables; convert DataFrames to
+columns and record rows. Printed tables alone are not report bindings. Call
+generate_report with requested sections and recommendations. Its report agent
+owns evidence and rendering; do not write or patch report HTML or repeat
+completed analysis.
 
-## Task Management
-For complex tasks that require 3 or more steps, use the `todowrite` tool to create
-a structured task plan BEFORE starting work. This helps users track your progress.
-- Call `todowrite` with the FULL todo list (all items) each time you update.
-- Mark exactly ONE task as `in_progress` at a time.
-- Mark tasks `completed` immediately after finishing each one.
-- Do NOT use todowrite for simple single-step tasks.
-- Parallel exception: when the task contains 2 or more mutually independent
-  subtasks eligible for `dispatch_parallel_tasks`, use `todowrite` even when
-  the overall task has fewer than 3 steps.
-- After splitting tasks with `todowrite`, delegate independent items with no
-  ordering dependency to `dispatch_parallel_tasks` (one sub-agent per item).
-  `todowrite` decomposes and tracks work; `dispatch_parallel_tasks` only executes
-  already-split items.
-- The "exactly one in_progress" rule controls the visible todo state; it does
-  not prevent dispatching other independent pending items in the same batch.
-
-CRITICAL: You MUST call `todowrite` to update the task list at EVERY transition:
-1. BEFORE starting a task: mark it `in_progress` (call todowrite)
-2. AFTER finishing a task: mark it `completed` AND mark the next one
-   `in_progress` (call todowrite)
-3. Never skip updating — the user sees this progress in real time.
-Example flow for 3 tasks:
-- Create plan: [task1=in_progress, task2=pending, task3=pending] → call todowrite
-- Finish task1: [task1=completed, task2=in_progress, task3=pending] → call todowrite
-- Finish task2: [task1=completed, task2=completed, task3=in_progress] → call todowrite
-- Finish task3: [task1=completed, task2=completed, task3=completed] → call todowrite
-
-## Available Skills List (Pre-loaded)
+## Available skills
 {skills_context}
-
-## Skill Execution Norms (Important)
-When using a skill, the following rules must be followed:
-
-### 1. Understand the Workflow
-After loading the skill, carefully read the **Core Workflow** section in SKILL.md
-and execute it in order. If a step explicitly states conditions to skip (such as
-when user intent is clear), directly skip to the next step; do not force the
-execution of every step. Prioritize producing results quickly, and perform
-iterative optimization in subsequent steps.
-
-### 2. Resource Usage Timing
-- **Need to calculate/process data** -> Use `execute_skill_script_file` to execute
-scripts in the skill's scripts directory (this tool automatically handles images
-and data recording). Parameters are {{"skill_name": "skill name",
-"script_file_name": "script.py", "args": {{parameters}}}}.
-For CLI scripts use argv (a list of separate strings) instead of args.
-- **Need to understand indicator definitions/analysis framework** -> Use
-`get_skill_resource` and specify the `references/xxx.md` path to read the
-reference document.
-- **Encounter image file** -> If the model does not support image input, it will
-return an error prompt.
-
-### 3. Execution Order
-Complete each workflow step before moving to the next. Do not mix multiple tool
-calls in the same step.
-
-### 4. Special Scenarios
-- For report generation: Same as the principle above, must finally call
-`generate_report` to hand the report to the dedicated report agent.
-
-## Available Tools Description
-1. **load_skill**: Load skill content by skill name and file path.
-Parameters: {{"skill_name": "skill name", "file_path": "skill file path"}}
-2. **execute_skill_script_file**: Execute script files in the skill's scripts
-directory. Parameters: {{"skill_name": "skill name",
-"script_file_name": "script file name", "args": {{parameters}}}}
-3. **get_skill_resource**: Read reference documents in the skill.
-Parameters: {{"skill_name": "skill name", "resource_path": "resource path"}}
-4. **execute_skill_script**: Execute the inline script defined in the skill.
-Parameters: {{"skill_name": "skill name", "script_name": "script name",
-"args": {{parameters}}}}
-5. **code_interpreter**: Execute arbitrary Python code.
-Parameters: {{"code": "python code string"}}
-For report analysis, assign computed metrics and tables to REPORT_RESULT, a
-JSON-compatible dict/list captured separately from printed output. Convert each
-DataFrame to {{"columns": list(frame.columns), "rows": frame.to_dict(orient="records")}}.
-Keep progress messages in print(); printed tables alone cannot be report bindings.
-6. **load_file**: Load uploaded file info. Parameters: none.
-7. **execute_analysis**: Execute quick analysis on uploaded Excel/CSV file.
-Parameters: none.
-9. **kb_ls**: List files and directories in the knowledge base.
-Parameters: {{"path": "directory path (optional)"}}
-10. **kb_glob**: Search files by name or glob pattern in the knowledge base.
-Parameters: {{"pattern": "file name keyword or glob pattern"}}
-11. **kb_grep**: Search file contents by keyword in the knowledge base. Prefer for exact matches.
-Parameters: {{"query": "search keyword", "path": "directory filter (optional)", "file_pattern": "file pattern like *.py (optional)"}}
-12. **kb_cat**: Read the content of a specific file in the knowledge base.
-Parameters: {{"path": "file path like src/main.py", "start_line": "start line (optional)", "end_line": "end line (optional, 0 = to end)"}}
-13. **semantic_search**: Semantic search in the knowledge base. Use when kb_grep returns insufficient results.
-Parameters: {{"query": "search query in natural language", "top_k": "number of results (optional)"}}
-{codegraph_section}{wiki_section}14. **sql_query**: Execute a read-only SQL query against the selected database.
-Parameters: {{"sql": "SELECT statement"}}
-14.1. **chart_query**: Execute SQL and return a DB-GPT native interactive chart.
-Parameters: {{"sql": "SELECT statement", "display_type": "response_line_chart", "thought": "chart purpose"}}
-15. **load_tools**: Resolve required tools for the selected skill. Parameters: none.
-16. **execute_tool**: Execute a tool by name with JSON args.
-Parameters: {{"tool_name": "tool name", "args": {{parameters}}}}
-17. **generate_report**: Hand the analysis report to the dedicated report agent, which
-reads the evidence manifest, renders the report template once and repairs only the
-spec from the latest error list. Parameters: {{"instructions": "report title, required
-sections, requested recommendation count"}}. Never write report HTML yourself, never
-patch rendered HTML and never re-run completed analysis for the report.
-18. **report_evidence_manifest** (internal): owned by the report agent. Pass what the
-report must contain to `generate_report` instead of binding values yourself.
-19. **todowrite**: Create and manage a structured task list. Use for complex tasks
-(3+ steps) to plan and track progress. Pass the FULL list every time. Each item:
-{{"content": "description", "status": "pending|in_progress|completed|cancelled",
-"priority": "high|medium|low"}}. Only ONE task in_progress at a time.
-IMPORTANT: You MUST call todowrite again after EACH task completes to update status.
-The user sees progress in real time — never skip an update.
-Parameters: {{"todos": [{{...}}]}}
-15. **dispatch_parallel_tasks**: Execute 2 or more mutually independent todo
-items concurrently with isolated sub-agents. Each task needs a self-contained
-goal and may include shared context and a display title.
-Parameters: {{"tasks": [{{"goal": "...", "context": "...", "title": "..."}}]}}
-16. **question**: Ask the user a question and wait for their response. Use this tool
-   when you need user input, clarification, or a decision to proceed. The tool blocks
-   until the user answers.
-   Parameters: {{"questions": [{{"question": "...", "header": "...", "options": [
-   {{"label": "...", "description": "..."}}, ...]}}]}}. Set multiple=true to allow
-   multiple selections. The tool returns the user's selected answers.
-17. **terminate**: Finish the task. Parameters: {{"output": "final answer"}}
-
+{codegraph_section}{wiki_section}
 {file_context}
 {knowledge_context}
 {database_context}
-
 {native_response_format}
 """.strip()
 
@@ -4093,6 +3896,16 @@ available artifacts and do not recalculate completed work. Keep sub-agent goals
 narrow and within the user's requested period. Query timeouts require inspecting
 the plan and indexes and changing the SQL; never repeat the unchanged query.
 After partial results, finish only missing requested deliverables, then report.
+
+## Evidence and concise answers
+Use already retrieved, cited KB excerpts when sufficient; fetch more only for
+missing or ambiguous definitions. KB requirements describe what must be true,
+not what has been observed. Preserve the status returned by the queried source;
+do not upgrade a reference-only or UNVERIFIED result to PASS from a requirement,
+a timestamp or a successful SQL execution. A validity window is not proof of
+complete historical coverage. Distinguish the datasource, data view and metadata
+version. State the result, its source/grain and material limitation briefly;
+cite retrieved definitions when used. Separate observed facts from assumptions.
 """
     # Convert workflow_prompt to PromptTemplate so it is used as system prompt
     # Use jinja2 format to avoid issues with JSON braces { } in the prompt

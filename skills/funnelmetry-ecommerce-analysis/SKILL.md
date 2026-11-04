@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -13,9 +13,10 @@ kỹ năng và workflow khác của DB-GPT vẫn có thể được sử dụng.
 1. Xác định nguồn, khoảng thời gian, đơn vị và mức chi tiết cần phân tích. Tra
    cứu semantic catalog hoặc bản Knowledge Base có nguồn và phiên bản tương ứng.
    Khi chưa có bản phù hợp, nêu rõ giới hạn và khám phá schema được cấp quyền.
-   Nếu người dùng đã chọn Knowledge Base liên quan, hãy dùng `kb_grep` hoặc
-   `kb_cat` để đọc định nghĩa phù hợp và trích dẫn document được trả về. Nếu
-   truy hồi không thành công, nói rõ và tiếp tục với nguồn đã kiểm chứng khác.
+   Dùng các đoạn KB đã truy hồi trong context nếu đủ để trả lời, trích dẫn
+   document/version được trả về. Chỉ dùng thêm công cụ đọc KB khi thiếu hoặc
+   chưa rõ định nghĩa. Nếu truy hồi không thành công, nói rõ và tiếp tục với
+   nguồn đã kiểm chứng khác.
 2. Kiểm tra grain, khóa liên kết, thời gian, coverage và quality của dữ liệu
    trước khi tổng hợp. Chú ý quan hệ nhiều-nhiều giữa sản phẩm, biến thể và
    danh mục để tránh đếm trùng.
@@ -25,6 +26,13 @@ kỹ năng và workflow khác của DB-GPT vẫn có thể được sử dụng.
 4. Trình bày kết quả cùng nguồn, khoảng thời gian, phiên bản metadata nếu biết,
    trạng thái quality và các giới hạn ảnh hưởng tới kết luận. Không suy đoán giá
    trị bằng 0 khi dữ liệu thiếu hoặc quality bị chặn.
+
+Giữ nguyên nhãn quality do SQL trả về. `REFERENCE_CURRENT_ONLY` chỉ cho phép
+kết luận về reference hiện tại; không đổi thành `PASS`. Điều kiện “fresh PASS
+lease” trong KB là yêu cầu của contract, không phải bằng chứng runtime đã đạt.
+`verified_at`/`valid_until` mô tả thời hạn, không tự chứng minh đầy đủ lịch sử.
+Với câu hỏi ngắn, trả lời kết quả, nguồn/grain và giới hạn liên quan; dùng lại
+kết quả đã đủ bằng chứng, không truy vấn lặp hoặc tạo báo cáo ngoài yêu cầu.
 
 Khi dùng `sql_query`, luôn gửi đầy đủ đối tượng JSON có khóa `sql`, ví dụ
 `{"sql":"SELECT ..."}`; không gọi tool nếu chưa có câu SQL. Đối với số sản

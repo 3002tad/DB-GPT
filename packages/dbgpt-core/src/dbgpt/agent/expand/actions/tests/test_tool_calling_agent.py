@@ -144,6 +144,9 @@ async def test_act_parallel_executes_multiple_steps():
     assert out.action == "add, multiply"
     results = json.loads(out.observations)
     assert [r["name"] for r in results] == ["add", "multiply"]
+    # A repeated observation would be sent to the model again without adding
+    # evidence; the original result remains in content.
+    assert all("content" in r and "observation" not in r for r in results)
 
 
 @pytest.mark.asyncio
