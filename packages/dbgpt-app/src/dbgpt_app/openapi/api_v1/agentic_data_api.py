@@ -3360,6 +3360,7 @@ async def _react_agent_stream_impl(
         temperature=dialogue.temperature or 0.2,
         enable_context_management=True,
         enable_native_function_calling=True,
+        pin_selected_model=bool(dialogue.model_name),
     )
 
     # file_ids requests use the public manifest block; legacy file_path and

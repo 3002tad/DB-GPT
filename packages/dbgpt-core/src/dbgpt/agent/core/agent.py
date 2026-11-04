@@ -233,6 +233,8 @@ class AgentContext:
     # Stage 2: use provider-native function calling (tools= array) instead of
     # the text Thought:/Action: protocol. Requires model-layer support.
     enable_native_function_calling: bool = False
+    # A model explicitly chosen by the caller must remain the model for retries.
+    pin_selected_model: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a dictionary representation of the AgentContext."""

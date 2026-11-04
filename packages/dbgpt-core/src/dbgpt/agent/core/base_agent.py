@@ -1264,6 +1264,11 @@ class ConversableAgent(Role, Agent):
                 strategy_context = self.not_null_llm_config.strategy_context
                 if strategy_context is not None:
                     priority = json.loads(strategy_context)  # type: ignore
+                if self.not_null_agent_context.pin_selected_model and priority:
+                    selected = priority[0]
+                    if selected not in all_model_names:
+                        raise ValueError(f"Selected LLM model is unavailable: {selected}")
+                    return selected
                 can_uses = self._excluded_models(
                     all_model_names, priority, excluded_models
                 )

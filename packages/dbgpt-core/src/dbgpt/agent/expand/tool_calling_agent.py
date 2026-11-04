@@ -440,7 +440,10 @@ class ToolCallingReActAgent(ReActAgent):
         attempts_before: int,
         handled_calls_before: int = 0,
     ) -> ActionOutput:
-        state = getattr(self, "_report_repair_state", None) or {}
+        state = getattr(self, "_report_repair_state", None)
+        if state is None:
+            state = {}
+            object.__setattr__(self, "_report_repair_state", state)
         requested = (
             output.action in {"html_interpreter", "append_report_sections"}
             or bool(
@@ -504,6 +507,29 @@ class ToolCallingReActAgent(ReActAgent):
         ):
             output.is_exe_success = False
             output.have_retry = not state.get("_report_retry_exhausted", False)
+        if self.agent_context and self.agent_context.enable_native_function_calling:
+            detail = (output.content or "").lower()
+            malformed_call = not output.is_exe_success and (
+                "sql_query requires a non-empty sql string" in detail
+                or "no valid react step or native tool call found" in detail
+            )
+            if malformed_call:
+                count = state.get("_native_invalid_call_count", 0) + 1
+                state["_native_invalid_call_count"] = count
+                state["_native_retry_requires_tool_call"] = True
+                if count >= 2:
+                    reason = (
+                        "AGENT_TOOL_CALL_STALLED: repeated action without complete "
+                        "JSON arguments. Previous successful tool results remain "
+                        "available in this conversation. " + output.content
+                    )
+                    output.content = reason
+                    output.observations = reason
+                    output.have_retry = False
+                    message.content = reason
+            else:
+                state["_native_invalid_call_count"] = 0
+                state["_native_retry_requires_tool_call"] = False
         return output
 
     async def verify(
@@ -602,7 +628,16 @@ class ToolCallingReActAgent(ReActAgent):
         last_model = None
         last_err = None
         retry_count = 0
-        llm_messages = [message.to_llm_message() for message in messages]
+        llm_messages = [
+            item
+            for message in messages
+            for item in [message.to_llm_message()]
+            if not (
+                item.get("role") in ("ai", "assistant")
+                and not item.get("content")
+                and not item.get("tool_calls")
+            )
+        ]
         if prompt:
             llm_messages = _new_system_message(prompt) + llm_messages
         if llm_messages and llm_messages[0].get("role") == "system":
@@ -611,6 +646,19 @@ class ToolCallingReActAgent(ReActAgent):
                 "tool_calls functions for actions, with JSON arguments. "
                 "Do not return only reasoning or describe an intended tool call. "
                 "Call terminate with the final result when the task is complete."
+            )
+        if (
+            llm_messages
+            and (getattr(self, "_report_repair_state", None) or {}).get(
+                "_native_retry_requires_tool_call"
+            )
+            and isinstance(llm_messages[-1].get("content"), str)
+        ):
+            llm_messages[-1]["content"] += (
+                "\nYour previous action was rejected because its arguments were "
+                "missing or incomplete. Call a supplied function with complete "
+                "JSON arguments. If the available results already answer the "
+                "question, call terminate with an evidence-based answer."
             )
         while retry_count < 3:
             try:
