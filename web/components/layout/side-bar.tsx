@@ -12,6 +12,7 @@ import Icon, {
   DashboardOutlined,
   DeleteOutlined,
   GlobalOutlined,
+  HomeOutlined,
   LineChartOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -69,6 +70,8 @@ function SideBar() {
   const router = useRouter();
   const { pathname } = router;
   const integrated = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
+  const [embedded, setEmbedded] = useState(false);
+  useEffect(() => { setEmbedded(integrated && window.self !== window.top); }, [integrated]);
   let role = '';
   try {
     if (typeof window !== 'undefined') role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || '';
@@ -150,7 +153,16 @@ function SideBar() {
     const theme = mode === 'light' ? 'dark' : 'light';
     setMode(theme);
     localStorage.setItem(STORAGE_THEME_KEY, theme);
-  }, [mode, setMode]);
+    const parentOrigin = process.env.NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN;
+    if (embedded && parentOrigin) {
+      window.parent.postMessage({ type: 'funnelmetry:ai-theme-change', theme }, parentOrigin);
+    }
+  }, [mode, setMode, embedded]);
+
+  const returnToPipeline = useCallback(() => {
+    const parentOrigin = process.env.NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN;
+    if (embedded && parentOrigin) window.parent.postMessage({ type: 'funnelmetry:ai-back' }, parentOrigin);
+  }, [embedded]);
 
   const handleChangeLang = useCallback((language: 'vi' | 'en' | 'zh') => {
     i18n.changeLanguage(language);
@@ -325,6 +337,11 @@ function SideBar() {
             </Tooltip>
           </div>
           <div className='flex flex-col gap-4 items-center'>
+            {embedded && <Tooltip title='Về Funnelmetry' placement='right'>
+              <button type='button' onClick={returnToPipeline} aria-label='Về Funnelmetry' className={smallMenuItemStyle()}>
+                <HomeOutlined />
+              </button>
+            </Tooltip>}
             {functions.map(item => (
               <Link key={item.key} className='h-12 flex items-center' href={item.path}>
                 <Tooltip title={item.name} placement='right'>
@@ -389,6 +406,11 @@ function SideBar() {
           </div>
         </Tooltip>
       </div>
+
+      {embedded && <button type='button' onClick={returnToPipeline}
+        className='mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20'>
+        <HomeOutlined /> Về Funnelmetry
+      </button>}
 
       {/* New Task Button */}
       {canAnalyze && <button
