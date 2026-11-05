@@ -267,6 +267,8 @@ def test_initial_policy_grants_only_reviewed_roles_methods_and_endpoints():
     assert allowed(admin, "POST", "/api/v1/knowledge/space/add")
     assert allowed(analyst, "POST", "/api/v1/knowledge/Không gian chung/query")
     assert not allowed(analyst, "POST", "/api/v1/knowledge/space/delete")
+    assert allowed(admin, "POST", "/api/v1/knowledge/space/delete")
+    assert not allowed(admin, "GET", "/api/v1/knowledge/space/delete")
     for path in ("/api/v1/knowledge/a/document/sync", "/api/v1/knowledge/a/document/sync_batch",
                  "/api/v1/knowledge/a/document/add", "/api/v1/knowledge/a/document/delete",
                  "/api/v1/knowledge/a/chunk/edit"):

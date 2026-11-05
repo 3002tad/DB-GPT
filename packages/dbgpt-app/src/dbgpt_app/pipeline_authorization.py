@@ -192,6 +192,9 @@ def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
         "/api/v1/skills/detail",
     }:
         return True
+    if actor.role == "super_admin" and method == "POST" and path == "/api/v1/knowledge/space/delete":
+        # Knowledge-space deletion removes its documents and vector index.
+        return True
     if actor.role in ("analyst", "super_admin") and (
         (method == "POST" and (path in {
             "/api/v1/knowledge/space/list",
