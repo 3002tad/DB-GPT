@@ -4084,7 +4084,7 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
             # them verbatim so the web client can render plan/widget progress and
             # the final editor link without scraping tool text.
             yield _sse_event(event)
-        elif event_type == "context.status":
+        elif event_type in ("context.status", "model.progress"):
             # Forward context-management status to frontend as-is.
             yield _sse_event(event)
         elif event_type in ("question.asked", "question.replied", "question.rejected"):
@@ -4290,6 +4290,9 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                 )
 
                 yield _sse_event({"type": "plan.update", "tasks": todos_payload})
+                from dbgpt.agent.expand.model_progress import model_progress
+
+                yield _sse_event({"type": "model.progress", **model_progress(react_state)})
                 yield step_meta(
                     round_step_map[round_num],
                     None,

@@ -986,6 +986,8 @@ const vi: Record<string, string> = {
   files_count: '{{count}} tệp',
   click_to_execute: 'Nhấn để thực thi',
   task_plan_label: 'Kế hoạch',
+  model_progress_calls: 'Agent chính đã gọi model {{calls}} lượt',
+  model_progress_estimate: 'Agent chính đã gọi model {{calls}} lượt · dự kiến khoảng {{estimate}} lượt',
   task_plan_new_badge: 'Mới',
   task_plan_init_title: 'Khởi tạo kế hoạch tác vụ',
   task_plan_update_title: 'Cập nhật kế hoạch (đã xong {{done}}/{{total}})',

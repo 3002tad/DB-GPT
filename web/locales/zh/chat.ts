@@ -390,6 +390,8 @@ export const ChatZh: Resources['translation'] = {
   files_count: '{{count}} 个文件',
   click_to_execute: '点击执行',
   task_plan_label: '计划',
+  model_progress_calls: '主 Agent 已调用模型 {{calls}} 次',
+  model_progress_estimate: '主 Agent 已调用模型 {{calls}} 次 · 预计约 {{estimate}} 次',
   task_plan_new_badge: '新计划',
   task_plan_init_title: '初始化任务计划',
   task_plan_update_title: '更新任务状态 ({{done}}/{{total}} 完成)',

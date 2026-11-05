@@ -388,6 +388,8 @@ export const ChatEn = {
   files_count: '{{count}} files',
   click_to_execute: 'Click to execute',
   task_plan_label: 'Plan',
+  model_progress_calls: 'Main Agent: {{calls}} model calls',
+  model_progress_estimate: 'Main Agent: {{calls}} model calls · about {{estimate}} estimated',
   task_plan_new_badge: 'New',
   task_plan_init_title: 'Initialize Task Plan',
   task_plan_update_title: 'Plan Update ({{done}}/{{total}} done)',

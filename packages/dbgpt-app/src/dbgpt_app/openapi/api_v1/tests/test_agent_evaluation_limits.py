@@ -15,10 +15,79 @@ from dbgpt.agent.expand.evaluation_budget import (
     record_model_usage,
 )
 from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
+from dbgpt.agent.expand.model_progress import model_call_started, model_progress, repeated_failed_sql
 from dbgpt_app.openapi.api_v1.tools.todowrite import make_todowrite
 
 
 class AgentEvaluationLimitsTest(unittest.TestCase):
+    def test_advisory_estimate_and_exact_failed_sql_guard(self):
+        state, plan = {}, []
+        todo = make_todowrite(plan, lambda *_: None, state)
+        schema = todo._tool.parameters_schema()
+        self.assertIn("estimated_model_calls", schema["properties"])
+        self.assertNotIn("estimated_model_calls", schema["required"])
+        todo(json.dumps([{"content": "inspect", "status": "in_progress"}]), estimated_model_calls=2)
+        self.assertEqual(model_progress(state), {"calls": 0, "estimated_calls": 2})
+        call = [{"function": {"name": "sql_query", "arguments": json.dumps({"sql": "SELECT missing"})}}]
+        model_call_started(state)
+        self.assertFalse(repeated_failed_sql(state, call, False))
+        self.assertFalse(repeated_failed_sql(state, call, False))
+        self.assertFalse(repeated_failed_sql(state, call, False))  # below estimate
+        model_call_started(state)
+        self.assertTrue(repeated_failed_sql(state, call, False))
+        self.assertFalse(repeated_failed_sql(state, call, True))
+        self.assertFalse(repeated_failed_sql(state, call, False))
+        different = [{"function": {"name": "sql_query", "arguments": '{"sql":"SELECT other"}'}}]
+        self.assertFalse(repeated_failed_sql(state, different, False))
+        self.assertFalse(repeated_failed_sql(state, call, False))
+        todo(json.dumps([{"content": "inspect", "status": "in_progress"}]), estimated_model_calls=8)
+        self.assertEqual(model_progress(state), {"calls": 2, "estimated_calls": 8})
+
+    def test_guard_does_not_stop_without_estimate_or_on_batches(self):
+        state = {}
+        call = [{"function": {"name": "sql_query", "arguments": '{"sql":"SELECT x"}'}}]
+        for _ in range(5):
+            model_call_started(state)
+            self.assertFalse(repeated_failed_sql(state, call, False))
+        todo = make_todowrite([], lambda *_: None, state)
+        todo('[]', estimated_model_calls=1)
+        self.assertFalse(repeated_failed_sql(state, call * 2, False))
+        self.assertFalse(repeated_failed_sql(state, call, False))
+
+    def test_guard_stops_actual_repeated_failed_sql_actions(self):
+        state = {"_model_progress": {"calls": 3, "estimated_calls": 2}}
+        calls = [{"function": {"name": "sql_query", "arguments": '{"sql":"SELECT missing"}'}}]
+        agent = SimpleNamespace(_report_repair_state=state, _pending_native_tool_calls=calls, agent_context=None)
+        for index in range(3):
+            message = AgentMessage(content="query")
+            output = ToolCallingReActAgent._apply_report_result(
+                agent, ActionOutput(is_exe_success=False, content="SQL error"), message, 0
+            )
+        self.assertIn("AGENT_SQL_LOOP", output.content)
+        self.assertFalse(output.have_retry)
+        self.assertEqual(message.get_dict_context()["execution_status"], "failed")
+
+    def test_model_call_progress_event_does_not_depend_on_budget(self):
+        events = []
+
+        async def callback(payload):
+            events.append(payload)
+
+        async def call(**_kwargs):
+            return SimpleNamespace(has_text=False, text="", tool_calls=[], usage=None)
+
+        agent = SimpleNamespace(
+            _report_repair_state={}, _build_native_tools=lambda: [],
+            _a_select_llm_model=lambda _: asyncio.sleep(0, result="model"),
+            llm_client=SimpleNamespace(create_with_output=call),
+            not_null_agent_context=SimpleNamespace(max_new_tokens=300, temperature=0, verbose=False, conv_id="test"),
+            memory=SimpleNamespace(gpts_memory=None), stream_out=False,
+        )
+        asyncio.run(ToolCallingReActAgent._thinking_native(
+            agent, [AgentMessage(role="human", content="test")], stream_callback=callback
+        ))
+        self.assertEqual(events, [{"model_progress": {"calls": 1, "estimated_calls": None}}])
+
     @unittest.skipUnless(os.getenv("FUNNELMETRY_Q08_TRACE"), "Q08 trace not provided")
     def test_saved_q08_plan_updates_trigger_only_the_stalled_run(self):
         for path, expected_stall in (

@@ -451,6 +451,27 @@ class ToolCallingReActAgent(ReActAgent):
         if state is None:
             state = {}
             object.__setattr__(self, "_report_repair_state", state)
+        from .model_progress import repeated_failed_sql
+
+        if repeated_failed_sql(
+            state,
+            getattr(self, "_pending_native_tool_calls", None),
+            output.is_exe_success,
+        ):
+            reason = (
+                "AGENT_SQL_LOOP: the same SQL query failed three times in a row "
+                "after the advisory estimate. Existing results remain available."
+            )
+            output.is_exe_success = False
+            output.have_retry = False
+            output.content = output.observations = reason
+            message.content = reason
+            message.context = {
+                **message.get_dict_context(),
+                "execution_status": "failed",
+                "execution_error": reason,
+            }
+            return output
         if state.pop("_completed_plan_stalled", False):
             reason = (
                 "AGENT_PLAN_STALLED: the same completed plan was restarted "
@@ -698,6 +719,14 @@ class ToolCallingReActAgent(ReActAgent):
                 budget_state = getattr(self, "_report_repair_state", None)
                 if budget_state is not None:
                     before_model_call(budget_state)
+                    from .model_progress import model_call_started
+
+                    progress = model_call_started(budget_state)
+                    if stream_callback:
+                        try:
+                            await stream_callback({"model_progress": progress})
+                        except Exception:
+                            logger.exception("Failed to emit advisory model progress")
                 response = await self.llm_client.create_with_output(
                     context=llm_messages[-1].pop("context", None),
                     messages=llm_messages,

@@ -25,11 +25,13 @@ def make_todowrite(
             "priority (high | medium | low). "
             "Rules: only ONE task in_progress at a time; mark tasks completed "
             "immediately after finishing; do NOT use for single trivial tasks."
+            " Optionally provide estimated_model_calls: your rough total model "
+            "calls for the task; revise it if the plan changes. It is not a limit."
             '\nParameter: {"todos": [{"content": "...", "status": "...", '
             '"priority": "..."}]}'
         )
     )
-    def todowrite(todos: str) -> str:
+    def todowrite(todos: str, estimated_model_calls: Optional[int] = None) -> str:
         """Update the session todo list (full replacement)."""
         parsed: List[Dict[str, str]] = []
         try:
@@ -89,6 +91,9 @@ def make_todowrite(
             )
         if execution_state is not None:
             execution_state["_completed_plan_reset_count"] = 0
+            from dbgpt.agent.expand.model_progress import set_estimate
+
+            set_estimate(execution_state, estimated_model_calls)
 
         todo_list.clear()
         todo_list.extend(parsed)

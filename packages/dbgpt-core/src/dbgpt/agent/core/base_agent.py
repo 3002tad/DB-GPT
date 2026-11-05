@@ -605,6 +605,9 @@ class ConversableAgent(Role, Agent):
                 ) as span:
                     # 1.Think about how to do things
                     async def _llm_stream_callback(payload: Dict[str, Any]) -> None:
+                        if "model_progress" in payload:
+                            await _emit_stream("model.progress", payload["model_progress"])
+                            return
                         await _emit_stream(
                             "thinking_chunk",
                             {

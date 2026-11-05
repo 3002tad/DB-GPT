@@ -965,6 +965,7 @@ const Playground: NextPage = () => {
     }>;
   } | null>(null);
   const [taskPlan, setTaskPlan] = useState<TaskItem[]>([]);
+  const [modelProgress, setModelProgress] = useState<{ calls: number; estimatedCalls: number | null } | null>(null);
 
   const resetTaskSession = useCallback(() => {
     // Invalidate first: anything already awaiting network/stream/file work is
@@ -1007,6 +1008,7 @@ const Playground: NextPage = () => {
     setStreamingSummary('');
     setSummaryComplete(false);
     setTaskPlan([]);
+    setModelProgress(null);
     setSelectedStepId(null);
     setSelectedCitationIndex(null);
     setPendingFinalization(null);
@@ -2050,6 +2052,7 @@ const Playground: NextPage = () => {
     ]);
 
     setLoading(true);
+    setModelProgress(null);
     setQuery(''); // Clear input
     setStreamingSummary('');
     setSummaryComplete(false);
@@ -2166,6 +2169,14 @@ const Playground: NextPage = () => {
         try {
           payload = JSON.parse(data);
         } catch (_err) {
+          return;
+        }
+        if (payload.type === 'model.progress') {
+          const calls = Number(payload.calls);
+          const estimate = payload.estimated_calls;
+          if (Number.isInteger(calls) && calls >= 0) {
+            setModelProgress({ calls, estimatedCalls: Number.isInteger(estimate) && estimate > 0 ? estimate : null });
+          }
           return;
         }
         if (payload.type === 'context.status') {
@@ -3414,6 +3425,13 @@ const Playground: NextPage = () => {
                           {taskPlan.length > 0 && (
                             <div className='mb-3'>
                               <TaskPlanCard tasks={taskPlan} embedded />
+                            </div>
+                          )}
+                          {loading && modelProgress && (
+                            <div className='mb-2 text-xs text-gray-500 dark:text-gray-400' aria-live='polite'>
+                              {modelProgress.estimatedCalls === null
+                                ? t('model_progress_calls', { calls: modelProgress.calls })
+                                : t('model_progress_estimate', { calls: modelProgress.calls, estimate: modelProgress.estimatedCalls })}
                             </div>
                           )}
                           <Input.TextArea

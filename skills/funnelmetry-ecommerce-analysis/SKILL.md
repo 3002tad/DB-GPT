@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.5
+version: 1.0.6
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -70,6 +70,17 @@ duy nhất trên nhiều dataset bằng PostgreSQL, dùng ví dụ
 `COUNT(DISTINCT (dataset_id, session_id))` hoặc
 `COUNT(DISTINCT (dataset_id, order_id))`; join cũng dùng cả hai cột.
 Không bỏ `dataset_id` chỉ để sửa lỗi cú pháp hoặc dựa vào ID đang chưa trùng.
+
+Với dữ liệu synthetic `funnelmetry_demo`, đếm phiên từ `sessions` (thời gian
+`started_at`); `browser_events` có `dataset_id`, `session_id`, `event_type`,
+`occurred_at` để đếm phiên theo hành vi. `behavior_events_all` là view event
+gộp synthetic/observed và **không có `session_id`**; đừng dùng nó để đếm phiên.
+`cart_links` có `dataset_id`, `session_id`, `cart_id`, `occurred_at`;
+`orders` có `dataset_id`, `order_id`, `created_at`, `reference_state`.
+`dataset_coverage` có `period_start`, `period_end`, `demo_status`, `scope_note`;
+`gap_dataset_coverage` có `dataset_id`, `demo_status`, `mismatched_domains`,
+`invalid_sessions`, không có `period_start`, `period_end` hay `scope_note`.
+Đọc schema thực tế khi cần thêm cột; tái sử dụng kết quả đã truy vấn.
 
 Khi dùng `sql_query`, luôn gửi đầy đủ đối tượng JSON có khóa `sql`, ví dụ
 `{"sql":"SELECT ..."}`; không gọi tool nếu chưa có câu SQL. Đối với số sản
