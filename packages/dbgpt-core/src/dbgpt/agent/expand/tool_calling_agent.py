@@ -387,6 +387,13 @@ class ToolCallingReActAgent(ReActAgent):
         report_state = getattr(self, "_report_repair_state", None) or {}
         attempts_before = report_state.get("_report_render_attempts", 0)
         handled_calls_before = report_state.get("_report_tool_call_count", 0)
+        native_calls = getattr(self, "_pending_native_tool_calls", None) or []
+        if native_calls and any(
+            (call.get("function") or {}).get("name") != "todowrite"
+            for call in native_calls
+        ):
+            # A different action can provide new evidence for replanning.
+            report_state["_completed_plan_reset_count"] = 0
         if native_enabled and not getattr(self, "_pending_native_tool_calls", None):
             steps = self.parser.parse_current_step(message.content or "")
             if not steps or not all(step.action for step in steps):
@@ -444,6 +451,22 @@ class ToolCallingReActAgent(ReActAgent):
         if state is None:
             state = {}
             object.__setattr__(self, "_report_repair_state", state)
+        if state.pop("_completed_plan_stalled", False):
+            reason = (
+                "AGENT_PLAN_STALLED: the same completed plan was restarted "
+                "repeatedly. Existing query results and execution steps are retained."
+            )
+            output.is_exe_success = False
+            output.have_retry = False
+            output.content = reason
+            output.observations = reason
+            message.content = reason
+            message.context = {
+                **message.get_dict_context(),
+                "execution_status": "failed",
+                "execution_error": reason,
+            }
+            return output
         requested = (
             output.action in {"html_interpreter", "append_report_sections"}
             or bool(
@@ -661,6 +684,8 @@ class ToolCallingReActAgent(ReActAgent):
                 "question, call terminate with an evidence-based answer."
             )
         while retry_count < 3:
+            from .evaluation_budget import before_model_call, record_model_usage
+
             try:
                 llm_model = await self._a_select_llm_model(last_model)
             except ValueError as error:
@@ -670,6 +695,9 @@ class ToolCallingReActAgent(ReActAgent):
             try:
                 if not self.llm_client:
                     raise ValueError("LLM client is not initialized!")
+                budget_state = getattr(self, "_report_repair_state", None)
+                if budget_state is not None:
+                    before_model_call(budget_state)
                 response = await self.llm_client.create_with_output(
                     context=llm_messages[-1].pop("context", None),
                     messages=llm_messages,
@@ -685,6 +713,8 @@ class ToolCallingReActAgent(ReActAgent):
                     tools=tools,
                     tool_choice="auto",
                 )
+                if budget_state is not None:
+                    record_model_usage(budget_state, getattr(response, "usage", None))
                 state = getattr(self, "_report_repair_state", None)
                 if state is not None and state.get("_report_render_phase") and response:
                     usage = getattr(response, "usage", None) or {}
@@ -702,6 +732,9 @@ class ToolCallingReActAgent(ReActAgent):
                     object.__setattr__(self, "_pending_native_tool_calls", tool_calls)
                 return text, llm_model
             except LLMChatError as e:
+                budget_state = getattr(self, "_report_repair_state", None)
+                if budget_state is not None:
+                    record_model_usage(budget_state, None)
                 logger.error(f"model:{llm_model} generate Failed!{str(e)}")
                 retry_count += 1
                 last_model = llm_model

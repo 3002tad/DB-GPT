@@ -2498,6 +2498,12 @@ async def _react_agent_stream_impl(
         "uploaded_files": uploaded_files,
         "dataset_id": dataset_id,
     }
+    from dbgpt.agent.expand.evaluation_budget import configure_evaluation_budget
+
+    configure_evaluation_budget(
+        react_state,
+        dialogue.ext_info.get("evaluation_budget") if dialogue.ext_info else None,
+    )
     required_recommendation_count = _requested_recommendation_count(user_input)
     if required_recommendation_count is not None:
         react_state["_report_required_recommendation_count"] = (
@@ -2974,6 +2980,10 @@ async def _react_agent_stream_impl(
             or _is_dashboard_workflow_request(user_input, creation_mode)
         )
     )
+    if dashboard_agent_mode and react_state.get("_evaluation_budget"):
+        raise ValueError(
+            "evaluation_budget is supported only by the main native-tool agent"
+        )
     from .dashboard.temporal_discovery import dashboard_temporal_context
 
     # Rehydrate source facts even when confirmation history was compressed.
@@ -2999,7 +3009,7 @@ async def _react_agent_stream_impl(
         react_state, DEFAULT_SKILLS_DIR
     )
     report_tools = traceable_report_capability.tools
-    todowrite_tool = make_todowrite(_todo_list, stream_callback)
+    todowrite_tool = make_todowrite(_todo_list, stream_callback, react_state)
     question_tool = make_question(react_state, stream_callback)
     dashboard_planner_tools = make_dashboard_planner_tools(
         react_state=react_state,
