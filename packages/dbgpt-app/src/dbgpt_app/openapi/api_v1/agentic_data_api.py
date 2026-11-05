@@ -3896,6 +3896,11 @@ available artifacts and do not recalculate completed work. Keep sub-agent goals
 narrow and within the user's requested period. Query timeouts require inspecting
 the plan and indexes and changing the SQL; never repeat the unchanged query.
 After partial results, finish only missing requested deliverables, then report.
+Within this turn reuse successful schema, coverage and query observations for
+the same source, parameters and observation time. Query again if freshness,
+changed inputs, a failed result or an explicit user request requires it; never
+reuse an old status as a current one. Update an existing task plan instead of
+reinitializing it. These are planning hints, not a SQL or tool restriction.
 
 ## Evidence and concise answers
 Use already retrieved, cited KB excerpts when sufficient; fetch more only for
@@ -3910,6 +3915,12 @@ UNVERIFIED exploratory rows can support provisional descriptive analysis with
 explicit source, scope and coverage caveats. A blocked official metric remains
 blocked; do not relabel raw observations as that verified metric. Quality status
 of one source or domain must not be generalized to unrelated sources or domains.
+Separate aggregate session, event, cart and order counts by grain. Calling a
+ratio step conversion requires a defined metric, linked common cohort, event
+ordering, matching time window and deduplication evidence. If these are not
+established, report the separate counts and missing evidence; a descriptive
+ratio within a proven population may still be presented with its denominator.
+Avoid introducing event names or lifecycle claims without relevant evidence.
 """
     # Convert workflow_prompt to PromptTemplate so it is used as system prompt
     # Use jinja2 format to avoid issues with JSON braces { } in the prompt

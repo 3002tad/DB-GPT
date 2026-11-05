@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.3
+version: 1.0.4
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -42,6 +42,19 @@ thức bị `BLOCKED_BY_QUALITY`, không thay thế bằng số liệu thô và 
 metric đã xác nhận; có thể báo cáo riêng quan sát khám phá kèm giới hạn.
 Với câu hỏi ngắn, trả lời kết quả, nguồn/grain và giới hạn liên quan; dùng lại
 kết quả đã đủ bằng chứng, không truy vấn lặp hoặc tạo báo cáo ngoài yêu cầu.
+Trong cùng lượt phân tích, lưu và dùng lại kết quả schema, coverage và SQL đã
+thành công cho cùng nguồn, phạm vi và thời điểm. Chỉ đọc lại khi cần kiểm tra
+thay đổi/freshness, nguồn hoặc tham số thay đổi, hay kết quả trước bị thiếu/lỗi.
+Gom kiểm tra coverage cần thiết; cập nhật kế hoạch hiện có thay vì tạo lại.
+
+Các số đếm riêng theo session, cart, order hoặc event không tự tạo funnel.
+Chỉ gọi một tỷ lệ là conversion giữa các bước khi có định nghĩa metric, cùng
+cohort, khóa nối và quy tắc thời gian/thứ tự đã được chứng minh; loại fanout và
+đếm đúng đơn vị. Tính tỷ lệ mô tả trên cùng tập hợp khi có bằng chứng và ghi
+rõ tử số/mẫu số; không gán tên conversion khi điều kiện chưa đủ. Không chia số
+order row cho checkout session để suy ra conversion. Nêu dữ kiện còn thiếu và
+trình bày số đếm riêng; vẫn có thể phân tích cohort khi có contract phù hợp.
+Chỉ nhắc một event hoặc metric khi nó thực sự liên quan tới nguồn và câu hỏi.
 
 Với dữ liệu demo, đọc `funnelmetry_demo.dataset_coverage`: `READY_FOR_DEMO`
 xác nhận số dòng các domain và khoảng thời gian session khớp manifest của
