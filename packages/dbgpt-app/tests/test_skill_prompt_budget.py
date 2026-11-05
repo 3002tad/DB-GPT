@@ -71,6 +71,8 @@ class SkillPromptBudgetTest(unittest.TestCase):
         self.assertIn("Preserve the status returned", policy)
         self.assertIn("not what has been observed", policy)
         self.assertIn("Use already retrieved", policy)
+        self.assertIn("UNVERIFIED exploratory rows can support", policy)
+        self.assertIn("A blocked official metric remains", policy)
 
     def test_selected_skill_keeps_kb_tools_in_both_modes(self):
         tree = ast.parse(SOURCE.read_text(encoding="utf-8"))

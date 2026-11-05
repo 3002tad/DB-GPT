@@ -3906,6 +3906,10 @@ a timestamp or a successful SQL execution. A validity window is not proof of
 complete historical coverage. Distinguish the datasource, data view and metadata
 version. State the result, its source/grain and material limitation briefly;
 cite retrieved definitions when used. Separate observed facts from assumptions.
+UNVERIFIED exploratory rows can support provisional descriptive analysis with
+explicit source, scope and coverage caveats. A blocked official metric remains
+blocked; do not relabel raw observations as that verified metric. Quality status
+of one source or domain must not be generalized to unrelated sources or domains.
 """
     # Convert workflow_prompt to PromptTemplate so it is used as system prompt
     # Use jinja2 format to avoid issues with JSON braces { } in the prompt
