@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.2
+version: 1.0.3
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -42,6 +42,13 @@ thức bị `BLOCKED_BY_QUALITY`, không thay thế bằng số liệu thô và 
 metric đã xác nhận; có thể báo cáo riêng quan sát khám phá kèm giới hạn.
 Với câu hỏi ngắn, trả lời kết quả, nguồn/grain và giới hạn liên quan; dùng lại
 kết quả đã đủ bằng chứng, không truy vấn lặp hoặc tạo báo cáo ngoài yêu cầu.
+
+Với dữ liệu demo, đọc `funnelmetry_demo.dataset_coverage`: `READY_FOR_DEMO`
+xác nhận số dòng các domain và khoảng thời gian session khớp manifest của
+bộ synthetic. Có thể dùng các view `funnelmetry_demo` để phân tích bộ này
+trong kỳ được khai báo và nêu nguồn synthetic; gap CDC observed không chặn
+phân tích seed. Trạng thái này không xác nhận lịch sử Medusa hay checksum lại
+từng dòng tại thời điểm truy vấn. Nếu `DEMO_DATA_MISMATCH`, báo cần đối soát.
 
 Khi dùng `sql_query`, luôn gửi đầy đủ đối tượng JSON có khóa `sql`, ví dụ
 `{"sql":"SELECT ..."}`; không gọi tool nếu chưa có câu SQL. Đối với số sản
