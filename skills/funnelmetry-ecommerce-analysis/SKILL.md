@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.4
+version: 1.0.5
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -56,12 +56,20 @@ order row cho checkout session để suy ra conversion. Nêu dữ kiện còn th
 trình bày số đếm riêng; vẫn có thể phân tích cohort khi có contract phù hợp.
 Chỉ nhắc một event hoặc metric khi nó thực sự liên quan tới nguồn và câu hỏi.
 
-Với dữ liệu demo, đọc `funnelmetry_demo.dataset_coverage`: `READY_FOR_DEMO`
-xác nhận số dòng các domain và khoảng thời gian session khớp manifest của
-bộ synthetic. Có thể dùng các view `funnelmetry_demo` để phân tích bộ này
-trong kỳ được khai báo và nêu nguồn synthetic; gap CDC observed không chặn
-phân tích seed. Trạng thái này không xác nhận lịch sử Medusa hay checksum lại
-từng dòng tại thời điểm truy vấn. Nếu `DEMO_DATA_MISMATCH`, báo cần đối soát.
+Với dữ liệu demo, kiểm tra riêng `funnelmetry_demo.dataset_coverage` cho seed
+lịch sử và `funnelmetry_demo.gap_dataset_coverage` cho seed bù, khi phạm vi
+phân tích dùng cả hai. `READY_FOR_DEMO` của từng view chỉ xác nhận số dòng
+và khoảng session của fixture tương ứng khớp manifest; không chứng minh lease,
+lịch sử Medusa hay checksum lại từng dòng. `gap_overlap_status` chỉ mô tả sự
+chồng lấn event observed với kỳ synthetic, không phải quality của seed bù.
+Không gán trạng thái cho view chưa truy vấn; nếu `DEMO_DATA_MISMATCH`, báo
+cần đối soát. Gap CDC observed không chặn phân tích seed synthetic.
+
+Các thực thể demo có khóa gồm `dataset_id` và ID thực thể. Khi đếm thực thể
+duy nhất trên nhiều dataset bằng PostgreSQL, dùng ví dụ
+`COUNT(DISTINCT (dataset_id, session_id))` hoặc
+`COUNT(DISTINCT (dataset_id, order_id))`; join cũng dùng cả hai cột.
+Không bỏ `dataset_id` chỉ để sửa lỗi cú pháp hoặc dựa vào ID đang chưa trùng.
 
 Khi dùng `sql_query`, luôn gửi đầy đủ đối tượng JSON có khóa `sql`, ví dụ
 `{"sql":"SELECT ..."}`; không gọi tool nếu chưa có câu SQL. Đối với số sản

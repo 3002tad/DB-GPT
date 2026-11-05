@@ -3,7 +3,7 @@ import {
   addSpace,
   apiInterceptors,
   getChunkStrategies,
-  getModelList,
+  getUsableModels,
   getSpaceList,
   syncBatchDocument,
   syncGitRepo,
@@ -11,7 +11,6 @@ import {
 } from '@/client/api';
 import { BindingWizard } from '@/components/knowledge/source/binding-wizard';
 import { IChunkStrategyResponse, IStorage, StepChangeParams } from '@/types/knowledge';
-import { IModelData } from '@/types/model';
 import { FileTextOutlined, LinkOutlined, ReadOutlined } from '@ant-design/icons';
 import {
   Button,
@@ -247,12 +246,11 @@ export default function SpaceForm(props: IProps) {
   // Available LLM models for the wiki synthesis model select
   useEffect(() => {
     (async () => {
-      const [err, data] = await apiInterceptors(getModelList());
+      const [err, data] = await apiInterceptors(getUsableModels());
       if (err || !data) return;
       const seen = new Set<string>();
       const options: Array<{ label: string; value: string }> = [];
-      for (const m of data as IModelData[]) {
-        const name = m.model_name;
+      for (const name of data) {
         if (name && !seen.has(name)) {
           seen.add(name);
           options.push({ label: name, value: name });
