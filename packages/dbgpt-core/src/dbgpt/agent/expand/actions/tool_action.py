@@ -294,12 +294,12 @@ async def run_tools_batch(
     resource: Resource,
     render_protocol: Optional[Vis] = None,
     need_vis_render: bool = False,
+    recovery_state: Optional[Dict[str, Any]] = None,
 ) -> ActionOutput:
     """Execute multiple tool calls concurrently and aggregate into one output.
 
-    A one-element batch is forwarded verbatim to :func:`run_tool`, so batch
-    mode is a strict superset of the legacy single-tool behaviour (no change to
-    the existing per-tool path).
+    A one-element batch normally forwards to :func:`run_tool`; an identical
+    repeated failure of a read-only retrieval tool returns recovery feedback.
 
     Aggregation contract (mapping onto :class:`ActionOutput`):
       - is_exe_success: ``all`` — a failed tool surfaces to the model on the
@@ -317,9 +317,35 @@ async def run_tools_batch(
             content="No tool calls to execute.",
             observations="[]",
         )
+    def blocked_output(spec: ToolCallSpec) -> Optional[ActionOutput]:
+        if recovery_state is None or spec.name not in {"knowledge_retrieve", "kb_ls", "kb_cat"}:
+            return None
+        from ..tool_recovery import repeated_failure
+
+        if not repeated_failure(recovery_state, spec.name, spec.args):
+            return None
+        response = json.dumps({
+            "success": False,
+            "error_code": "TOOL_REPEATED_FAILURE",
+            "tool_recovery": {
+                "status": "RECOVERY_SUGGESTED",
+                "tool": spec.name,
+                "reason": "same_call_failed",
+                "instruction": (
+                    "This identical call already failed twice in this task and was "
+                    "not executed again. Change its arguments, use another tool, "
+                    "or summarize valid results already collected."
+                ),
+            },
+        }, ensure_ascii=False)
+        return ActionOutput(
+            is_exe_success=False, content=response, observations=response,
+            action=spec.name,
+        )
+
     if len(specs) == 1:
         spec = specs[0]
-        out = await run_tool(
+        out = blocked_output(spec) or await run_tool(
             name=spec.name,
             args=spec.args,
             resource=resource,
@@ -335,7 +361,7 @@ async def run_tools_batch(
 
     async def _run_one(spec: ToolCallSpec) -> ActionOutput:
         try:
-            out: ActionOutput = await run_tool(
+            out: ActionOutput = blocked_output(spec) or await run_tool(
                 name=spec.name,
                 args=spec.args,
                 resource=resource,

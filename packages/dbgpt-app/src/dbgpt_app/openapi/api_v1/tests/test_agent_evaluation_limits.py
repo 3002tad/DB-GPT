@@ -15,12 +15,15 @@ from dbgpt.agent.expand.evaluation_budget import (
     record_model_usage,
 )
 from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
-from dbgpt.agent.expand.model_progress import model_call_started, model_progress, repeated_failed_sql
+from dbgpt.agent.expand.model_progress import model_call_started, model_progress
+from dbgpt.agent.expand.tool_recovery import (
+    observe_action_results, observe_tool_result, repeated_failure,
+)
 from dbgpt_app.openapi.api_v1.tools.todowrite import make_todowrite
 
 
 class AgentEvaluationLimitsTest(unittest.TestCase):
-    def test_advisory_estimate_and_exact_failed_sql_guard(self):
+    def test_advisory_estimate_and_tool_local_recovery(self):
         state, plan = {}, []
         todo = make_todowrite(plan, lambda *_: None, state)
         schema = todo._tool.parameters_schema()
@@ -28,44 +31,48 @@ class AgentEvaluationLimitsTest(unittest.TestCase):
         self.assertNotIn("estimated_model_calls", schema["required"])
         todo(json.dumps([{"content": "inspect", "status": "in_progress"}]), estimated_model_calls=2)
         self.assertEqual(model_progress(state), {"calls": 0, "estimated_calls": 2})
-        call = [{"function": {"name": "sql_query", "arguments": json.dumps({"sql": "SELECT missing"})}}]
+        query = "SELECT missing"
         model_call_started(state)
-        self.assertFalse(repeated_failed_sql(state, call, False))
-        self.assertFalse(repeated_failed_sql(state, call, False))
-        self.assertFalse(repeated_failed_sql(state, call, False))  # below estimate
-        model_call_started(state)
-        self.assertTrue(repeated_failed_sql(state, call, False))
-        self.assertFalse(repeated_failed_sql(state, call, True))
-        self.assertFalse(repeated_failed_sql(state, call, False))
-        different = [{"function": {"name": "sql_query", "arguments": '{"sql":"SELECT other"}'}}]
-        self.assertFalse(repeated_failed_sql(state, different, False))
-        self.assertFalse(repeated_failed_sql(state, call, False))
+        self.assertIsNone(observe_tool_result(state, "sql_query", query, success=False, error_code="SQL_UNDEFINED_TABLE"))
+        self.assertIsNotNone(observe_tool_result(state, "sql_query", query, success=False, error_code="SQL_UNDEFINED_TABLE"))
+        self.assertTrue(repeated_failure(state, "sql_query", query))
+        self.assertFalse(repeated_failure(state, "sql_query", "SELECT other"))
+        self.assertIsNone(observe_tool_result(state, "sql_query", "SELECT other", success=True))
+        self.assertFalse(repeated_failure(state, "sql_query", query))
         todo(json.dumps([{"content": "inspect", "status": "in_progress"}]), estimated_model_calls=8)
-        self.assertEqual(model_progress(state), {"calls": 2, "estimated_calls": 8})
+        self.assertEqual(model_progress(state), {"calls": 1, "estimated_calls": 8})
 
-    def test_guard_does_not_stop_without_estimate_or_on_batches(self):
+    def test_batch_recovery_is_per_tool_and_does_not_stop_agent(self):
         state = {}
-        call = [{"function": {"name": "sql_query", "arguments": '{"sql":"SELECT x"}'}}]
-        for _ in range(5):
-            model_call_started(state)
-            self.assertFalse(repeated_failed_sql(state, call, False))
-        todo = make_todowrite([], lambda *_: None, state)
-        todo('[]', estimated_model_calls=1)
-        self.assertFalse(repeated_failed_sql(state, call * 2, False))
-        self.assertFalse(repeated_failed_sql(state, call, False))
+        calls = [
+            {"function": {"name": "kb_cat", "arguments": '{"path":"missing"}'}},
+            {"function": {"name": "other", "arguments": '{}'}},
+        ]
+        results = json.dumps([
+            {"success": False, "content": '{"error_code":"NOT_FOUND"}'},
+            {"success": True, "content": "ok"},
+        ])
+        self.assertEqual(observe_action_results(state, calls, results, False), [])
+        signals = observe_action_results(state, calls, results, False)
+        self.assertEqual(signals[0]["tool"], "kb_cat")
+        self.assertEqual(signals[0]["reason"], "same_call_failed")
+        self.assertEqual(observe_action_results(state, calls, json.dumps([
+            {"success": True, "content": "found"},
+            {"success": True, "content": "ok"},
+        ]), True), [])
 
-    def test_guard_stops_actual_repeated_failed_sql_actions(self):
-        state = {"_model_progress": {"calls": 3, "estimated_calls": 2}}
-        calls = [{"function": {"name": "sql_query", "arguments": '{"sql":"SELECT missing"}'}}]
+    def test_repeated_tool_failure_adds_advice_without_terminating_agent(self):
+        state = {}
+        calls = [{"function": {"name": "kb_cat", "arguments": '{"path":"missing"}'}}]
         agent = SimpleNamespace(_report_repair_state=state, _pending_native_tool_calls=calls, agent_context=None)
-        for index in range(3):
+        for _ in range(2):
             message = AgentMessage(content="query")
             output = ToolCallingReActAgent._apply_report_result(
-                agent, ActionOutput(is_exe_success=False, content="SQL error"), message, 0
+                agent, ActionOutput(is_exe_success=False, content="NOT_FOUND"), message, 0
             )
-        self.assertIn("AGENT_SQL_LOOP", output.content)
-        self.assertFalse(output.have_retry)
-        self.assertEqual(message.get_dict_context()["execution_status"], "failed")
+        self.assertIn("Tool recovery", output.content)
+        self.assertTrue(output.have_retry)
+        self.assertNotIn("execution_status", message.get_dict_context())
 
     def test_model_call_progress_event_does_not_depend_on_budget(self):
         events = []
@@ -89,12 +96,13 @@ class AgentEvaluationLimitsTest(unittest.TestCase):
         self.assertEqual(events, [{"model_progress": {"calls": 1, "estimated_calls": None}}])
 
     @unittest.skipUnless(os.getenv("FUNNELMETRY_Q08_TRACE"), "Q08 trace not provided")
-    def test_saved_q08_plan_updates_trigger_only_the_stalled_run(self):
+    def test_saved_q08_plan_updates_detect_only_the_repeated_reset_run(self):
         for path, expected_stall in (
             (os.environ["FUNNELMETRY_Q08_TRACE"], True),
             (os.environ["FUNNELMETRY_Q08_BASELINE_TRACE"], False),
         ):
             state, plan = {}, []
+            repeated_resets = 0
             tool = make_todowrite(plan, lambda *_: None, state)
             with open(path, encoding="utf-8") as stream:
                 for line in stream:
@@ -105,32 +113,31 @@ class AgentEvaluationLimitsTest(unittest.TestCase):
                     except json.JSONDecodeError:
                         continue
                     if event.get("type") == "plan.update":
-                        tool(json.dumps(event["tasks"]))
-                        if state.get("_completed_plan_stalled"):
-                            break
-            self.assertEqual(bool(state.get("_completed_plan_stalled")), expected_stall)
+                        result = json.loads(tool(json.dumps(event["tasks"])))
+                        if result.get("error_code") == "PLAN_ALREADY_COMPLETE":
+                            repeated_resets += 1
+            self.assertEqual(repeated_resets >= 2, expected_stall)
 
-    def test_completed_plan_reset_warns_then_stops_and_retains_evidence(self):
+    def test_completed_plan_reset_suggests_recovery_and_retains_evidence(self):
         state, plan = {}, []
         tool = make_todowrite(plan, lambda *_: None, state)
         completed = [{"content": f"task {i}", "status": "completed"} for i in range(7)]
         reset = [{"content": f"task {i}", "status": "in_progress" if i == 0 else "pending"} for i in range(7)]
         tool(json.dumps(completed))
         first = json.loads(tool(json.dumps(reset)))
+        self.assertEqual(first["error_code"], "PLAN_ALREADY_COMPLETE")
         self.assertIn("already complete", first["chunks"][0]["content"])
         self.assertTrue(all(item["status"] == "completed" for item in plan))
         self.assertNotIn("_completed_plan_stalled", state)
-        tool(json.dumps(reset))
-        self.assertTrue(state["_completed_plan_stalled"])
+        second = json.loads(tool(json.dumps(reset)))
+        self.assertEqual(second["tool_recovery"]["attempts"], 2)
         message = AgentMessage(content="todowrite")
         agent = SimpleNamespace(_report_repair_state=state, agent_context=AgentContext(conv_id="test"))
         output = ToolCallingReActAgent._apply_report_result(
             agent, ActionOutput(content="tool response"), message, 0
         )
-        self.assertFalse(output.is_exe_success)
-        self.assertFalse(output.have_retry)
-        self.assertIn("AGENT_PLAN_STALLED", output.content)
-        self.assertEqual(message.get_dict_context()["execution_status"], "failed")
+        self.assertTrue(output.have_retry)
+        self.assertNotIn("AGENT_PLAN_STALLED", output.content)
         self.assertTrue(all(item["status"] == "completed" for item in plan))
 
     def test_different_or_partial_revision_is_permitted(self):

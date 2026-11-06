@@ -30,6 +30,21 @@ class _KnowledgeResource:
 
 
 @pytest.mark.asyncio
+async def test_knowledge_retrieve_reports_unavailable_and_execution_failure() -> None:
+    missing = json.loads(await make_knowledge_retrieve({}, [])("missing"))
+    assert missing["success"] is False
+    assert missing["error_code"] == "KNOWLEDGE_BASE_UNAVAILABLE"
+
+    class _FailingResource:
+        async def retrieve(self, _query: str):
+            raise RuntimeError("retrieval unavailable")
+
+    failed = json.loads(await make_knowledge_retrieve({}, [_FailingResource()])("missing"))
+    assert failed["success"] is False
+    assert failed["error_code"] == "KNOWLEDGE_RETRIEVAL_FAILED"
+
+
+@pytest.mark.asyncio
 async def test_knowledge_retrieve_preserves_structured_citation_metadata() -> None:
     retrieve = make_knowledge_retrieve({}, [_KnowledgeResource()])
 

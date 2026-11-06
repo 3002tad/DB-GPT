@@ -11,10 +11,34 @@ from dbgpt.agent.core.action.base import ActionOutput
 from dbgpt.agent.core.base_agent import ConversableAgent
 from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
 from dbgpt.agent.expand.actions.tool_action import ToolCallSpec, run_tools_batch
+from dbgpt.agent.expand.tool_recovery import observe_tool_result
 from dbgpt.agent.util.llm.llm import LLMStrategyType
 
 
 class NativeRecoveryTest(unittest.TestCase):
+    def test_repeated_kb_failure_skips_only_identical_read_call(self):
+        state = {}
+        for _ in range(2):
+            observe_tool_result(state, "knowledge_retrieve", {"query": "missing"},
+                                success=False, error_code="KNOWLEDGE_RETRIEVAL_FAILED")
+        calls = []
+
+        async def fake_run_tool(name, args, *_positional, **_kwargs):
+            calls.append((name, args))
+            return ActionOutput(content="found", is_exe_success=True)
+
+        with patch("dbgpt.agent.expand.actions.tool_action.run_tool", fake_run_tool):
+            result = asyncio.run(run_tools_batch([
+                ToolCallSpec(name="knowledge_retrieve", args={"query": "missing"}),
+                ToolCallSpec(name="knowledge_retrieve", args={"query": "changed"}),
+            ], resource=None, recovery_state=state))
+        rows = json.loads(result.observations)
+        self.assertEqual(rows[0]["success"], False)
+        self.assertEqual(json.loads(rows[0]["content"])["error_code"],
+                         "TOOL_REPEATED_FAILURE")
+        self.assertEqual(rows[1]["success"], True)
+        self.assertEqual(calls, [("knowledge_retrieve", {"query": "changed"})])
+
     def test_batch_keeps_distinct_observation_without_repeating_equal_content(self):
         async def fake_run_tool(name, *_args, **_kwargs):
             if name == "preview":
@@ -35,7 +59,7 @@ class NativeRecoveryTest(unittest.TestCase):
         self.assertEqual(rows[1]["content"], "preview")
         self.assertEqual(rows[1]["observation"], "full evidence")
 
-    def test_repeated_incomplete_sql_stops_with_explicit_reason(self):
+    def test_repeated_incomplete_sql_suggests_recovery_without_stopping(self):
         state = {}
         agent = SimpleNamespace(
             _report_repair_state=state,
@@ -65,8 +89,9 @@ class NativeRecoveryTest(unittest.TestCase):
         second = ToolCallingReActAgent._apply_report_result(
             agent, ActionOutput(content=reason, is_exe_success=False), message, 0,
         )
-        self.assertFalse(second.have_retry)
-        self.assertIn("AGENT_TOOL_CALL_STALLED", message.content)
+        self.assertTrue(second.have_retry)
+        self.assertIn("AGENT_TOOL_CALL_RECOVERY", second.content)
+        self.assertEqual(message.content, "Action: sql_query")
 
     def test_native_retry_repair_omits_empty_assistant(self):
         state = {"_native_retry_requires_tool_call": True}

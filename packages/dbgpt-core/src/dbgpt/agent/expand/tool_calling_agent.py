@@ -170,7 +170,23 @@ class ParallelToolAction(ReActAction):
         actionable = [s for s in steps if s.action]
 
         if len(actionable) <= 1:
-            # Zero or one step: preserve the legacy single-tool path exactly.
+            # Preserve legacy parsing, but apply the same repeated-failure
+            # preflight used by native calls when a single read-only tool is
+            # emitted as text.
+            if actionable and kwargs.get("recovery_state") is not None:
+                step = actionable[0]
+                args, raw_input = self._resolve_step_args(step)
+                from .tool_recovery import repeated_failure
+
+                if step.action in {"knowledge_retrieve", "kb_ls", "kb_cat"} and repeated_failure(
+                    kwargs["recovery_state"], step.action, args
+                ):
+                    return await run_tools_batch(
+                        [ToolCallSpec(name=step.action, args=args, raw_tool_input=raw_input)],
+                        self.resource, self.render_protocol,
+                        need_vis_render=need_vis_render,
+                        recovery_state=kwargs["recovery_state"],
+                    )
             return await super().run(
                 ai_message,
                 resource=resource,
@@ -194,6 +210,7 @@ class ParallelToolAction(ReActAction):
             self.resource,
             self.render_protocol,
             need_vis_render=need_vis_render,
+            recovery_state=kwargs.get("recovery_state"),
         )
 
         # Re-attach ReAct metadata (mirrors ReActAction.run post-processing).
@@ -294,6 +311,7 @@ class NativeToolCallAction(ParallelToolAction):
             self.resource,
             self.render_protocol,
             need_vis_render=need_vis_render,
+            recovery_state=kwargs.get("recovery_state"),
         )
         out.action_intention = "\n".join(intentions) or None
         # Prefer the structured thought meta args; fall back to the model's
@@ -369,6 +387,7 @@ class ToolCallingReActAgent(ReActAgent):
                 ctx is not None and ctx.enable_parallel_tool_execution
             ),
             "tool_calls": getattr(self, "_pending_native_tool_calls", None),
+            "recovery_state": getattr(self, "_report_repair_state", None),
         }
 
     async def act(
@@ -451,43 +470,19 @@ class ToolCallingReActAgent(ReActAgent):
         if state is None:
             state = {}
             object.__setattr__(self, "_report_repair_state", state)
-        from .model_progress import repeated_failed_sql
+        from .tool_recovery import observe_action_results
 
-        if repeated_failed_sql(
-            state,
-            getattr(self, "_pending_native_tool_calls", None),
-            output.is_exe_success,
-        ):
-            reason = (
-                "AGENT_SQL_LOOP: the same SQL query failed three times in a row "
-                "after the advisory estimate. Existing results remain available."
-            )
-            output.is_exe_success = False
-            output.have_retry = False
-            output.content = output.observations = reason
-            message.content = reason
-            message.context = {
-                **message.get_dict_context(),
-                "execution_status": "failed",
-                "execution_error": reason,
-            }
-            return output
-        if state.pop("_completed_plan_stalled", False):
-            reason = (
-                "AGENT_PLAN_STALLED: the same completed plan was restarted "
-                "repeatedly. Existing query results and execution steps are retained."
-            )
-            output.is_exe_success = False
-            output.have_retry = False
-            output.content = reason
-            output.observations = reason
-            message.content = reason
-            message.context = {
-                **message.get_dict_context(),
-                "execution_status": "failed",
-                "execution_error": reason,
-            }
-            return output
+        calls = getattr(self, "_pending_native_tool_calls", None)
+        if not calls and output.action and "," not in output.action:
+            calls = [{"function": {
+                "name": output.action,
+                "arguments": output.action_input or {},
+            }}]
+        recovery = observe_action_results(
+            state, calls, output.observations, output.is_exe_success,
+        )
+        if recovery:
+            output.content += "\n\nTool recovery: " + json.dumps(recovery, ensure_ascii=False)
         requested = (
             output.action in {"html_interpreter", "append_report_sections"}
             or bool(
@@ -563,14 +558,13 @@ class ToolCallingReActAgent(ReActAgent):
                 state["_native_retry_requires_tool_call"] = True
                 if count >= 2:
                     reason = (
-                        "AGENT_TOOL_CALL_STALLED: repeated action without complete "
-                        "JSON arguments. Previous successful tool results remain "
-                        "available in this conversation. " + output.content
+                        "AGENT_TOOL_CALL_RECOVERY: the action still lacks complete "
+                        "JSON arguments. Call a supplied function with valid "
+                        "arguments, choose a different tool, or terminate with "
+                        "the valid results already available. " + output.content
                     )
                     output.content = reason
                     output.observations = reason
-                    output.have_retry = False
-                    message.content = reason
             else:
                 state["_native_invalid_call_count"] = 0
                 state["_native_retry_requires_tool_call"] = False

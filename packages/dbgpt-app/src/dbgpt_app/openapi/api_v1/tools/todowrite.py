@@ -61,7 +61,8 @@ def make_todowrite(
 
         # A completed plan may be revised with different work. Reopening the
         # exact same completed tasks is the observed no-progress loop; keep the
-        # completed plan visible and give the model one opportunity to recover.
+        # completed plan visible and ask the model to recover without stopping
+        # a potentially valid multi-step analysis.
         same_tasks = (
             len(todo_list) > 1
             and len(todo_list) == len(parsed)
@@ -76,15 +77,20 @@ def make_todowrite(
         if execution_state is not None and completed_reset:
             count = execution_state.get("_completed_plan_reset_count", 0) + 1
             execution_state["_completed_plan_reset_count"] = count
-            if count >= 2:
-                execution_state["_completed_plan_stalled"] = True
             return json.dumps(
                 {
+                    "success": False,
+                    "error_code": "PLAN_ALREADY_COMPLETE",
                     "chunks": [{"output_type": "text", "content": (
                         "This exact plan is already complete. Reuse the existing "
                         "results and call terminate with the answer, or create a "
                         "new plan describing genuinely different remaining work."
                     )}],
+                    "tool_recovery": {
+                        "status": "RECOVERY_SUGGESTED",
+                        "reason": "completed_plan_reopened",
+                        "attempts": count,
+                    },
                     "__todos__": list(todo_list),
                 },
                 ensure_ascii=False,

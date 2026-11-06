@@ -595,9 +595,10 @@ class RDBMSConnector(BaseConnector):
                         return _execute_query(session, sql, params)
 
                     elif self.dialect == "postgresql":
-                        # PostgreSQL: Set statement_timeout in milliseconds
+                        # Keep the timeout local to this query transaction so a
+                        # failed statement cannot leave it on a pooled session.
                         session.execute(
-                            text(f"SET statement_timeout = {int(timeout * 1000)}")
+                            text(f"SET LOCAL statement_timeout = {int(timeout * 1000)}")
                         )
                         return _execute_query(session, sql, params)
 
@@ -664,8 +665,6 @@ class RDBMSConnector(BaseConnector):
                     try:
                         if self.dialect == "mysql":
                             session.execute(text("SET SESSION MAX_EXECUTION_TIME = 0"))
-                        elif self.dialect == "postgresql":
-                            session.execute(text("SET statement_timeout = 0"))
                         elif self.dialect == "oceanbase":
                             session.execute(
                                 text("SET SESSION ob_query_timeout = 10000000")

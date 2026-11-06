@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import time
 from functools import wraps
 from threading import Event
@@ -13,22 +14,25 @@ from dbgpt.core.interface.report_capture import (
     connector_database_name,
 )
 from dbgpt.datasource.rdbms.base import RDBMSConnector
+from dbgpt.agent.expand.tool_recovery import observe_tool_result, repeated_failure
 
 from .sql_read_only import ReadOnlySqlError, read_only_sql
 
 
-def _supports_cooperative_query(connector: Any) -> bool:
-    """Return whether ``query_ex`` is the connector's real SQLite adapter.
+def _supports_bounded_query(connector: Any) -> bool:
+    """Use ``query_ex`` only for connectors backed by its SQLAlchemy session.
 
     ``ClickhouseConnector`` and other dedicated-client subclasses inherit
     ``query_ex`` from ``RDBMSConnector`` but do not own its SQLAlchemy session
-    pool.  They must use their own ``run`` implementation instead.
+    pool. They must use their own ``run`` implementation instead. PostgreSQL's
+    query_ex applies a server-side statement timeout; SQLite supports
+    cooperative cancellation.
     """
     return (
         isinstance(connector, RDBMSConnector)
         and type(connector).run is RDBMSConnector.run
         and type(connector).query_ex is RDBMSConnector.query_ex
-        and connector.dialect == "sqlite"
+        and connector.dialect in {"sqlite", "postgresql"}
     )
 
 
@@ -41,6 +45,7 @@ def make_sql_query(
     max_calls: Optional[int] = None,
 ):
     call_count = 0
+    schema_cache: Dict[str, Any] = {}
     limit_description = (
         f" Dashboard planning allows at most {max_calls} discovery calls; "
         "after that, use the collected observations and call plan_dashboard."
@@ -50,9 +55,10 @@ def make_sql_query(
 
     @tool(
         description=(
-            "对用户选择的数据库执行 SQL 查询（仅支持 SELECT）。"
-            '参数: {"sql": "SELECT 语句"}。单次查询默认最多 30 秒，超时后先查看 '
-            "EXPLAIN QUERY PLAN 与关联索引，优化查询；不要原样反复提交超时 SQL。"
+            "Execute one read-only SELECT/WITH SQL query on the selected database. "
+            'Arguments: {"sql": "SELECT ..."}. Each query has a 30-second '
+            "timeout. On an error, use the structured recovery hint to inspect "
+            "schema or change the query; do not repeat a failed call unchanged."
             + limit_description
         )
     )
@@ -60,6 +66,16 @@ def make_sql_query(
         """Execute a read-only SQL query against the selected database."""
 
         nonlocal call_count
+        def with_recovery(payload: Dict[str, Any], query: str) -> str:
+            signal = observe_tool_result(
+                react_state, "sql_query", query,
+                success=payload.get("success") is not False,
+                error_code=payload.get("error_code"),
+            )
+            if signal:
+                payload["tool_recovery"] = signal
+            return json.dumps(payload, ensure_ascii=False)
+
         if max_calls is not None and call_count >= max_calls:
             return json.dumps(
                 {
@@ -85,42 +101,65 @@ def make_sql_query(
 
         artifact_sink = react_state.get("_report_artifact_sink")
         if database_connector is None:
-            return json.dumps(
+            return with_recovery(
                 {
                     "success": False,
                     "error_code": "SQL_DATASOURCE_REQUIRED",
                     "chunks": [
                         {
                             "output_type": "text",
-                            "content": "未选择数据库，请先在左侧面板选择一个数据源。",
+                            "content": "Select a data source before querying.",
                         }
                     ],
+                    "recovery_hint": "Choose an available database, then retry.",
                 },
-                ensure_ascii=False,
+                sql,
             )
 
         try:
             sql_stripped = read_only_sql(sql)
         except ReadOnlySqlError:
-            return json.dumps(
+            return with_recovery(
                 {
                     "success": False,
                     "error_code": "SQL_READ_ONLY_REQUIRED",
                     "chunks": [
                         {
                             "output_type": "text",
-                            "content": (
-                                "仅支持单条只读 SELECT / WITH 查询及其 EXPLAIN。"
-                            ),
+                            "content": "Only one read-only SELECT/WITH query or its EXPLAIN is supported.",
                         }
                     ],
                 },
-                ensure_ascii=False,
+                sql,
             )
+        if repeated_failure(react_state, "sql_query", sql_stripped):
+            return with_recovery({
+                "success": False,
+                "error_code": "SQL_REPEATED_FAILURE",
+                "chunks": [{"output_type": "text", "content": (
+                    "This identical SQL already failed twice in this task. "
+                    "It was not executed again. Inspect the reported error and "
+                    "schema, change the SQL, or use the valid results collected."
+                )}],
+                "recovery_hint": "Inspect information_schema.columns or use a schema-qualified view.",
+            }, sql_stripped)
+        # Schema discovery is stable within a short task window. Reuse only
+        # these read-only metadata results; business queries can change live.
+        schema_query = (
+            max_calls is None and
+            bool(re.search(
+                r"\bFROM\s+(?:information_schema|pg_catalog)\.",
+                sql_stripped, re.IGNORECASE,
+            )) and
+            not re.search(r"\b(?:JOIN|UNION)\b", sql_stripped, re.IGNORECASE)
+        )
+        cached = schema_cache.get(sql_stripped) if schema_query else None
+        if cached and time.monotonic() - cached[0] < 60:
+            return with_recovery({**cached[1], "cached_schema_result": True}, sql_stripped)
         started = time.perf_counter()
         cancel_event = Event()
         try:
-            if _supports_cooperative_query(database_connector):
+            if _supports_bounded_query(database_connector):
 
                 async def execute():
                     columns, rows = await asyncio.to_thread(
@@ -145,14 +184,14 @@ def make_sql_query(
                     rows=[],
                     artifact_sink=artifact_sink,
                 )
-                return json.dumps(
+                return with_recovery(
                     {
                         "artifact_id": artifact_id,
                         "chunks": [
-                            {"output_type": "text", "content": "查询返回空结果。"}
+                            {"output_type": "text", "content": "Query returned no rows."}
                         ],
                     },
-                    ensure_ascii=False,
+                    sql_stripped,
                 )
 
             columns = result[0]
@@ -214,7 +253,9 @@ def make_sql_query(
                     "output_type": "text",
                     "content": response["quality_warning"]["message"],
                 })
-            return json.dumps(response, ensure_ascii=False)
+            if schema_query and len(schema_cache) < 16:
+                schema_cache[sql_stripped] = (time.monotonic(), response)
+            return with_recovery(response, sql_stripped)
         except asyncio.CancelledError:
             cancel_event.set()
             capture_sql_execution(
@@ -238,15 +279,31 @@ def make_sql_query(
             cancel_event.set()
             timed_out = isinstance(e, TimeoutError)
             quality_blocked = "BLOCKED_BY_QUALITY:" in str(e)
+            db_error = getattr(e, "orig", e)
+            sql_state = getattr(db_error, "pgcode", None) or getattr(db_error, "sqlstate", None)
+            error_text = str(e).lower()
             code = (
                 "SQL_QUERY_TIMEOUT" if timed_out else
-                "BLOCKED_BY_QUALITY" if quality_blocked else "SQL_QUERY_FAILED"
+                "BLOCKED_BY_QUALITY" if quality_blocked else
+                "SQL_UNDEFINED_TABLE" if sql_state == "42P01" or "does not exist" in error_text and "relation" in error_text else
+                "SQL_UNDEFINED_COLUMN" if sql_state == "42703" or "column" in error_text and "does not exist" in error_text else
+                "SQL_QUERY_FAILED"
             )
             message = (
-                f"{code}: 查询超过 {query_timeout_seconds:g} 秒，已请求中断。"
-                "先检查 EXPLAIN QUERY PLAN 与关联索引，优化查询；不要原样重试。"
+                f"{code}: Query exceeded {query_timeout_seconds:g} seconds; cancellation requested. "
+                "Inspect the query plan and indexes before retrying."
                 if timed_out
-                else f"{code}: SQL 执行失败: {e}"
+                else f"{code}: SQL execution failed: {e}"
+            )
+            recovery_hint = (
+                "Inspect information_schema.tables/views and use a schema-qualified name, "
+                "for example funnelmetry_demo.browser_events."
+                if code == "SQL_UNDEFINED_TABLE" else
+                "Inspect information_schema.columns for the named view; use its actual "
+                "columns and grain before rewriting the query."
+                if code == "SQL_UNDEFINED_COLUMN" else
+                "Inspect EXPLAIN and narrow the query before retrying."
+                if timed_out else None
             )
             if quality_blocked:
                 message = (
@@ -263,7 +320,7 @@ def make_sql_query(
                 error=message,
                 artifact_sink=artifact_sink,
             )
-            return json.dumps(
+            return with_recovery(
                 {
                     "chunks": [
                         {
@@ -273,8 +330,9 @@ def make_sql_query(
                     ],
                     "error_code": code,
                     "success": False,
+                    **({"recovery_hint": recovery_hint} if recovery_hint else {}),
                 },
-                ensure_ascii=False,
+                sql_stripped,
             )
 
     @wraps(sql_query)

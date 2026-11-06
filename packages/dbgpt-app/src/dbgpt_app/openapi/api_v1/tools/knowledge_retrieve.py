@@ -26,6 +26,8 @@ def make_knowledge_retrieve(react_state: Dict[str, Any], knowledge_resources: Li
         if not knowledge_resources:
             return json.dumps(
                 {
+                    "success": False,
+                    "error_code": "KNOWLEDGE_BASE_UNAVAILABLE",
                     "chunks": [
                         {
                             "output_type": "text",
@@ -191,6 +193,8 @@ def make_knowledge_retrieve(react_state: Dict[str, Any], knowledge_resources: Li
         except Exception as e:
             return json.dumps(
                 {
+                    "success": False,
+                    "error_code": "KNOWLEDGE_RETRIEVAL_FAILED",
                     "chunks": [
                         {
                             "output_type": "text",
