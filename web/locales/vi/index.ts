@@ -13,7 +13,7 @@ const vi: Record<string, string> = {
   scheduled_tasks: 'Tác vụ theo lịch',
   management: 'Quản lý',
   model_providers: 'Nhà cung cấp mô hình',
-  home_title: 'Trợ lý dữ liệu AI DB-GPT',
+  home_title: 'Trợ lý dữ liệu AI',
   home_subtitle: 'Ra quyết định dựa trên dữ liệu',
   Knowledge_Space: 'Kho tri thức',
   Knowledge_Space_Config: 'Cấu hình kho tri thức',

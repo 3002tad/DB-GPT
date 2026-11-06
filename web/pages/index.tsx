@@ -3,7 +3,7 @@ import type { ResponseType } from '@/client/api';
 import ModelSelector from '@/components/chat/header/model-selector';
 import { useConnectors } from '@/hooks/use-connector-api';
 import { buildSubAgentArtifacts, parseSubAgentEvent, restoreSubAgentStates } from '@/hooks/use-subagent-stream';
-import { useNewTaskGuard, useNewTaskOwner, useStartNewTask } from '@/modules/new-task';
+import { useNewTaskGuard, useNewTaskOwner } from '@/modules/new-task';
 import {
   ATTACHMENT_PREVIEW_DRAWER_STYLES,
   AttachmentPreview,
@@ -61,7 +61,6 @@ import {
   ArrowUpOutlined,
   AudioOutlined,
   BarChartOutlined,
-  BellOutlined,
   BookOutlined,
   CheckCircleFilled,
   CloudServerOutlined,
@@ -84,12 +83,10 @@ import {
   TableOutlined,
   ThunderboltOutlined,
   UploadOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
 import {
   Alert,
-  Avatar,
   Button,
   ConfigProvider,
   Drawer,
@@ -1065,7 +1062,6 @@ const Playground: NextPage = () => {
   }, [t]);
   useNewTaskGuard(confirmInterruptRunningTask);
 
-  const startNewTask = useStartNewTask();
 
   const replyQuestion = useCallback(async (requestId: string, answers: string[][]) => {
     const res = await fetch(`${process.env.API_BASE_URL ?? ''}/api/v1/chat/question/${requestId}/reply`, {
@@ -2757,14 +2753,6 @@ const Playground: NextPage = () => {
     }
   };
 
-  // Clear chat history
-  const handleClearChat = useCallback(() => {
-    void startNewTask().catch(error => {
-      console.error('Failed to clear the current task', error);
-      message.error(t('ui_new_task_failed'));
-    });
-  }, [startNewTask, t]);
-
   const restoreFromHistory = (
     historyMessages: Array<{ role: string; context: string; order?: number; model_name?: string }>,
   ) => {
@@ -3109,30 +3097,6 @@ const Playground: NextPage = () => {
       <div className='flex h-full w-full bg-[#f7f7f9] dark:bg-[#0f1012] text-[#1a1b1e] dark:text-gray-200 font-sans overflow-hidden'>
         {/* Main Content */}
         <div className='flex-1 min-h-0 flex flex-col relative overflow-hidden bg-white dark:bg-[#111217]'>
-          {/* Top Header */}
-          <div className='db-gpt-home-header h-16 flex-shrink-0 flex items-center justify-between px-8 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#111217]/80 backdrop-blur z-20'>
-            <div className='flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 px-2 py-1 rounded-md'>
-              <span>{t('home_title')}</span>
-            </div>
-            <div className='flex items-center gap-4'>
-              {selectedDb && (
-                <Tag className='flex items-center gap-1 bg-blue-50 border-blue-200 text-blue-700 px-3 py-1 rounded-full text-xs'>
-                  {getDbIcon(selectedDb.type)} <span className='font-medium ml-1'>{selectedDb.db_name}</span>
-                </Tag>
-              )}
-              {messages.length > 0 && (
-                <Button type='text' size='small' onClick={handleClearChat} className='text-gray-500'>
-                  Clear Chat
-                </Button>
-              )}
-              <BellOutlined className='text-lg text-gray-500 cursor-pointer' />
-              <div className='flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full text-xs font-medium'>
-                <ThunderboltOutlined className='text-yellow-500' /> <span>300</span>
-              </div>
-              <Avatar size='small' icon={<UserOutlined />} className='bg-blue-500' />
-            </div>
-          </div>
-
           {/* From Task Banner - shown when navigating from a scheduled task */}
           {router.query.from_task && <FromTaskBanner taskId={router.query.from_task as string} />}
 
@@ -4934,8 +4898,6 @@ const Playground: NextPage = () => {
                 <span className='text-xs font-medium text-gray-600 dark:text-gray-300 tracking-wide'>
                   {t('home_subtitle')}
                 </span>
-                <span className='text-[10px] text-gray-400 dark:text-gray-500'>·</span>
-                <span className='text-[10px] text-gray-400 dark:text-gray-500'>{t('home_title')}</span>
               </div>
             </div>
           )}
