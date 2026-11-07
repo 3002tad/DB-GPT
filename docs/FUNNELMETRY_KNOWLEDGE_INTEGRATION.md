@@ -36,7 +36,10 @@ space ID 8, `funnelmetry-demo-1-2-0-112e65b3b815`, document ID 8 and three
 chunks. They describe session/browser-event schema, the difference between
 independent counts and conversion, and the two coverage views. They do not
 contain the cart-link or order-ON definitions. Final citations were empty.
-The source adds the prefetch context to the skill workflow prompt.
+The inspected `Agent.llm_client.no_streaming_call` spans contain the retrieved
+context in all 13 model-call prompts. This confirms delivery to the model for
+that run; it does not establish that every definition required by Q08 was
+retrieved or used correctly.
 
 The final six counts matched the golden SQL, but its summary called a cart
 link an addition and its explanation called order ON terminal. Skill 1.0.7
@@ -45,3 +48,8 @@ correlation; additions need cart mutations or `cart.item_added`. An order row
 ON is a retractable reference current state. A terminal journey claim needs
 the profile's checkout/transition/coverage evidence. This is prompt guidance,
 not a claim that a subsequent model evaluation has already passed.
+
+After deploying code commit `cec29533` on 2026-11-07, authenticated checks for
+both Analyst and Admin returned HTTP 200 and `success=true` for `ls-json` and
+`arguments`, replacing the reproduced 403 responses. No additional analysis
+model call was made for this check.
