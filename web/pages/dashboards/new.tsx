@@ -5,6 +5,8 @@ import useChat from '@/hooks/use-chat';
 import { SELECTED_MODEL_STORAGE_KEY } from '@/lib/model-runtime';
 import QuestionDock from '@/new-components/chat/content/QuestionDock';
 import DashboardGenerationCard, { DashboardGenerationState } from '@/new-components/dashboard/DashboardGenerationCard';
+import { designEnglish } from '@/new-components/dashboard/dashboard-gallery-locales';
+import { ADAPTED_SKILLS } from '@/new-components/skills/skill-catalog';
 import { reduceDashboardGenerations } from '@/new-components/dashboard/dashboard-generation-state';
 import type { IChatDbSchema } from '@/types/db';
 import { getUserId } from '@/utils';
@@ -50,6 +52,19 @@ export default function DashboardCreatePage() {
   const conversationId = useRef('');
   const datasetId = useRef('');
   const textInput = useRef<HTMLTextAreaElement | null>(null);
+  const designInitialized = useRef(false);
+  const [designSkill, setDesignSkill] = useState('');
+
+  useEffect(() => {
+    if (router.isReady === false || designInitialized.current) return;
+    designInitialized.current = true;
+    const name = router.query?.design_skill;
+    if (typeof name !== 'string' || !Object.prototype.hasOwnProperty.call(ADAPTED_SKILLS, name)) return;
+    setDesignSkill(name);
+    const design = ADAPTED_SKILLS[name];
+    const label = designEnglish[name]?.[0] || name;
+    setPrompt(`Hãy tạo bảng điều khiển theo phong cách ${label}. Tham khảo kỹ năng ${name}, màu nhấn ${design.accent}, nền ${design.background} và màu chữ ${design.ink}. Dựa trên nguồn dữ liệu đã chọn, trước tiên hãy đề xuất kế hoạch, chỉ số và bộ lọc để tôi xác nhận; mọi số liệu cần dựa trên dữ liệu thực tế.`);
+  }, [router.isReady, router.query?.design_skill]);
 
   useEffect(() => {
     let disposed = false;
@@ -123,6 +138,7 @@ export default function DashboardCreatePage() {
           max_new_tokens: 4000,
           ext_info: {
             creation_mode: 'dashboard',
+            ...(designSkill ? { skill_name: designSkill } : {}),
             ...(datasetId.current
               ? { dataset_id: datasetId.current }
               : {

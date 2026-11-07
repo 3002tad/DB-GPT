@@ -25,11 +25,9 @@ export default function DashboardDesignTemplate({
   const [open, setOpen] = useState(false);
   const use = () =>
     void router.push({
-      pathname: '/',
+      pathname: '/dashboards/new',
       query: {
-        creation_mode: 'dashboard',
-        skill: name,
-        skill_prompt: `${design.prompt} 请创建原生可编辑数据看板。先结合我选择的数据源规划指标和筛选条件，所有数值来自实际查询。`,
+        design_skill: name,
       },
     });
   return (

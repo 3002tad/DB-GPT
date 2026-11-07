@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ chat: vi.fn(), push: vi.fn(), getDbList: vi.fn() }));
+const state = vi.hoisted(() => ({ chat: vi.fn(), push: vi.fn(), getDbList: vi.fn(), query: {} as Record<string, string> }));
 vi.mock('@/hooks/use-ui-text', () => ({ useUiText: () => (zh: string) => zh }));
 vi.mock('@/app/chat-context', async () => {
   const { createContext } = await import('react');
@@ -11,7 +11,7 @@ vi.mock('@/app/chat-context', async () => {
 vi.mock('@/client/api', () => ({ getDbList: state.getDbList }));
 vi.mock('@/hooks/use-chat', () => ({ default: () => ({ chat: state.chat, pendingQuestion: null }) }));
 vi.mock('@/utils', () => ({ getUserId: () => 'fixture-user' }));
-vi.mock('next/router', () => ({ useRouter: () => ({ push: state.push }) }));
+vi.mock('next/router', () => ({ useRouter: () => ({ push: state.push, isReady: true, query: state.query }) }));
 vi.mock('next/head', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
@@ -63,6 +63,7 @@ const plan = {
 };
 
 beforeEach(() => {
+  state.query = {};
   vi.resetAllMocks();
   vi.unstubAllGlobals();
   state.getDbList.mockResolvedValue({
@@ -71,6 +72,28 @@ beforeEach(() => {
 });
 
 describe('scoped Dashboard creation entry', () => {
+  it('carries a selected design to the editable request and dashboard task', async () => {
+    state.query = { design_skill: 'pawspa-viz-design' };
+    state.chat.mockImplementation(async () => {});
+    render(<DashboardCreatePage />);
+    await chooseSource();
+    const input = screen.getByRole('textbox', { name: '分析需求' }) as HTMLTextAreaElement;
+    await waitFor(() => expect(input.value).toContain('pawspa-viz-design'));
+    fireEvent.click(screen.getByRole('button', { name: '发送需求' }));
+    await waitFor(() => expect(state.chat).toHaveBeenCalledTimes(1));
+    expect(state.chat.mock.calls[0][0].data.user_input).toContain('pawspa-viz-design');
+    expect(state.chat.mock.calls[0][0].data.ext_info).toMatchObject({
+      creation_mode: 'dashboard', skill_name: 'pawspa-viz-design', database_name: 'sales-db',
+    });
+  });
+
+  it('ignores an unknown design without inserting an untrusted prompt', async () => {
+    state.query = { design_skill: '__proto__' };
+    render(<DashboardCreatePage />);
+    await chooseSource();
+    expect((screen.getByRole('textbox', { name: '分析需求' }) as HTMLTextAreaElement).value).toBe('');
+  });
+
   it('plans before confirmation and reuses the conversation and selected source', async () => {
     state.chat.mockImplementationOnce(async request => request.onDashboardEvent(plan));
     state.chat.mockImplementationOnce(async request =>
