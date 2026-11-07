@@ -160,6 +160,11 @@ def __new_conversation(chat_mode, user_name: str, sys_code: str) -> Conversation
 
 def get_db_list(user_id: str = None):
     dbs = CFG.local_db_manager.get_db_list(user_id=user_id)
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+        policy = PipelineDataSourcePolicy(CFG.local_db_manager)
+        dbs = [item for item in dbs if policy.can_query(user_id, item["db_name"])]
     db_params = []
     for item in dbs:
         params: dict = {}
@@ -374,7 +379,7 @@ async def resource_params_list(
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
     if resource_type == "database":
-        result = get_db_list()
+        result = get_db_list(user_token.user_id if user_token else None)
     elif resource_type == "knowledge":
         result = knowledge_list()
     elif resource_type == "tool":
@@ -390,11 +395,11 @@ async def params_list(
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
     if ChatScene.ChatWithDbQA.value() == chat_mode:
-        result = get_db_list()
+        result = get_db_list(user_token.user_id if user_token else None)
     elif ChatScene.ChatWithDbExecute.value() == chat_mode:
-        result = get_db_list()
+        result = get_db_list(user_token.user_id if user_token else None)
     elif ChatScene.ChatDashboard.value() == chat_mode:
-        result = get_db_list()
+        result = get_db_list(user_token.user_id if user_token else None)
     elif ChatScene.ChatExecution.value() == chat_mode:
         result = plugins_select_info()
     elif ChatScene.ChatKnowledge.value() == chat_mode:

@@ -19,6 +19,9 @@ class ModuleRoutesTest(unittest.TestCase):
         cases = [
             ("POST", "/api/v1/chat/completions"),
             ("POST", "/api/v1/chat/prepare"),
+            ("POST", "/api/v1/chat/dialogue/scenes"),
+            ("POST", "/api/v1/chat/mode/params/list"),
+            ("POST", "/api/v1/resource/params/list"),
             ("POST", "/api/v1/chat/topic/terminate"),
             ("GET", "/api/v1/conv/feedback/reasons"),
             ("POST", "/api/v1/conv/feedback/add"),
@@ -125,6 +128,19 @@ class ModuleHandlerTest(unittest.TestCase):
             with self.assertRaises(HTTPException) as error:
                 _require_pipeline_chat_access(dialogue)
             self.assertEqual(403, error.exception.status_code)
+
+    def test_resource_picker_shows_only_approved_database(self):
+        from dbgpt_app.openapi.api_v1 import api_v1
+        manager = Mock()
+        manager.get_db_list.return_value = [
+            {"db_name": "analytics", "db_type": "postgresql"},
+            {"db_name": "private", "db_type": "mysql"},
+        ]
+        with patch.object(api_v1, "CFG", SimpleNamespace(local_db_manager=manager)), \
+             patch("dbgpt_app.pipeline_datasource.PipelineDataSourcePolicy.can_query", side_effect=lambda actor, source: source == "analytics") as grant:
+            self.assertEqual([{"param": "analytics", "type": "postgresql"}], api_v1.get_db_list("alice"))
+            self.assertEqual(2, grant.call_count)
+            manager.get_db_list.assert_called_once_with(user_id="alice")
 
     def test_editor_post_read_reuses_owner_guard(self):
         from dbgpt_app.openapi.api_v1.editor import api_editor_v1 as editor

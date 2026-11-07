@@ -14,6 +14,8 @@ _KB = rf"/api/v2/serve/knowledge/{_SPACE}"
 SHARED_MODULE_ROUTES = {
     "agent": {
         "POST": [r"/api/v1/chat/(?:completions|prepare)",
+                 r"/api/v1/chat/(?:dialogue/scenes|mode/params/list)",
+                 r"/api/v1/resource/params/list",
                  rf"/api/v1/chat/question/{_ID}/(?:reply|reject)",
                  r"/api/v1/chat/topic/terminate",
                  r"/api/v1/conv/feedback/(?:add|cancel)"],

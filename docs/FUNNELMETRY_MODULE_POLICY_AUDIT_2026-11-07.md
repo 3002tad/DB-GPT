@@ -158,3 +158,25 @@ successfully, and the source-list API now returns 200 for both roles.
 MySQL startup deliberately does not run SQLite's automatic schema upgrade,
 so this explicit migration is also required when reproducing this deployment.
 No paid analysis-model calls were made.
+
+## Follow-up: chat resource picker
+
+A second source-to-client check found a missed active dependency: the Chat
+resource selector calls `POST /api/v1/chat/mode/params/list`, while the native
+Application form can call `/api/v1/resource/params/list`. These routes were
+still denied despite the Chat/Agent routes being open. Both are now admitted
+for the two roles. Their database entries are filtered through the existing
+Pipeline analytical datasource policy for the verified actor; Knowledge and
+tool entries retain their native behavior. The supported scene list is also
+admitted. The corrected route matrix includes these cases, and the unit test
+checks that an unrelated database is omitted from the picker.
+
+Dashboard public publication, live share and membership controls remain
+visible in the upstream UI while the integration's HTTP boundary denies those
+operations. Opening the version history drawer also asks for publications,
+which may display an error even though private version history is available.
+The private Dashboard APIs are functioning; public sharing is a separate
+product decision and is not covered by the private-workspace verification.
+Legacy Agent Hub and mobile endpoints in the client inventory also remain
+outside the tested embedded flow. Do not interpret the 52 checks as proof that
+these optional screens have been exercised.
