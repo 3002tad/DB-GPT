@@ -30,7 +30,7 @@ def test_shared_knowledge_detail_reads(role):
         assert authorize_pipeline_request(actor, {"method": "POST", "path": path})
         assert not authorize_pipeline_request(actor, {"method": "DELETE", "path": path})
     assert not authorize_pipeline_request(actor, {"method": "POST", "path": base + "delete"})
-    assert not authorize_pipeline_request(actor, {"method": "POST", "path": "/api/v1/knowledge/demo/argument/save"})
+    assert authorize_pipeline_request(actor, {"method": "POST", "path": "/api/v1/knowledge/demo/argument/save"})
 
 
 @pytest.mark.parametrize("method,path", [
@@ -64,10 +64,12 @@ def test_workflows_and_apps_remain_available_to_both_pipeline_roles(role):
     ):
         assert authorize_pipeline_request(actor, {"method": method, "path": path})
     for method, path in (
-        ("POST", "/api/v1/app/admins/update"),
         ("GET", "/api/v2/serve/awel/flows/../../secrets"),
     ):
         assert not authorize_pipeline_request(actor, {"method": method, "path": path})
+    assert authorize_pipeline_request(actor, {
+        "method": "POST", "path": "/api/v1/app/admins/update",
+    }) == (role == "super_admin")
     if role == "analyst":
         assert not authorize_pipeline_request(actor, {
             "method": "POST", "path": "/api/v2/serve/model/providers/custom",
@@ -270,7 +272,7 @@ def test_initial_policy_grants_only_reviewed_roles_methods_and_endpoints():
     assert allowed(analyst, "GET", "/api/v2/serve/datasources")
     assert allowed(analyst, "POST", "/api/v1/editor/chart/run")
     assert allowed(admin, "POST", "/api/v1/editor/sql/run")
-    assert not allowed(analyst, "POST", "/api/v1/sql/editor/submit")
+    assert allowed(analyst, "POST", "/api/v1/sql/editor/submit")
     assert allowed(analyst, "GET", "/api/v1/skills/list")
     assert allowed(analyst, "GET", "/api/v1/skills/detail")
     assert allowed(analyst, "POST", "/api/v1/knowledge/space/list")

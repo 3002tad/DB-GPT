@@ -57,6 +57,17 @@ def get_conversation_serve() -> ConversationServe:
     return ConversationServe.get_instance(CFG.SYSTEM_APP)
 
 
+def _require_pipeline_editor_history(request, conv_uid):
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return
+    actor = getattr(request.state, "pipeline_actor", None) if request else None
+    if actor is None:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    from dbgpt_app.openapi.api_v1.agentic_data_api import _require_owned_conversation
+
+    _require_owned_conversation(conv_uid, actor.id)
+
+
 def get_edit_service() -> EditorService:
     return EditorService.get_instance(CFG.SYSTEM_APP)
 
@@ -121,8 +132,10 @@ async def get_editor_tables(
 
 @router.get("/v1/editor/sql/rounds", response_model=Result[List[ChatDbRounds]])
 async def get_editor_sql_rounds(
-    con_uid: str, editor_service: EditorService = Depends(get_edit_service)
+    con_uid: str, editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
+    _require_pipeline_editor_history(http_request, con_uid)
     logger.info("get_editor_sql_rounds:{con_uid}")
     try:
         chat_rounds = editor_service.get_editor_sql_rounds(con_uid)
@@ -134,13 +147,26 @@ async def get_editor_sql_rounds(
 
 @router.get("/v1/editor/sql", response_model=Result[List[Dict]])
 async def get_editor_sql(
-    con_uid: str, round: int, editor_service: EditorService = Depends(get_edit_service)
+    con_uid: str, round: int, editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
+    _require_pipeline_editor_history(http_request, con_uid)
     logger.info(f"get_editor_sql:{con_uid},{round}")
     context = editor_service.get_editor_sql_by_round(con_uid, round)
     if context:
         return Result.succ(context)
     return Result.failed(msg="not have sql!")
+
+
+@router.post("/v1/editor/sql", response_model=Result[List[Dict]])
+async def get_editor_sql_from_body(
+    con_uid: str = Body(embed=True),
+    round: int = Body(embed=True),
+    editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
+):
+    """The native web client sends this read request as JSON POST."""
+    return await get_editor_sql(con_uid, round, editor_service, http_request)
 
 
 def sanitize_sql(sql: str, db_type: str = None) -> Tuple[bool, str, dict]:
@@ -278,7 +304,10 @@ async def editor_sql_run(
 async def sql_editor_submit(
     sql_edit_context: ChatSqlEditContext = Body(),
     editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
+    _require_pipeline_editor_source(http_request, sql_edit_context.db_name)
+    _require_pipeline_editor_history(http_request, sql_edit_context.conv_uid)
     logger.info(f"sql_editor_submit:{sql_edit_context.__dict__}")
 
     conn = CFG.local_db_manager.get_connector(sql_edit_context.db_name)
@@ -294,7 +323,9 @@ async def sql_editor_submit(
 async def get_editor_chart_list(
     con_uid: str,
     editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
+    _require_pipeline_editor_history(http_request, con_uid)
     logger.info(
         f"get_editor_sql_rounds:{con_uid}",
     )
@@ -306,8 +337,10 @@ async def get_editor_chart_list(
 
 @router.post("/v1/editor/chart/info", response_model=Result[ChartDetail])
 async def get_editor_chart_info(
-    param: dict = Body(), editor_service: EditorService = Depends(get_edit_service)
+    param: dict = Body(), editor_service: EditorService = Depends(get_edit_service),
+    http_request: Request = None,
 ):
+    _require_pipeline_editor_history(http_request, param.get("con_uid"))
     logger.info(f"get_editor_chart_info:{param}")
     conv_uid = param["con_uid"]
     chart_title = param["chart_title"]
@@ -378,7 +411,11 @@ async def chart_run(
 
 
 @router.post("/v1/chart/editor/submit", response_model=Result[bool])
-async def chart_editor_submit(chart_edit_context: ChatChartEditContext = Body()):
+async def chart_editor_submit(
+    chart_edit_context: ChatChartEditContext = Body(), http_request: Request = None,
+):
+    _require_pipeline_editor_source(http_request, chart_edit_context.db_name)
+    _require_pipeline_editor_history(http_request, chart_edit_context.conv_uid)
     logger.info(f"sql_editor_submit:{chart_edit_context.__dict__}")
 
     chat_history_fac = ChatHistory()

@@ -8,6 +8,7 @@ they are added here.
 import re
 
 from .pipeline_identity import PipelineActor
+from .pipeline_module_policy import module_request_allowed
 
 
 _DASHBOARD_OBJECT = re.compile(r"^/api/v1/dashboards/[A-Za-z0-9_-]{1,128}$")
@@ -76,6 +77,8 @@ _ADMIN_MODEL_PATHS = {
 def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
     method = scope.get("method")
     path = scope.get("path", "")
+    if module_request_allowed(actor.role, method, path):
+        return True
     if actor.role in ("analyst", "super_admin") and (
         (path in ("/api/v2/serve/scheduled-tasks", "/api/v2/serve/scheduled-tasks/")
          and method in ("GET", "POST"))

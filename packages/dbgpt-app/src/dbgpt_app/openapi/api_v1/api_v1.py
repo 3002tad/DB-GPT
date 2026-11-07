@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Optional, cast
 
 import pandas as pd
-from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from dbgpt._private.config import Config
@@ -61,6 +61,42 @@ logger = logging.getLogger(__name__)
 knowledge_service = KnowledgeService()
 
 user_recent_app_dao = UserRecentAppsDao()
+
+
+def _require_pipeline_chat_access(dialogue):
+    """Keep native application chat while checking explicit analytical bindings."""
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return
+    from dbgpt_app.openapi.api_v1.agentic_data_api import _guard_pipeline_conversation_owner
+    from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+    actor = dialogue.user_name
+    _guard_pipeline_conversation_owner(dialogue.conv_uid, actor)
+    policy = PipelineDataSourcePolicy(CFG.local_db_manager)
+    sources = []
+    if dialogue.chat_mode in {"chat_with_db_execute", "chat_with_db_qa", "chat_dashboard"}:
+        sources.append(dialogue.select_param)
+    if (dialogue.ext_info or {}).get("database_name"):
+        sources.append(dialogue.ext_info["database_name"])
+    if dialogue.chat_mode == "chat_agent":
+        from dbgpt_serve.agent.agents.controller import multi_agents
+
+        app = multi_agents.get_app(dialogue.app_code)
+        if app is None:
+            raise HTTPException(status_code=404, detail="Application not found")
+        for detail in app.details or []:
+            for resource in detail.resources or []:
+                if resource.type != "database":
+                    continue
+                value = resource.value
+                if isinstance(value, str):
+                    try:
+                        value = json.loads(value)
+                    except ValueError:
+                        pass
+                sources.append(value.get("db_name") if isinstance(value, dict) else value)
+    if any(not isinstance(source, str) or not policy.can_query(actor, source) for source in sources):
+        raise HTTPException(status_code=403, detail="Data source is unavailable")
 
 
 def _authorize_local_user_file(conv_uid: str, file_key: str, user_id: str) -> str:
@@ -560,6 +596,7 @@ async def chat_prepare(
     logger.info(json.dumps(dialogue.__dict__))
     # dialogue.model_name = CFG.LLM_MODEL
     dialogue.user_name = user_token.user_id if user_token else dialogue.user_name
+    _require_pipeline_chat_access(dialogue)
     logger.info(f"chat_prepare:{dialogue}")
     ## check conv_uid
     chat: BaseChat = await get_chat_instance(dialogue)
@@ -582,6 +619,7 @@ async def chat_completions(
     )
     dialogue.user_name = user_token.user_id if user_token else dialogue.user_name
     dialogue = adapt_native_app_model(dialogue)
+    _require_pipeline_chat_access(dialogue)
 
     # Handle knowledge space selection from ext_info for normal chat mode
     if dialogue.chat_mode == ChatScene.ChatNormal.value() and dialogue.ext_info:
@@ -601,6 +639,7 @@ async def chat_completions(
         if dialogue.chat_mode == ChatScene.ChatAgent.value():
             from dbgpt_serve.agent.agents.controller import multi_agents
 
+            dialogue.ext_info = dialogue.ext_info or {}
             dialogue.ext_info.update({"model_name": dialogue.model_name})
             dialogue.ext_info.update({"incremental": dialogue.incremental})
             dialogue.ext_info.update({"temperature": dialogue.temperature})
@@ -694,6 +733,10 @@ async def terminate_topic(
     round_index: int,
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        from dbgpt_app.openapi.api_v1.agentic_data_api import _require_owned_conversation
+
+        _require_owned_conversation(conv_id, user_token.user_id if user_token else None)
     logger.info(f"terminate_topic:{conv_id},{round_index}")
     try:
         from dbgpt_serve.agent.agents.controller import multi_agents

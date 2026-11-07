@@ -1,0 +1,280 @@
+[
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/skills/list",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flows",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flow/templates",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flow/templates/policy-audit-missing",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/scheduled-tasks/",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/observability/capabilities",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/observability/models/usage",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/dashboard-catalog/policy-audit-missing/features",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/dashboards/policy-audit-missing/annotations",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/dashboards/policy-audit-missing/versions",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/dashboards/policy-audit-missing/cover",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/stats",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/wiki/status",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/git/sync-status",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/knowledge_sources/types",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/spaces/8/knowledge_sources",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v1/conv/feedback/reasons",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/model/providers",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "analyst",
+    "method": "GET",
+    "path": "/api/v2/serve/connectors/types",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/skills/list",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flows",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flow/templates",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flow/templates/policy-audit-missing",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/scheduled-tasks/",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/observability/capabilities",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/observability/models/usage",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/dashboard-catalog/policy-audit-missing/features",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/dashboards/policy-audit-missing/annotations",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/dashboards/policy-audit-missing/versions",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/dashboards/policy-audit-missing/cover",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/stats",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/wiki/status",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/git/sync-status",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/knowledge_sources/types",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/knowledge/spaces/8/knowledge_sources",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v1/conv/feedback/reasons",
+    "http_status": 403,
+    "success": null
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/model/providers",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "super_admin",
+    "method": "GET",
+    "path": "/api/v2/serve/connectors/types",
+    "http_status": 200,
+    "success": true
+  },
+  {
+    "role": "unauthenticated",
+    "method": "GET",
+    "path": "/api/v1/skills/list",
+    "http_status": 401
+  },
+  {
+    "role": "unauthenticated",
+    "method": "GET",
+    "path": "/api/v2/serve/awel/flows",
+    "http_status": 401
+  }
+]

@@ -2486,6 +2486,7 @@ async def _react_agent_stream_impl(
     else:
         report_language = "zh" if re.search(r"[\u3400-\u9fff]", user_input) else "en"
     react_state: Dict[str, Any] = {
+        "_actor_id": dialogue.user_name,
         "_report_original_request": user_input,
         "_report_language": report_language,
         "skills_loaded": True,  # Skills are pre-loaded now
@@ -5200,6 +5201,7 @@ async def question_reply(
     """User submits answers to a pending question, unblocking the agent tool."""
     from dbgpt_app.openapi.api_v1.tools.question_manager import question_manager
 
+    _authorize_pending_question(question_manager, request_id, user_token)
     try:
         question_manager.reply(request_id, body.answers)
         return Result.succ({"success": True, "request_id": request_id})
@@ -5215,8 +5217,17 @@ async def question_reject(
     """User dismisses a pending question, unblocking the agent tool with rejection."""
     from dbgpt_app.openapi.api_v1.tools.question_manager import question_manager
 
+    _authorize_pending_question(question_manager, request_id, user_token)
     try:
         question_manager.reject(request_id)
         return Result.succ({"success": True, "request_id": request_id})
     except (KeyError, ValueError) as e:
         return Result.failed(msg=str(e))
+
+
+def _authorize_pending_question(manager, request_id, user):
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        try:
+            manager.require_owner(request_id, user.user_id if user else None)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Question not found") from None

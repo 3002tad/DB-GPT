@@ -35,6 +35,7 @@ class PendingQuestion:
     event: asyncio.Event = field(default_factory=asyncio.Event)
     answers: Optional[List[List[str]]] = None
     rejected: bool = False
+    owner_id: Optional[str] = None
 
 
 class QuestionManager:
@@ -68,6 +69,7 @@ class QuestionManager:
         conv_id: str,
         questions: List[dict],
         request_id: Optional[str] = None,
+        owner_id: Optional[str] = None,
     ) -> PendingQuestion:
         rid = request_id or self._new_id()
         if rid in self._pending:
@@ -77,10 +79,17 @@ class QuestionManager:
             conv_id=conv_id,
             questions=copy.deepcopy(questions),
             sequence=next(self._sequence),
+            owner_id=owner_id,
         )
         self._pending[rid] = pq
         logger.info("QuestionManager.create: request_id=%s, n=%d", rid, len(questions))
         return pq
+
+    def require_owner(self, request_id: str, owner_id: Optional[str]) -> None:
+        """Authorize pending first-turn questions before history is persisted."""
+        pending = self._pending.get(request_id)
+        if not pending or not owner_id or pending.owner_id != owner_id:
+            raise KeyError("Question not found")
 
     def reply(self, request_id: str, answers: List[List[str]]) -> None:
         pq = self._pending.get(request_id)

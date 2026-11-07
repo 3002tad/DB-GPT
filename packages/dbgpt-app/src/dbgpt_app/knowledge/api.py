@@ -242,8 +242,11 @@ async def arguments_save(
 
 @router.post("/knowledge/{space_name}/document/add")
 async def document_add(space_name: str, request: KnowledgeDocumentRequest):
-    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip() and request.doc_type != "TEXT":
-        raise HTTPException(status_code=403, detail="This document source is not enabled")
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        if request.doc_type not in {"TEXT", "URL"}:
+            raise HTTPException(status_code=400, detail="Use document upload, Git sync or a knowledge-source binding for this source")
+        if request.doc_type == "URL":
+            _require_knowledge_http_url(request.content)
     logger.info("Knowledge document create requested")
     try:
         res = await blocking_func_to_async(
@@ -540,6 +543,18 @@ async def document_upload(
         return Result.failed(code="E000X", msg=f"document add error {e}")
 
 
+def _require_knowledge_http_url(value):
+    from urllib.parse import urlsplit
+
+    try:
+        parsed = urlsplit(value or "")
+        hostname = parsed.hostname
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid document URL")
+    if parsed.scheme not in {"http", "https"} or not hostname or parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="An HTTP(S) document URL without embedded credentials is required")
+
+
 def _require_pipeline_sync_document(service: Service, space_name: str, doc_id: int):
     document = service.get_document({"id": doc_id})
     if document is None or document.space != space_name:
@@ -554,6 +569,8 @@ def _require_pipeline_sync_document(service: Service, space_name: str, doc_id: i
                 raise ValueError("File is unavailable in this space")
         except (ValueError, TypeError, AttributeError):
             raise HTTPException(status_code=404, detail="Document is unavailable")
+    elif document.doc_type == "URL":
+        _require_knowledge_http_url(document.content)
     elif document.doc_type != "TEXT":
         raise HTTPException(status_code=404, detail="Document is unavailable")
 

@@ -132,7 +132,10 @@ def make_question(react_state: Dict[str, Any], stream_callback: Callable):
             )
 
         # 1. Register in QuestionManager → creates asyncio.Event
-        pq = question_manager.create(conv_id=conv_id, questions=parsed_questions)
+        pq = question_manager.create(
+            conv_id=conv_id, questions=parsed_questions,
+            owner_id=react_state.get("_actor_id"),
+        )
 
         # 2. Push question.asked SSE event to frontend
         await stream_callback(

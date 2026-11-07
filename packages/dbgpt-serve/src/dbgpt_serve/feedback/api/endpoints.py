@@ -1,8 +1,9 @@
 import logging
+import os
 from functools import cache
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 
 from dbgpt.component import SystemApp
@@ -140,7 +141,8 @@ async def query_page(
 
 
 @router.post("/add")
-async def add_feedback(request: ServeRequest, service: Service = Depends(get_service)):
+async def add_feedback(request: ServeRequest, service: Service = Depends(get_service), http_request: Request = None):
+    _bind_pipeline_feedback_owner(request, http_request)
     try:
         return Result.succ(service.create_or_update(request))
     except Exception as ex:
@@ -172,8 +174,9 @@ async def feedback_reasons():
 
 @router.post("/cancel")
 async def cancel_feedback(
-    request: ServeRequest, service: Service = Depends(get_service)
+    request: ServeRequest, service: Service = Depends(get_service), http_request: Request = None,
 ):
+    _bind_pipeline_feedback_owner(request, http_request)
     try:
         service.cancel_feedback(request)
         return Result.succ([])
@@ -189,6 +192,20 @@ async def update_feedback(
         return Result.succ(service.create_or_update(request))
     except Exception as ex:
         return Result.failed(err_code="E000X", msg=f"update question error: {ex}")
+
+
+def _bind_pipeline_feedback_owner(request, http_request):
+    """Use the verified actor, never the client-supplied feedback identity."""
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return
+    actor = getattr(http_request.state, "pipeline_actor", None) if http_request else None
+    if actor is None:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    from dbgpt_app.openapi.api_v1.agentic_data_api import _require_owned_conversation
+
+    _require_owned_conversation(request.conv_uid, actor.id)
+    request.user_code = actor.id
+    request.user_name = actor.id
 
 
 def init_endpoints(system_app: SystemApp, config: ServeConfig) -> None:
