@@ -343,6 +343,7 @@ export const CommonZh: Resources['translation'] = {
   new_chat: '创建会话',
   choice_agent_tip: '请选择代理',
   no_context_tip: '请输入你的问题',
+  chat_request_failed: '聊天执行失败，请重新发起本次操作。',
   Terminal: '终端',
   used_apps: '最近使用',
   app_in_mind: '没有心仪的应用？去',

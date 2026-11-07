@@ -83,6 +83,7 @@ from .attachment_react_adapter import (
     scrub_react_history_for_share,
 )
 from .react_final import AgentFinalAnswer, FinalAnswerAssembler
+from .execution_fallback import execution_copy, unfinished_message, missing_report_message
 from .subagent.dispatcher import DISPATCH_PROMPT_SECTION, make_dispatch_tool
 from .subagent.history import (
     build_subagent_history_snapshot,
@@ -566,8 +567,8 @@ async def _execute_skill_script_impl(
 
 
 @tool(
-    description='执行技能中的脚本。参数: {"skill_name": "技能名称", '
-    '"script_name": "脚本名称", "args": {参数}}'
+    description='Execute a skill script. Arguments: {"skill_name": "name", '
+    '"script_name": "name", "args": {}}'
 )
 async def execute_skill_script(skill_name: str, script_name: str, args: dict) -> str:
     """Execute a script from a skill."""
@@ -575,13 +576,12 @@ async def execute_skill_script(skill_name: str, script_name: str, args: dict) ->
 
 
 @tool(
-    description="获取技能资源文件内容。"
-    "根据路径读取技能中的参考文档、配置文件等非脚本资源。"
-    '参数: {"skill_name": "技能名称", "resource_path": "资源路径"}'
-    "\\n示例:"
-    '\\n- 读取参考文档: {"skill_name": "my-skill", '
+    description="Read a non-script skill resource such as documentation or configuration."
+    ' Arguments: {"skill_name": "name", "resource_path": "path"}'
+    "\\nExample:"
+    '\\n- Read reference: {"skill_name": "my-skill", '
     '"resource_path": "references/analysis_framework.md"}'
-    "\n注意: 执行技能脚本请使用 execute_skill_script_file 工具"
+    "\nUse execute_skill_script_file to run a skill script."
 )
 async def get_skill_resource(
     skill_name: str, resource_path: str, args: Optional[dict] = None
@@ -607,8 +607,8 @@ async def get_skill_resource(
 
 
 @tool(
-    description="执行技能scripts目录下的脚本文件。参数: "
-    '{"skill_name": "技能名称", "script_file_name": "脚本文件名", "args": {参数}}'
+    description="Execute a file in a skill's scripts directory. Arguments: "
+    '{"skill_name": "name", "script_file_name": "filename", "args": {}}'
 )
 async def execute_skill_script_file(
     skill_name: str, script_file_name: str, args: Optional[dict] = None
@@ -1966,7 +1966,7 @@ async def _react_agent_stream_inner(
         if not final_emitted and not done_emitted:
             yield _sse_event(
                 AgentFinalAnswer(
-                    content="抱歉，回答生成过程中发生错误，请重试。"
+                    content="The answer could not be completed. Please try again."
                 ).to_sse_payload()
             )
         if not done_emitted:
@@ -2301,16 +2301,35 @@ async def _react_agent_stream_impl(
                 break
 
         action_lower = (action or "").lower()
-        if action_lower == "sql_query":
-            return "正在查询数据库信息"
-        if action_lower == "code_interpreter":
-            return "正在生成分析代码"
-        if action_lower == "html_interpreter":
-            return "正在生成并渲染 HTML 报告"
-        if action_lower == "todowrite":
-            return "正在更新任务计划"
-        if action_lower in {"execute_skill_script", "execute_skill_script_file"}:
-            return "正在执行分析脚本"
+        action_copy = {
+            "vi": {
+                "sql_query": "Đang truy vấn dữ liệu",
+                "code_interpreter": "Đang tạo mã phân tích",
+                "html_interpreter": "Đang tạo báo cáo HTML",
+                "todowrite": "Đang cập nhật kế hoạch",
+                "execute_skill_script": "Đang chạy script phân tích",
+            },
+            "en": {
+                "sql_query": "Querying data",
+                "code_interpreter": "Preparing analysis code",
+                "html_interpreter": "Generating an HTML report",
+                "todowrite": "Updating the task plan",
+                "execute_skill_script": "Running an analysis script",
+            },
+            "zh": {
+                "sql_query": "正在查询数据库信息",
+                "code_interpreter": "正在生成分析代码",
+                "html_interpreter": "正在生成并渲染 HTML 报告",
+                "todowrite": "正在更新任务计划",
+                "execute_skill_script": "正在执行分析脚本",
+            },
+        }
+        locale_name = requested_locale.replace("_", "-").split("-", 1)[0]
+        locale_copy = action_copy.get(locale_name, action_copy["en"])
+        if action_lower == "execute_skill_script_file":
+            action_lower = "execute_skill_script"
+        if action_lower in locale_copy:
+            return locale_copy[action_lower]
 
         return text
 
@@ -2434,16 +2453,16 @@ async def _react_agent_stream_impl(
                 except Exception:
                     index_info.append(f"{table_name}: index metadata unavailable")
             database_context = f"""
-## 数据库信息
-- 数据库名: {database_name}
-- SQL 方言: {database_connector.dialect}
-- 可用表: {", ".join(table_names)}
-- 表结构:
+## Database information
+- Database name: {database_name}
+- SQL dialect: {database_connector.dialect}
+- Available tables: {", ".join(table_names)}
+- Table structure:
 {table_info}
-- 现有索引:
+- Existing indexes:
 {chr(10).join(index_info)}
-- 使用 'sql_query' 工具执行 SQL 查询
-- **只允许 SELECT 查询，禁止 INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE**
+- Use the 'sql_query' tool for SQL queries.
+- **Only SELECT queries are allowed; INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE are prohibited.**
 """
             logger.info(
                 f"Loaded database connector: {database_name} "
@@ -2452,7 +2471,7 @@ async def _react_agent_stream_impl(
         except PermissionError:
             yield _sse_event(
                 AgentFinalAnswer(
-                    content="所选数据源不可用，请选择你有权限访问的数据源。"
+                    content="The selected datasource is unavailable. Choose a datasource you can access."
                 ).to_sse_payload()
             )
             yield _sse_event({"type": "done"})
@@ -2460,8 +2479,8 @@ async def _react_agent_stream_impl(
         except Exception as e:
             logger.warning(f"Failed to load database connector: {e}", exc_info=e)
             database_context = f"""
-## 数据库
-- 警告: 加载数据库 '{database_name}' 失败。错误: {str(e)}
+## Database
+- Warning: Could not load database '{database_name}'. Error: {str(e)}
 """
 
     if database_connector is not None:
@@ -2642,7 +2661,7 @@ async def _react_agent_stream_impl(
     @tool(
         description="Load skill content by skill name and file path. "
         "Returns the SKILL.md content of the specified skill. "
-        '参数: {"skill_name": "技能名称", "file_path": "技能文件路径"}'
+        'Arguments: {"skill_name": "name", "file_path": "skill file path"}'
     )
     def load_skill(skill_name: str, file_path: str) -> str:
         """Load the skill content (SKILL.md) by skill name and file path.
@@ -2776,7 +2795,7 @@ async def _react_agent_stream_impl(
                         "confirm_id": _confirm_id,
                         "tool_name": tool_name,
                         "args_summary": _interceptor._summarize_args(args),
-                        "message": f"即将执行写操作 {tool_name}，是否确认？",
+                        "message": f"Run write operation {tool_name}? Please confirm.",
                         "timeout": 300,
                     }
                     try:
@@ -2793,7 +2812,7 @@ async def _react_agent_stream_impl(
                                 "chunks": [
                                     {
                                         "output_type": "text",
-                                        "content": "用户拒绝了此操作，工具执行已取消。",
+                                        "content": "The user declined this operation; tool execution was cancelled.",
                                     }
                                 ]
                             },
@@ -3406,17 +3425,16 @@ async def _react_agent_stream_impl(
             else str(skill_template)
         )
         skill_prompt_context = f"""
-## 已加载技能指令（{pre_matched_skill.metadata.name}）
-以下是用户选择的技能的完整指令，请严格按照这些指令进行操作：
+## Loaded skill instructions ({pre_matched_skill.metadata.name})
+Follow the complete instructions for the user's selected skill:
 
 {skill_text}
 """
         execution_instruction = f"""
-## 执行要求
-1. 用户已明确选择技能：{pre_matched_skill.metadata.name}
-2. 你必须严格按照上述技能指令的步骤执行
-3. 阅读技能指令，理解每一步需要调用的工具
-4. 按顺序执行工具调用，完成技能目标
+## Execution requirements
+1. The user selected skill {pre_matched_skill.metadata.name}.
+2. Follow its instructions and use the tools required for each step.
+3. Complete the skill goal in the specified order.
 """
 
     # Build a hint listing all images currently available in
@@ -3972,24 +3990,24 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
     received = AgentMessage(content=user_input)
     if react_state.get("_report_pending_html"):
         received.content += (
-            "\n已恢复待渲染 HTML 与原始产物。报告由专职报告子代理独占生成："
-            "调用 generate_report(instructions=[报告标题、必需章节、建议条数])，"
-            "它会读取证据清单、按模板 spec 渲染并按最新错误清单修正；"
-            "不要自己调用 html_interpreter，也不要手写 HTML。"
-            "保存的 HTML 可用 read_file 查看："
+            "\nPending HTML and source artifacts were restored. The report subagent owns rendering. "
+            "Call generate_report(instructions=[title, required sections, recommendation count]); "
+            "it reads the evidence manifest, renders the template spec, and repairs the latest errors. "
+            "Do not call html_interpreter directly or hand-write HTML. "
+            "Read the saved HTML with read_file: "
             + react_state["_report_pending_path"]
-            + "。待修复的渲染错误："
-            + str(react_state.get("_report_last_render_error") or "未知")
-            + "\n原始报告要求："
+            + ". Rendering error to repair: "
+            + str(react_state.get("_report_last_render_error") or "unknown")
+            + "\nOriginal report request: "
             + str(react_state.get("_report_original_request") or "")
         )
     elif react_state.get("_report_resume_analysis"):
         received.content += (
-            "\n已恢复上轮真实执行产物。先用 report_evidence_manifest 查看现有结果，"
-            "只补充缺失的用户请求项，然后生成报告；不要重新执行完成的分析。"
-            "原始请求："
+            "\nExisting execution artifacts were restored. First inspect them with report_evidence_manifest. "
+            "Complete only the missing user-requested analysis, then generate the report. "
+            "Do not rerun completed work. Original request: "
             + str(react_state.get("_report_original_request") or "")
-            + "\n执行进度："
+            + "\nExecution progress: "
             + json.dumps(
                 react_state.get("_report_execution_progress", {}), ensure_ascii=False
             )
@@ -4045,13 +4063,13 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
         skill_step_id, skill_step_event = build_step(
             f"Load Skill: {pre_matched_skill.metadata.name}",
             "Pre-loaded skill from user selection",
-            phase="加载技能",
+            phase=execution_copy(requested_locale)["skill_phase"],
         )
         current_history_step = {
             "id": skill_step_id,
             "title": f"Load Skill: {pre_matched_skill.metadata.name}",
             "detail": "Pre-loaded skill from user selection",
-            "phase": "加载技能",
+            "phase": execution_copy(requested_locale)["skill_phase"],
             "thought": None,
             "action": None,
             "action_input": None,
@@ -4174,9 +4192,7 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                     pending_thoughts[round_num].append(clean_chunk)
                     if round_num not in round_step_map:
                         pending_step_id, pending_step_event = build_step(
-                            "Thinking"
-                            if react_state.get("_report_language") == "en"
-                            else "思考中",
+                            execution_copy(requested_locale)["thinking"],
                             "Thought/Action/Observation",
                         )
                         round_step_map[round_num] = pending_step_id
@@ -4545,12 +4561,8 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
             history_steps.append(
                 {
                     "id": pending_id,
-                    "title": "Thinking"
-                    if react_state.get("_report_language") == "en"
-                    else "思考中",
-                    "detail": "Execution ended before the tool reported a result"
-                    if react_state.get("_report_language") == "en"
-                    else "执行提前结束，未收到工具完成结果",
+                    "title": execution_copy(requested_locale)["thinking"],
+                    "detail": execution_copy(requested_locale)["tool_unfinished"],
                     "outputs": [],
                     "status": "failed",
                 }
@@ -4566,7 +4578,7 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
             yield _sse_event(incomplete)
             err_msg = incomplete["message"]
         elif react_state.get("dashboard_generation", {}).get("status") == "completed":
-            err_msg = "看板已校验并保存；后续模型说明未完成，可直接打开看板检查。"
+            err_msg = "The dashboard was validated and saved. The model explanation did not finish; open the dashboard to inspect it."
         if current_history_step is not None:
             current_history_step["status"] = "failed"
             history_steps.append(current_history_step)
@@ -4578,7 +4590,8 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                 react_state, skills_dir, allow_unavailable_references=True
             ):
                 err_msg = (
-                    "HTML 分析报告已复用现有产物生成。主流程执行中断：" + str(e)[:1000]
+                    execution_copy(requested_locale)["recovered"] + " "
+                    + execution_copy(requested_locale)["main_interrupted"] + ": " + str(e)[:1000]
                 )
         fail_running_subagent_history(subagent_history)
         error_answer = AgentFinalAnswer(content=err_msg)
@@ -4625,21 +4638,15 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
         )
 
         execution_status = execution_context.get("execution_status", "incomplete")
+        fallback_copy = execution_copy(requested_locale)
         report_error = react_state.get("_report_html_error")
         if execution_status == "incomplete" and report_error:
             execution_status = "report_failed"
         execution_error = (
             execution_context.get("execution_error")
             or report_error
-            or (reply.content if not reply.action_report else "主流程未提交完整结果")
+            or (reply.content if not reply.action_report else fallback_copy["main_incomplete"])
         )
-        status_label = {
-            "timeout": "运行超时",
-            "step_limit": "达到执行步数上限",
-            "failed": "执行失败",
-            "report_failed": "报告渲染失败",
-            "incomplete": "任务未完成",
-        }.get(execution_status, "任务未完成")
         completed = [t["content"] for t in _todo_list if t.get("status") == "completed"]
         remaining = [
             t["content"]
@@ -4665,27 +4672,17 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
             "execution_status": execution_status,
             "execution_error": execution_error,
         }
-        final_content = (
-            "任务未完成。"
-            if execution_status == "incomplete"
-            else f"任务未完成：{status_label}。"
-        ) + "已有执行结果已保留。"
-        if completed:
-            final_content += "\n已完成：" + "；".join(completed)
-        if remaining:
-            final_content += "\n待完成：" + "；".join(remaining)
         partial = [
-            a.get("name", a.get("agent_id", "子任务"))
+            a.get("name", a.get("agent_id", "subtask"))
             for a in snapshots
             if a.get("status") == "partial"
         ]
-        if partial:
-            final_content += "\n部分完成的子任务：" + "；".join(partial)
-        if execution_status == "failed" and execution_error:
-            final_content += "\n原因：" + str(execution_error)[:1000]
-        if report_recovered:
-            final_content += "\nHTML 分析报告已复用现有产物生成。"
-        else:
+        final_content = unfinished_message(
+            requested_locale, execution_status, completed, remaining, partial,
+            execution_error, report_recovered,
+            is_skill_mode and _skill_name == "skill-creator",
+        )
+        if not report_recovered:
             try:
                 await asyncio.to_thread(
                     save_execution_checkpoint, react_state, str(execution_error)
@@ -4694,18 +4691,12 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                 logger.exception(
                     "Unable to save execution checkpoint; recorded history and artifacts remain available"
                 )
-            if is_skill_mode and _skill_name == "skill-creator":
-                final_content += (
-                    "\n继续时应复用已创建的技能目录，补齐文件、测试和打包。"
-                )
-            else:
-                final_content += "\n继续时应复用现有产物，只补充缺失分析和报告。"
     elif reply.action_report and reply.action_report.terminate:
         raw_content = reply.action_report.content or ""
         try:
             final_content = extract_terminate_output(raw_content)
         except ValueError:
-            final_content = "任务未完成：模型未返回有效的最终结果，请查看执行步骤。"
+            final_content = execution_copy(requested_locale)["invalid_final"]
     else:
         final_content = reply.content or ""
 
@@ -4717,13 +4708,10 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
         report_error = (
             react_state.get("_report_agent_failure")
             or react_state.get("_report_html_error")
-            or "报告渲染未完成"
+            or execution_copy(requested_locale)["report_unfinished"]
         )
-        final_content = (
-            final_content + f"\nHTML 分析报告未生成。原因：{report_error}"
-            if stopped
-            else f"HTML 分析报告未生成。原因：{report_error}"
-        )
+        report_message = missing_report_message(requested_locale, report_error)
+        final_content = final_content + "\n" + report_message if stopped else report_message
     if artifact_sink is not None:
         final_answer_assembler.observe_artifacts(
             artifact_sink.snapshot(),

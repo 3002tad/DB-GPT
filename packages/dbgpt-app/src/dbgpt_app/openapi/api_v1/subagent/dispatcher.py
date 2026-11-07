@@ -757,21 +757,28 @@ def make_dispatch_tool(
                 if not reply.success:
                     sub_state["_sub_failure_reason"] = (
                         reply.get_dict_context().get("execution_error")
-                        or "子任务未完成"
+                        or ("子任务未完成" if language == "zh" else "Subtask incomplete")
                     )
                 r = extract_subagent_result(reply, sub_state, title, "done")
             except asyncio.CancelledError:
                 cancelled = True
                 sub_state["_sub_failure_reason"] = (
                     "上级任务取消或运行期限已到；已保留完成产物"
+                    if language == "zh" else
+                    "Parent task was cancelled or timed out; completed artifacts were preserved"
                 )
                 r = extract_subagent_result(None, sub_state, title, "failed")
             except asyncio.TimeoutError:
-                sub_state["_sub_failure_reason"] = f"子任务超时（{_SUBAGENT_TIMEOUT}s）"
+                sub_state["_sub_failure_reason"] = (
+                    f"子任务超时（{_SUBAGENT_TIMEOUT}s）" if language == "zh"
+                    else f"Subtask timed out ({_SUBAGENT_TIMEOUT}s)"
+                )
                 r = extract_subagent_result(None, sub_state, title, "timeout")
             except Exception as e:  # single failure must not break the batch
                 logger.warning("sub-agent %d failed: %s", idx, e, exc_info=True)
-                sub_state["_sub_failure_reason"] = f"执行失败: {e}"
+                sub_state["_sub_failure_reason"] = (
+                    f"执行失败: {e}" if language == "zh" else f"Execution failed: {e}"
+                )
                 r = extract_subagent_result(None, sub_state, title, "failed")
             # Stamp the source agent on every artifact so the frontend can
             # count/label per sub-agent (aggregate-card row + files-tab tag).

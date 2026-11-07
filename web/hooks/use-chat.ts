@@ -174,7 +174,7 @@ const useChat = ({ queryAgentURL, app_code }: Props) => {
               if (parsedData?.type === 'error') {
                 terminal = true;
                 clearQuestions();
-                onError?.(parsedData.message || parsedData.content || '聊天执行失败，请重新发起本次操作。');
+                onError?.(parsedData.message || parsedData.content || i18n.t('chat_request_failed', { defaultValue: 'Chat request failed. Please try again.' }));
                 return;
               }
 

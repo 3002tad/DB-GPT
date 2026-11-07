@@ -6,6 +6,7 @@ const vi: Record<string, string> = {
   all_tasks: 'Tất cả tác vụ',
   view_all: 'Xem tất cả',
   no_tasks: 'Chưa có tác vụ',
+  chat_request_failed: 'Yêu cầu trò chuyện thất bại. Vui lòng thử lại.',
   skills: 'Kỹ năng',
   datasources: 'Nguồn dữ liệu',
   knowledge: 'Kho tri thức',

@@ -338,6 +338,7 @@ export const CommonEn = {
   new_chat: 'New Chat',
   choice_agent_tip: 'Please choose an agent',
   no_context_tip: 'Please enter your question',
+  chat_request_failed: 'Chat request failed. Please try again.',
   Terminal: 'Terminal',
   used_apps: 'Used Apps',
   app_in_mind: "Don't have an app in mind? to",

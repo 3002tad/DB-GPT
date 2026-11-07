@@ -339,7 +339,7 @@ def make_react_tools(
                     "chunks": [
                         {
                             "output_type": "text",
-                            "content": f"SQL 执行失败: {str(e)}",
+                            "content": f"SQL execution failed: {str(e)}",
                         }
                     ]
                 },
