@@ -23,7 +23,11 @@ _DASHBOARD_QUERY = re.compile(
 )
 _KNOWLEDGE_READ = re.compile(
     r"^/api/v1/knowledge/[^/\\]{1,128}/"
-    r"(?:document/list|chunk/list|query|recall_test)$"
+    r"(?:document/list|chunk/list|query|recall_test|arguments)$"
+)
+_KNOWLEDGE_TOOLS_READ = re.compile(
+    r"^/api/v2/serve/knowledge/[^/\\]{1,128}/tools/"
+    r"(?:ls|ls-json|glob|grep|cat|semantic_search)$"
 )
 _KNOWLEDGE_RETRIEVERS = re.compile(r"^/api/v1/knowledge/[^/\\]{1,128}/recall_retrievers$")
 _KNOWLEDGE_STATS = re.compile(r"^/api/v2/serve/knowledge/[A-Za-z0-9_-]{1,128}/stats$")
@@ -200,7 +204,8 @@ def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
             "/api/v1/knowledge/space/list",
             "/api/v1/knowledge/space/add",
             "/api/v1/knowledge/retrieve_strategy_list",
-        } or _KNOWLEDGE_READ.fullmatch(path) or _KNOWLEDGE_TEXT_WRITE.fullmatch(path)))
+        } or _KNOWLEDGE_READ.fullmatch(path) or _KNOWLEDGE_TOOLS_READ.fullmatch(path)
+           or _KNOWLEDGE_TEXT_WRITE.fullmatch(path)))
         or (method == "GET" and (path in {
             "/api/v1/knowledge/space/config",
             "/api/v1/knowledge/document/chunkstrategies",

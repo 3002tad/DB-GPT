@@ -20,6 +20,19 @@ def test_shared_knowledge_stats_and_datasource_types(role):
         assert not authorize_pipeline_request(actor, {"method": "DELETE", "path": path})
 
 
+@pytest.mark.parametrize("role", ["analyst", "super_admin"])
+def test_shared_knowledge_detail_reads(role):
+    actor = PipelineActor(id="user", role=role)
+    base = "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-test/tools/"
+    for path in ["/api/v1/knowledge/demo/arguments"] + [
+        base + tool for tool in ("ls", "ls-json", "glob", "grep", "cat", "semantic_search")
+    ]:
+        assert authorize_pipeline_request(actor, {"method": "POST", "path": path})
+        assert not authorize_pipeline_request(actor, {"method": "DELETE", "path": path})
+    assert not authorize_pipeline_request(actor, {"method": "POST", "path": base + "delete"})
+    assert not authorize_pipeline_request(actor, {"method": "POST", "path": "/api/v1/knowledge/demo/argument/save"})
+
+
 @pytest.mark.parametrize("method,path", [
     ("GET", "/api/v2/serve/model/providers"),
 ])

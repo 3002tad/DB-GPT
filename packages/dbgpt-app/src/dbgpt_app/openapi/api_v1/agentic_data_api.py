@@ -2336,6 +2336,8 @@ async def _react_agent_stream_impl(
     # Step 3: Load knowledge space resource if specified in ext_info
     knowledge_resources: List[Any] = []
     knowledge_context = ""
+    prefetched = ""
+    knowledge_evidence = {"knowledge_space": str(knowledge_space), "status": "unavailable"}
     if knowledge_space:
         try:
             from dbgpt_serve.agent.resource.knowledge import (
@@ -2385,7 +2387,8 @@ async def _react_agent_stream_impl(
             from .knowledge_prefetch import prefetch_knowledge
 
             prefetched = await prefetch_knowledge(
-                CFG.SYSTEM_APP, knowledge_space, user_input, conv_id
+                CFG.SYSTEM_APP, knowledge_space, user_input, conv_id,
+                evidence=knowledge_evidence,
             )
             knowledge_context += prefetched or (
                 "\nNo knowledge excerpts were retrieved automatically. "
@@ -2397,12 +2400,12 @@ async def _react_agent_stream_impl(
                 f"(name: {knowledge_resource.retriever_name})"
             )
         except Exception as e:
+            knowledge_evidence["status"] = "resource_error"
             logger.warning(f"Failed to load knowledge space resource: {e}", exc_info=e)
             knowledge_context = f"""
 ## Knowledge Base
 - Warning: Failed to load knowledge space '{knowledge_space}'. Error: {str(e)}
 """
-
     # Step 4: Load database connector if specified in ext_info
     database_connector = None
     database_context = ""
@@ -3932,6 +3935,13 @@ established, report the separate counts and missing evidence; a descriptive
 ratio within a proven population may still be presented with its denominator.
 Avoid introducing event names or lifecycle claims without relevant evidence.
 """
+    if knowledge_space:
+        from .knowledge_prefetch import knowledge_prefetch_evidence
+
+        knowledge_evidence["included_in_prompt"] = bool(
+            prefetched and prefetched in workflow_prompt
+        )
+        yield _sse_event(knowledge_prefetch_evidence(knowledge_evidence))
     # Convert workflow_prompt to PromptTemplate so it is used as system prompt
     # Use jinja2 format to avoid issues with JSON braces { } in the prompt
     workflow_prompt_template = PromptTemplate(

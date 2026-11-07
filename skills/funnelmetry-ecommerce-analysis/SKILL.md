@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.6
+version: 1.0.7
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -77,6 +77,14 @@ Với dữ liệu synthetic `funnelmetry_demo`, đếm phiên từ `sessions` (t
 gộp synthetic/observed và **không có `session_id`**; đừng dùng nó để đếm phiên.
 `cart_links` có `dataset_id`, `session_id`, `cart_id`, `occurred_at`;
 `orders` có `dataset_id`, `order_id`, `created_at`, `reference_state`.
+`cart_links` và `context.cart_linked` chỉ chứng minh liên kết session–cart,
+không chứng minh thêm sản phẩm. Giữ nhãn “session liên kết cart” cả trong bảng
+và tóm tắt; chỉ gọi thêm sản phẩm khi có dữ liệu `cart.item_added` hoặc mutation
+`ADD` tương ứng. Với Q08, đếm độc lập các order row `reference_state='ON'` là
+“order hiện ON”: trạng thái reference hiện tại có thể rút lại, không phải trạng
+thái terminal/hoàn tất của order hay bằng chứng đã đạt terminal journey.
+Terminal journey chỉ được công bố khi truy vấn đúng profile và bằng chứng
+checkout/transition của contract bên dưới, không suy ra từ một cột ON.
 `dataset_coverage` có `period_start`, `period_end`, `demo_status`, `scope_note`;
 `gap_dataset_coverage` có `dataset_id`, `demo_status`, `mismatched_domains`,
 `invalid_sessions`, không có `period_start`, `period_end` hay `scope_note`.
