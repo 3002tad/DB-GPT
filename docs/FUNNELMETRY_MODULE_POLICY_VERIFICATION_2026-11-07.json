@@ -1,0 +1,570 @@
+{
+  "code_commit": "684ed0ba",
+  "paid_model_calls": 0,
+  "checks": [
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v1/skills/list",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/awel/flows",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/scheduled-tasks/",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/app/list",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/arguments",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/tools/ls-json",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/8/wiki/status",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/8/git/sync-status",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/spaces/8/knowledge_sources",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/knowledge_sources/types",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v1/conv/feedback/reasons",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v1/observability/capabilities",
+      "http_status": 403,
+      "success": null,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v1/observability/models/usage",
+      "http_status": 403,
+      "success": null,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/model/providers",
+      "http_status": 403,
+      "success": null,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v2/serve/connectors/types",
+      "http_status": 403,
+      "success": null,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/chat/question/policy-audit-missing/reply",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/chat/question/policy-audit-missing/reject",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/editor/sql",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/conv/feedback/add",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/conv/feedback/cancel",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/chat/topic/terminate?conv_id=policy-audit-missing&round_index=1",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v1/dashboards/policy-audit-missing/annotations",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "GET",
+      "path": "/api/v1/dashboards/policy-audit-missing/versions",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/chat/completions",
+      "http_status": 403,
+      "success": false,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "analyst",
+      "method": "POST",
+      "path": "/api/v1/chat/prepare",
+      "http_status": 403,
+      "success": false,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v1/skills/list",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/awel/flows",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/scheduled-tasks/",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/app/list",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/arguments",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v2/serve/knowledge/funnelmetry-demo-1-2-0-112e65b3b815/tools/ls-json",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/8/wiki/status",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/8/git/sync-status",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/spaces/8/knowledge_sources",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/knowledge/knowledge_sources/types",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v1/conv/feedback/reasons",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v1/observability/capabilities",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v1/observability/models/usage",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/model/providers",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v2/serve/connectors/types",
+      "http_status": 200,
+      "success": true,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/chat/question/policy-audit-missing/reply",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/chat/question/policy-audit-missing/reject",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/editor/sql",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/conv/feedback/add",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/conv/feedback/cancel",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/chat/topic/terminate?conv_id=policy-audit-missing&round_index=1",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v1/dashboards/policy-audit-missing/annotations",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "GET",
+      "path": "/api/v1/dashboards/policy-audit-missing/versions",
+      "http_status": 404,
+      "success": false,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/chat/completions",
+      "http_status": 403,
+      "success": false,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "super_admin",
+      "method": "POST",
+      "path": "/api/v1/chat/prepare",
+      "http_status": 403,
+      "success": false,
+      "expected": [
+        403
+      ],
+      "passed": true
+    },
+    {
+      "role": "unauthenticated",
+      "method": "GET",
+      "path": "/api/v1/skills/list",
+      "http_status": 401,
+      "passed": true
+    },
+    {
+      "role": "unauthenticated",
+      "method": "GET",
+      "path": "/api/v2/serve/awel/flows",
+      "http_status": 401,
+      "passed": true
+    }
+  ]
+}

@@ -135,3 +135,26 @@ Public sharing/collaboration remains separate from private analysis. The old
 client's unused/absent APIs (including template-by-ID, legacy Agent Hub and
 legacy user creation) are not made valid by opening a URL prefix. This audit
 does not certify complete end-to-end behavior of every optional module.
+
+## VPS verification after correction
+
+Code commit `684ed0ba` is deployed as `funnelmetry-db-gpt:684ed0ba-policy`.
+[The post-fix checks](FUNNELMETRY_MODULE_POLICY_VERIFICATION_2026-11-07.json)
+record 52 expected outcomes across both roles and unauthenticated requests.
+Usable module reads, including KB arguments/files, Wiki, Git status, source
+types/bindings, applications, AWEL, skills and schedules, return 200. Global
+Observability and provider/connector configuration return 200 for Admin and
+403 for Analyst. Missing/foreign conversation resources return 404; unknown
+datasources are denied before model invocation. Unauthenticated reads return
+401. These are API/handler checks, not a browser execution of every workflow.
+
+The opened Sources tab exposed a separate MySQL schema omission: the three
+Knowledge Source tables were missing. Apply
+[`20261107_knowledge_sources_mysql.sql`](../scripts/migrations/20261107_knowledge_sources_mysql.sql)
+to the DB-GPT internal database on existing MySQL deployments. It creates
+only the three absent tables and indexes, with `IF NOT EXISTS`; it does not
+alter existing tables or KB documents. On this VPS it was applied twice
+successfully, and the source-list API now returns 200 for both roles.
+MySQL startup deliberately does not run SQLite's automatic schema upgrade,
+so this explicit migration is also required when reproducing this deployment.
+No paid analysis-model calls were made.
