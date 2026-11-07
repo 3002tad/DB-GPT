@@ -331,7 +331,23 @@ def make_execute_skill_script_file(react_state: Dict[str, Any]):
                         "chunks": chunks,
                         "artifact_id": python_artifact_id,
                         **(
-                            {"success": False, "error_code": "SKILL_SCRIPT_FAILED"}
+                            {
+                                "success": False,
+                                "error_code": (
+                                    result_obj.get("error_code")
+                                    or "SKILL_SCRIPT_FAILED"
+                                ),
+                                **(
+                                    {"available_scripts": result_obj["available_scripts"]}
+                                    if "available_scripts" in result_obj
+                                    else {}
+                                ),
+                                **(
+                                    {"recovery_hint": result_obj["recovery_hint"]}
+                                    if result_obj.get("recovery_hint")
+                                    else {}
+                                ),
+                            }
                             if script_error
                             else {}
                         ),

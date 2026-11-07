@@ -20,6 +20,42 @@ from dbgpt_app.openapi.api_v1.tools.skill_tools import make_execute_skill_script
 
 
 @pytest.mark.asyncio
+async def test_missing_skill_script_reports_actual_inventory(tmp_path, monkeypatch):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "sql-skill"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: sql-skill\ndescription: SQL skill\n---\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "scripts" / "query.py").write_text("print(1)\n", encoding="utf-8")
+    no_script_dir = skills_dir / "instructions-only"
+    no_script_dir.mkdir()
+    (no_script_dir / "SKILL.md").write_text(
+        "---\nname: instructions-only\ndescription: Instructions\n---\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_config, "SKILLS_DIR", str(skills_dir))
+    monkeypatch.setattr(model_config, "PILOT_PATH", str(tmp_path / "pilot"))
+    manager = SkillManager(None)
+    monkeypatch.setattr(
+        "dbgpt.agent.skill.manage.get_skill_manager", lambda app: manager
+    )
+    execute = make_execute_skill_script_file({"conv_id": "missing-script"})
+
+    missing_name = json.loads(await execute("sql-skill", "invented.py"))
+    assert missing_name["success"] is False
+    assert missing_name["error_code"] == "SKILL_SCRIPT_NOT_FOUND"
+    assert missing_name["available_scripts"] == ["query.py"]
+    assert "do not guess" in missing_name["recovery_hint"]
+
+    no_scripts = json.loads(await execute("instructions-only", "invented.py"))
+    assert no_scripts["error_code"] == "SKILL_SCRIPT_NOT_FOUND"
+    assert no_scripts["available_scripts"] == []
+    assert "no scripts" in no_scripts["recovery_hint"]
+
+
+@pytest.mark.asyncio
 async def test_skill_creation_can_write_test_read_and_package_files(
     tmp_path, monkeypatch
 ):

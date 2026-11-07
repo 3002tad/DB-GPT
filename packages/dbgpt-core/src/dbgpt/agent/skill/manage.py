@@ -1001,6 +1001,22 @@ __name__ = "__main__"
 
         script_path = os.path.join(skill_path, "scripts", script_file_name)
         if not os.path.exists(script_path):
+            scripts_dir = os.path.join(skill_path, "scripts")
+            available_scripts = (
+                sorted(
+                    name
+                    for name in os.listdir(scripts_dir)
+                    if os.path.isfile(os.path.join(scripts_dir, name))
+                )
+                if os.path.isdir(scripts_dir)
+                else []
+            )
+            recovery_hint = (
+                "Use an existing script from available_scripts or another registered "
+                "tool; do not guess a script name."
+                if available_scripts
+                else "This skill has no scripts. Use another registered tool."
+            )
             return json.dumps(
                 {
                     "chunks": [
@@ -1010,7 +1026,10 @@ __name__ = "__main__"
                         }
                     ],
                     "success": False,
+                    "error_code": "SKILL_SCRIPT_NOT_FOUND",
                     "error": f"Script file '{script_file_name}' not found",
+                    "available_scripts": available_scripts,
+                    "recovery_hint": recovery_hint,
                 },
                 ensure_ascii=False,
             )
