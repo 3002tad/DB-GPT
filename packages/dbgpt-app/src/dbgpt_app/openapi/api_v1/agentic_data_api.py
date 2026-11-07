@@ -3498,7 +3498,7 @@ Follow the complete instructions for the user's selected skill:
 
     dispatch_parallel_tasks = make_dispatch_tool(
         parent_conv_id=conv_id,
-        language=react_state["_report_language"],
+        language="vi" if requested_locale.startswith("vi") else react_state["_report_language"],
         llm_client=llm_client,
         sub_model_name=dialogue.model_name,
         database_connector=database_connector,

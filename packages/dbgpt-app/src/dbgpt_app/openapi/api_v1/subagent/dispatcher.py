@@ -312,9 +312,18 @@ def _build_sub_prompt(
             "knowledge-base text are Chinese. Keep SQL identifiers, field names, and "
             "quoted source text unchanged.\n"
         )
+    elif language == "vi":
+        text += (
+            "\n## Language\n"
+            "The user's interface and question are Vietnamese. Write user-visible "
+            "thoughts, status messages and final results in Vietnamese. Keep SQL "
+            "identifiers, field names and quoted source text unchanged.\n"
+        )
     status_prefix = (
         "Status: completed / partially completed / failed"
         if language == "en"
+        else "Trạng thái: hoàn thành / hoàn thành một phần / thất bại"
+        if language == "vi"
         else "状态: 完成 / 部分完成 / 失败"
     )
     text += (
@@ -574,12 +583,12 @@ def make_dispatch_tool(
 
     @tool(
         description=(
-            "把多个【相互独立、无依赖】的子任务并行交给子 Agent 执行，返回各自"
-            "结果。任务包含至少 2 个可独立交付、可同时开始、且各自值得独立上下文"
-            "的目标时使用。同一数据库或同一张表上的独立只读分析也可以并行；只有"
-            "共享中间结果、计算状态或存在前后依赖时才应串行。"
-            f"单次最多 {max_parallel} 个子任务，超出请分批多轮调用。"
-            '参数: {"tasks": [{"goal": "...", "context": "...", "title": "..."}]}'
+            "Run independent subtasks in parallel and return each result. Use this "
+            "when at least two deliverables can start independently; shared state "
+            "or dependent results must be sequential. Independent read-only analyses "
+            "of the same datasource may run in parallel. "
+            f"At most {max_parallel} subtasks per call; dispatch extras in another batch. "
+            'Arguments: {"tasks": [{"goal": "...", "context": "...", "title": "..."}]}'
         )
     )
     async def dispatch_parallel_tasks(tasks: list) -> str:
@@ -590,7 +599,7 @@ def make_dispatch_tool(
                     "chunks": [
                         {
                             "output_type": "text",
-                            "content": "Error: tasks 必须是非空列表",
+                            "content": "Error: tasks must be a non-empty list",
                         }
                     ]
                 },
@@ -628,7 +637,7 @@ def make_dispatch_tool(
             agent_id = f"sub_d{batch_id}_{idx}"
             title = (
                 t.get("title") if isinstance(t, dict) else None
-            ) or f"子任务{idx + 1}"
+            ) or (f"Tác vụ con {idx + 1}" if language == "vi" else f"Subtask {idx + 1}")
             goal = (t.get("goal") if isinstance(t, dict) else None) or ""
             extra = t.get("context") if isinstance(t, dict) else None
             extra = "\n".join(part for part in (database_prompt, extra) if part)
@@ -723,7 +732,7 @@ def make_dispatch_tool(
                         else:
                             limit = _SUBAGENT_OBS_MAX_CHARS
                         if len(content) > limit:
-                            c["content"] = content[:limit] + "…（已截断）"
+                            c["content"] = content[:limit] + "… (truncated)"
                     step_event = {
                         "type": "agent.step",
                         "agent_id": _aid,
@@ -796,7 +805,7 @@ def make_dispatch_tool(
             if len(result_summary) > _SUBAGENT_RESULT_SUMMARY_MAX_CHARS:
                 result_summary = (
                     result_summary[:_SUBAGENT_RESULT_SUMMARY_MAX_CHARS]
-                    + "\n\n…（完整结果请查看子任务详情）"
+                    + "\n\n… (see subtask details for the full result)"
                 )
             await emit_event(
                 {
@@ -819,22 +828,22 @@ def make_dispatch_tool(
         summary = "\n\n".join(
             f"### {r['title']} [{r['status']}]\n"
             f"{str(r['result'])[:_SUBAGENT_RESULT_SUMMARY_MAX_CHARS]}\n"
-            f"真实产物 ID: {', '.join(r.get('artifact_ids', [])) or '无'}\n"
-            "未完成原因: "
+            f"Artifact IDs: {', '.join(r.get('artifact_ids', [])) or 'none'}\n"
+            "Incomplete reason: "
             f"""{
                 r.get("failure_reason")
                 or (
-                    "无"
+                    "none"
                     if r["status"] == "done"
-                    else "子任务未提交完整交付，请只补充缺失项"
+                    else "Subtask did not submit a complete result; complete only missing items"
                 )
             }"""
             for r in results
         )
         if dropped > 0:
             summary += (
-                f"\n\n[提示] 另有 {dropped} 个子任务因超过并发上限未执行，"
-                f"请在下一轮再次调用 dispatch_parallel_tasks 处理。"
+                f"\n\n[Note] {dropped} subtasks were not run because the concurrency "
+                "limit was reached. Dispatch them in the next batch."
             )
         return json.dumps(
             {"chunks": [{"output_type": "markdown", "content": summary}]},

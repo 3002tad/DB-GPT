@@ -82,7 +82,7 @@ def make_react_tools(
     @tool(
         description="Load skill content by skill name and file path. "
         "Returns the SKILL.md content of the specified skill. "
-        '参数: {"skill_name": "技能名称", "file_path": "技能文件路径"}'
+        'Arguments: {"skill_name": "name", "file_path": "skill file path"}'
     )
     def load_skill(skill_name: str, file_path: str) -> str:
         """Load the skill content (SKILL.md) by skill name and file path.
@@ -253,8 +253,8 @@ def make_react_tools(
 
     @tool(
         description=(
-            "对用户选择的数据库执行 SQL 查询（仅支持 SELECT）。"
-            '参数: {"sql": "SELECT 语句"}'
+            "Run a read-only SQL query against the user's selected datasource. "
+            'Only SELECT is supported. Arguments: {"sql": "SELECT ..."}'
         )
     )
     def sql_query(sql: str) -> str:
@@ -265,7 +265,7 @@ def make_react_tools(
                     "chunks": [
                         {
                             "output_type": "text",
-                            "content": "未选择数据库，请先在左侧面板选择一个数据源。",
+                            "content": "No datasource is selected. Select one in the sidebar first.",
                         }
                     ]
                 },
@@ -293,8 +293,8 @@ def make_react_tools(
                             {
                                 "output_type": "text",
                                 "content": (
-                                    f"安全限制: 不允许执行 {kw} 语句，"
-                                    f"仅支持 SELECT 查询。"
+                                    f"Safety restriction: {kw} statements are not allowed. "
+                                    "Only SELECT queries are supported."
                                 ),
                             }
                         ]
@@ -308,7 +308,7 @@ def make_react_tools(
                 return json.dumps(
                     {
                         "chunks": [
-                            {"output_type": "text", "content": "查询返回空结果。"}
+                            {"output_type": "text", "content": "The query returned no rows."}
                         ]
                     },
                     ensure_ascii=False,
@@ -327,7 +327,7 @@ def make_react_tools(
                 md_rows.append("| " + " | ".join(str(v) for v in row) + " |")
             table = "\n".join([header, separator] + md_rows)
             if len(rows) > 50:
-                table += f"\n\n（仅显示前 50 行，共 {len(rows)} 行）"
+                table += f"\n\n(Showing the first 50 of {len(rows)} rows)"
 
             return json.dumps(
                 {"chunks": [{"output_type": "markdown", "content": table}]},
