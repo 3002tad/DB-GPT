@@ -54,8 +54,10 @@ _CART_OUTCOME = re.compile(
     re.IGNORECASE,
 )
 _CART_ABANDONMENT = re.compile(
-    r"(bỏ giỏ|bỏ rơi giỏ|giỏ.{0,50}không hoàn tất|"
-    r"không hoàn tất.{0,25}(?:đơn|checkout|thanh toán)|abandon(?:ed|ment)? cart)",
+    r"(bỏ giỏ|bỏ rơi giỏ|tín hiệu.{0,30}bỏ giỏ|"
+    r"giỏ.{0,50}không hoàn tất|không hoàn tất.{0,25}(?:đơn|checkout|thanh toán)|"
+    r"abandon(?:ed|ment)?(?:\s+(?:signal|rate|event|session|cart))?|"
+    r"cart.{0,30}abandon(?:ed|ment)?|drop[ -]?off|cart.{0,30}without.{0,20}checkout)",
     re.IGNORECASE,
 )
 _PAYMENT_OUTCOME = re.compile(
@@ -148,7 +150,8 @@ def guard_final_claims(content: str, steps: Iterable[dict[str, Any]],
         # line makes an unsupported interpretation.
         sentences = re.split(
             r"(?<=[.!?;])(?=\s+\S)|"
-            r"(?=,\s*(?:cho thấy|chứng tỏ|suy ra|therefore|which shows|indicating)\b)",
+            r"(?=,\s*(?:cho thấy|chứng tỏ|suy ra|therefore|which shows|indicating)\b)|"
+            r"(?=\s*(?:→|->)\s*)",
             line, flags=re.IGNORECASE,
         )
         for sentence in sentences:

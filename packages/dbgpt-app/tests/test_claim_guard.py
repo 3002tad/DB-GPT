@@ -148,6 +148,35 @@ class ClaimGuardTest(unittest.TestCase):
         self.assertNotIn("bỏ giỏ", result)
         self.assertIn("cart_abandonment", issues)
 
+    def test_abandonment_signal_wording_is_blocked_but_observation_survives(self):
+        answer = (
+            "1. **2,241 sessions** have cart links but no checkout event "
+            "→ This is a **session-level abandonment signal**, but does not "
+            "prove customers added products.\n"
+            "2. 8,720 ADD events are recorded."
+        )
+        result, issues = guard_final_claims(
+            answer,
+            [sql_step("SELECT count(*) FROM funnelmetry_demo.cart_links")],
+        )
+        self.assertIn("2,241 sessions", result)
+        self.assertNotIn("abandonment signal", result)
+        self.assertIn("8,720 ADD events", result)
+        self.assertIn("cart_abandonment", issues)
+
+    def test_dropoff_synonyms_require_cohort_evidence(self):
+        for claim in (
+            "The drop-off rate is 39.6%.",
+            "This is cart abandonment.",
+            "Đây là tín hiệu bỏ giỏ.",
+        ):
+            with self.subTest(claim=claim):
+                result, issues = guard_final_claims(
+                    claim, [sql_step("SELECT count(*) FROM cart_links")]
+                )
+                self.assertNotIn(claim, result)
+                self.assertIn("cart_abandonment", issues)
+
     def test_assertive_heading_is_checked(self):
         result, issues = guard_final_claims(
             "## Facebook mang lại 50 đơn\nNội dung khác.",

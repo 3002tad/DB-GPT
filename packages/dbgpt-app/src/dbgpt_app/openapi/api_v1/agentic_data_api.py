@@ -3960,6 +3960,9 @@ ratio step conversion requires a defined metric, linked common cohort, event
 ordering, matching time window and deduplication evidence. If these are not
 established, report the separate counts and missing evidence; a descriptive
 ratio within a proven population may still be presented with its denominator.
+Cart-link sessions without checkout are only a descriptive gap; do not label
+them abandonment, an abandonment signal, drop-off or incomplete checkout unless
+the same-session cohort, event order and observation window are established.
 Cart-link counts alone do not prove item addition or abandonment. Order-recorded
 or ON states do not prove captured payment, delivery or net revenue. Source UTM
 associations do not prove campaign causality. For any such conclusion, identify
