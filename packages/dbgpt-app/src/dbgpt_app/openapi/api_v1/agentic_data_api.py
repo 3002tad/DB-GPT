@@ -3960,6 +3960,10 @@ ratio step conversion requires a defined metric, linked common cohort, event
 ordering, matching time window and deduplication evidence. If these are not
 established, report the separate counts and missing evidence; a descriptive
 ratio within a proven population may still be presented with its denominator.
+Cart-link counts alone do not prove item addition or abandonment. Order-recorded
+or ON states do not prove captured payment, delivery or net revenue. Source UTM
+associations do not prove campaign causality. For any such conclusion, identify
+the specific executed evidence and its scope before stating it as a fact.
 Avoid introducing event names or lifecycle claims without relevant evidence.
 """
     if knowledge_space:
@@ -4734,6 +4738,18 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
     if incomplete:
         yield _sse_event(incomplete)
         final_content = incomplete["message"]
+    elif not react_state.get("_report_generation_requested"):
+        from .claim_guard import guard_final_claims
+
+        final_content, claim_issues = guard_final_claims(
+            final_content, history_steps, requested_locale,
+            artifacts=artifact_sink.snapshot() if artifact_sink is not None else None,
+        )
+        if claim_issues:
+            logger.warning(
+                "Removed unsupported final claims for conversation %s: %s",
+                conv_id, ", ".join(claim_issues),
+            )
     final_answer = final_answer_assembler.finalize(final_content)
     final_answer = await _finalize_turn_report_persistence(
         dialogue=dialogue,

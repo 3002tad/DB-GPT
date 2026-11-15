@@ -2,10 +2,34 @@
 
 import asyncio
 import logging
+import re
 from hashlib import sha256
 
 logger = logging.getLogger(__name__)
 MAX_CONTEXT_CHARS = 3500
+MAX_SELECTED_CHUNKS = 3
+MAX_CANDIDATE_CHUNKS = 8
+_STOP_WORDS = frozenset({"the", "and", "for", "with", "from", "what", "this", "that", "của", "cho", "với", "trong", "được", "những", "bao", "nhiêu", "hãy", "phân", "tích"})
+
+
+def _select_chunks(chunks, query):
+    """Prefer query-specific excerpts while keeping semantic rank as tie-breaker."""
+    terms = {word for word in re.findall(r"[^\W_]{3,}", query.casefold())
+             if word not in _STOP_WORDS}
+    ranked = []
+    seen = set()
+    for rank, chunk in enumerate(chunks or []):
+        content = (getattr(chunk, "content", "") or "").strip()
+        if not content:
+            continue
+        key = sha256(content.encode("utf-8")).hexdigest()
+        if key in seen:
+            continue
+        seen.add(key)
+        words = set(re.findall(r"[^\W_]{3,}", content.casefold()))
+        ranked.append((len(terms & words), rank, chunk))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return [item[2] for item in ranked[:MAX_SELECTED_CHUNKS]]
 
 
 def knowledge_prefetch_evidence(metadata):
@@ -49,16 +73,19 @@ async def prefetch_knowledge(system_app, knowledge_id, query, conversation_id, e
         meta["space_id"] = space.id
         meta["space_name"] = space.name
         request = KnowledgeRetrieveRequest(query=query[:1000], space_id=space.id,
-                                           top_k=3, score_threshold=0.0)
+                                           top_k=MAX_CANDIDATE_CHUNKS,
+                                           score_threshold=0.0)
         chunks = await asyncio.wait_for(service.retrieve(request, space), timeout=15)
         parts = []
         remaining = MAX_CONTEXT_CHARS
-        for chunk in chunks or []:
+        selected = _select_chunks(chunks, query)
+        for index, chunk in enumerate(selected):
             fields = parse_chunk_metadata(getattr(chunk, "metadata", None))
             content = (getattr(chunk, "content", "") or "").strip()
             if not content or remaining <= 0:
                 continue
-            content = content[:remaining]
+            # Reserve room for other relevant excerpts when the first chunk is long.
+            content = content[:remaining // (len(selected) - index)]
             remaining -= len(content)
             ref = {"document_id": fields.get("document_id") or fields.get("doc_id"),
                    "document": fields.get("doc_name") or fields.get("file_path"),

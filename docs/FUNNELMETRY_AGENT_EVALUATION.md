@@ -1,5 +1,36 @@
 # Funnelmetry: kiểm thử Agent có kiểm soát
 
+## Truy hồi Knowledge Base đã chọn
+
+Prefetch xét tối đa tám đoạn theo truy hồi ngữ nghĩa, loại đoạn nội dung trùng,
+rồi ưu tiên độ khớp từ khóa với câu hỏi (thứ hạng ngữ nghĩa dùng để phá hòa).
+Tối đa ba đoạn được đưa vào prompt, chia ngân sách 3.500 ký tự nội dung để
+tránh một đoạn dài che hết các đoạn khác. Trace `knowledge.prefetch` giữ
+document/chunk ID và hash của đoạn đã dùng. Đây là chỉ mục dẫn xuất; Agent
+vẫn cần đối chiếu schema và số liệu với datasource nếu KB thiếu hoặc không
+khớp phiên bản. Không mặc định rằng chỉ chọn KB trên UI đồng nghĩa đã đọc
+đúng đoạn.
+
+## Kiểm tra claim khi kết thúc lượt phân tích
+
+Trước khi lưu và phát ra UI, câu trả lời được kiểm tra đối với các kết luận
+nghiệp vụ có rủi ro cao: thêm/bỏ giỏ, thanh toán, hoàn tiền, giao hàng,
+conversion, retention, tồn kho có thể bán, quy kết nguồn UTM và quan hệ nhân
+quả. Bộ kiểm tra ưu tiên SQL artifact thành công của cả Agent chính và
+subagent; chỉ khi không có artifact sink mới đọc trace SQL của Agent chính.
+Các thành phần bằng chứng phải xuất hiện trong cùng một truy vấn, không ghép
+nhiều truy vấn riêng thành một chứng minh. Câu vượt kiểm tra được lược bỏ,
+giữ câu số liệu liền trước khi có thể tách, và UI nhận ghi chú về giới hạn;
+server ghi loại claim bị lược bỏ để đối chiếu trace. Kết luận trong tiêu đề
+và kết luận không có công cụ cung cấp bằng chứng cũng được kiểm tra.
+
+Đây là lớp phòng lỗi theo nhóm claim nhận diện rõ, không phải bộ chứng nhận
+mọi câu văn tự do, phép tính hoặc tính đúng của dữ liệu. SQL khớp hình dạng
+vẫn có thể trả về dữ liệu không hỗ trợ cách diễn giải; cần tiếp tục dựa vào
+metric, quality, provenance và evidence contract. Khi lượt chỉ truy hồi tài
+liệu Knowledge Base mà không chạy SQL, lớp kiểm tra không tự xoá nội dung tài
+liệu vì chưa có bộ đối chiếu claim với trích dẫn KB.
+
 Khi gửi `POST /api/v1/chat/react-agent`, có thể giới hạn lượt kiểm thử của
 Agent chính dùng native tool calling bằng cách thêm vào request:
 

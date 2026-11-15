@@ -6,7 +6,7 @@ from unittest.mock import patch
 from hashlib import sha256
 
 from dbgpt_app.openapi.api_v1.knowledge_prefetch import (
-    prefetch_knowledge, knowledge_prefetch_evidence,
+    prefetch_knowledge, knowledge_prefetch_evidence, _select_chunks,
 )
 
 
@@ -17,7 +17,7 @@ def test_selected_space_context_is_bounded_and_traced():
             return SimpleNamespace(id=4, name="selected-kb")
 
         async def retrieve(self, request, space):
-            assert request.space_id == 4 and request.top_k == 3
+            assert request.space_id == 4 and request.top_k == 8
             return [SimpleNamespace(content="x" * 5000, metadata={
                 "document_id": 7, "doc_name": "snapshot-v1", "chunk_id": "c1"})]
 
@@ -61,3 +61,18 @@ def test_retrieval_failure_is_visible_and_does_not_block_agent():
         assert asyncio.run(prefetch_knowledge(None, "selected-kb", "question", "conv", evidence)) == ""
     assert knowledge_prefetch_evidence(evidence)["status"] == "error"
     assert knowledge_prefetch_evidence(evidence)["documents"] == []
+
+
+def test_prefetch_selects_relevant_schema_chunk_and_deduplicates():
+    def chunk(text):
+        return SimpleNamespace(content=text, metadata={})
+
+    candidates = [chunk("generic dashboard overview"),
+                  chunk("order payment metadata"),
+                  chunk("session funnelmetry_demo browser_events session_id checkout"),
+                  chunk("session funnelmetry_demo browser_events session_id checkout")]
+    selected = _select_chunks(candidates, "session browser_events checkout")
+    assert len(selected) == 3
+    assert selected[0].content == candidates[2].content
+    assert selected[1].content == candidates[0].content
+    assert selected[2].content == candidates[1].content
