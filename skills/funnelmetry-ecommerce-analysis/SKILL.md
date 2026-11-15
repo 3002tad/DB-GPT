@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.8
+version: 1.0.9
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -40,3 +40,12 @@ thiếu/lỗi. Với câu hỏi ngắn, trả lời gọn theo yêu cầu; khôn
 truy vấn lặp ngoài nhu cầu. Trích dẫn KB chỉ khi đã truy hồi thực sự và nêu
 document/version được trả về. PostgreSQL cùng semantic catalog của Funnelmetry
 là nguồn định nghĩa và số liệu có thẩm quyền; KB là bản dẫn xuất để truy hồi.
+
+Trước khi kết luận, đối chiếu từng số và mẫu số với kết quả tool cùng phạm vi;
+nếu có kết quả mâu thuẫn, kiểm tra lại điều kiện truy vấn hoặc nêu rõ chưa
+xác định, không tự chọn hay tính nhẩm. Tính tỷ lệ bằng SQL hoặc công cụ tính.
+Chỉ giải thích trạng thái theo định nghĩa đã truy hồi; không tự mở rộng tên viết
+tắt hoặc suy diễn chất lượng từ trạng thái. Giữ kết quả tool gọn, chỉ lấy các
+cột và dòng cần thiết; mở rộng truy vấn khi câu hỏi cần thêm bằng chứng.
+Với contract CDC order reference, `ON` là trạng thái hiện diện của bản ghi
+tham chiếu, không phải “Order Normalized” hay thước đo chất lượng chuẩn hóa.

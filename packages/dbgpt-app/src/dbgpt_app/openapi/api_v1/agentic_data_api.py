@@ -3518,7 +3518,15 @@ For report repairs, each renderer result replaces the previous error list.
 Once a patch is accepted, do not submit it again. Fix the latest reported targets.
 When all requested deliverables are complete, call terminate with output.
 """
-    if react_state["_report_language"] == "en":
+    if requested_locale.startswith("vi"):
+        language_instruction = (
+            "The user's interface is Vietnamese. Write user-visible text in "
+            "Vietnamese, including intentions, todo items, step titles, status "
+            "messages and the final answer, unless the user requests another "
+            "language. Keep SQL identifiers, field names and quoted source text "
+            "unchanged."
+        )
+    elif react_state["_report_language"] == "en":
         language_instruction = (
             "The user's interface and question are English. Write ALL user-visible "
             "text in English: intention, thought, todo items, step titles, status "
