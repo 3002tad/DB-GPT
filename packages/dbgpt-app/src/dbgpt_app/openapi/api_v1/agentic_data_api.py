@@ -2456,6 +2456,12 @@ async def _react_agent_stream_impl(
 ## Database information
 - Database name: {database_name}
 - SQL dialect: {database_connector.dialect}
+- Match every SQL query to this dialect. PostgreSQL SELECT literals do not need FROM dual.
+- Use schema-qualified relation names when the source schema is known. Qualify columns in joins.
+- Use only columns verified by retrieved metadata or a successful schema query; after an undefined-column error, inspect that relation before retrying.
+- When schema discovery returns no rows, change the schema/database assumption or query a known qualified relation. Do not repeat broad empty metadata searches.
+- In the final answer, state the grain actually counted by SQL. Do not label COUNT(DISTINCT session_id) as (dataset_id, session_id) unless the dataset is filtered or both keys are counted.
+- Do not present executable SQL using a table or column that this run has not verified; describe the evidence needed instead.
 - Available tables: {", ".join(table_names)}
 - Table structure:
 {table_info}

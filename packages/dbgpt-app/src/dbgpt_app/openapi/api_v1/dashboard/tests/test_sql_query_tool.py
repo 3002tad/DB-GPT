@@ -142,6 +142,22 @@ def test_sql_same_error_with_different_query_suggests_recovery_without_blocking(
     assert connector.calls == 2
 
 
+def test_postgres_specific_sql_errors_have_actionable_hints():
+    class Connector:
+        def run(self, sql):
+            if "dual" in sql:
+                raise RuntimeError('relation "dual" does not exist')
+            raise RuntimeError('column reference "session_id" is ambiguous')
+
+    query = make_sql_query({}, Connector())
+    dual = json.loads(query(sql="SELECT 1 FROM dual"))
+    ambiguous = json.loads(query(sql="SELECT session_id FROM carts JOIN sessions ON true"))
+    assert dual["error_code"] == "SQL_UNDEFINED_TABLE"
+    assert "Remove it" in dual["recovery_hint"]
+    assert ambiguous["error_code"] == "SQL_AMBIGUOUS_COLUMN"
+    assert "alias" in ambiguous["recovery_hint"]
+
+
 def test_schema_discovery_reuses_result_but_business_sql_stays_live():
     connector = _Connector()
     query = make_sql_query({}, connector)
@@ -154,6 +170,33 @@ def test_schema_discovery_reuses_result_but_business_sql_stays_live():
     assert first["artifact_id"] == second["artifact_id"]
     assert second["cached_schema_result"] is True
     assert connector.calls == 3
+
+
+def test_broad_empty_schema_discovery_stops_after_two_distinct_queries():
+    class Connector:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, sql):
+            self.calls.append(sql)
+            if "information_schema" in sql:
+                return [[("table_name",)]]
+            return [[("value",)], [1]]
+
+    connector = Connector()
+    query = make_sql_query({}, connector)
+    first = json.loads(query(sql="SELECT table_name FROM information_schema.tables WHERE table_schema='public'"))
+    second = json.loads(query(sql="SELECT table_name FROM information_schema.tables WHERE table_schema='demo'"))
+    blocked = json.loads(query(sql="SELECT table_name FROM information_schema.tables"))
+    targeted = json.loads(query(sql="SELECT table_name FROM information_schema.tables WHERE table_name='orders'"))
+    business = json.loads(query(sql="SELECT 1"))
+
+    assert first["schema_discovery_empty"] is True
+    assert second["schema_discovery_empty"] is True
+    assert blocked["error_code"] == "SQL_SCHEMA_DISCOVERY_EMPTY_LOOP"
+    assert "artifact_id" in targeted
+    assert "artifact_id" in business
+    assert len(connector.calls) == 4
 
 
 def test_quality_block_is_exposed_as_a_warning_not_a_zero_count():

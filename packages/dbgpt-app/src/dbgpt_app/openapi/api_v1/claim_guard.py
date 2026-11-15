@@ -94,6 +94,40 @@ _ATTRIBUTION = re.compile(
 )
 _CART_SOURCE = re.compile(r"cart_item|cart\.item_added|cart_item_changes")
 _TIME_SOURCE = re.compile(r"occurred_at|created_at|started_at|event_time")
+_DATASET_SESSION_GRAIN = re.compile(
+    r"\(?\s*dataset_id\s*,\s*session_id\s*\)?", re.IGNORECASE,
+)
+_SQL_RELATION = re.compile(r"\b(?:from|join)\s+([\w.]+)", re.IGNORECASE)
+
+
+def _dataset_session_grain_supported(queries: list[str]) -> bool:
+    return any(
+        "dataset_id" in sql and "session_id" in sql and (
+            re.search(r"(?:select|group\s+by)\s+(?:distinct\s+)?dataset_id\s*,\s*session_id", sql)
+            or re.search(r"count\s*\(\s*distinct\s*\(\s*dataset_id\s*,\s*session_id", sql)
+            or (re.search(r"\bwhere\b[\s\S]*\bdataset_id\s*=", sql)
+                and re.search(r"count\s*\(\s*distinct\s+session_id", sql))
+        ) for sql in queries
+    )
+
+
+def _remove_unverified_sql_examples(content: str, queries: list[str]) -> tuple[str, bool]:
+    """A proposed SQL block must not present an unqueried relation as usable."""
+    if not queries:
+        return content, False
+    verified = {name for sql in queries for name in _SQL_RELATION.findall(sql)}
+    changed = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal changed
+        relations = _SQL_RELATION.findall(match.group(1))
+        if relations and any(name.casefold() not in verified for name in relations):
+            changed = True
+            return "[SQL example omitted: verify the referenced table and columns first.]"
+        return match.group(0)
+
+    result = re.sub(r"```sql\s*\n([\s\S]*?)\n```", replace, content, flags=re.IGNORECASE)
+    return result, changed
 
 
 def _has_evidence(queries: list[str], *patterns: str) -> bool:
@@ -137,9 +171,18 @@ def guard_final_claims(content: str, steps: Iterable[dict[str, Any]],
         # A retrieved document may supply claims outside SQL. This guard has
         # no document-to-claim verifier and must not erase that source.
         return content, []
-    issues = []
+    content, unverified_sql_example = _remove_unverified_sql_examples(content, queries)
+    issues = ["unverified_sql_example"] if unverified_sql_example else []
     output = []
+    in_code_fence = False
     for line in content.splitlines(keepends=True):
+        if line.lstrip().startswith("```"):
+            in_code_fence = not in_code_fence
+            output.append(line)
+            continue
+        if in_code_fence:
+            output.append(line)
+            continue
         if line.lstrip().startswith("#") and not re.search(
             r"\d|đã|tăng|giảm|mang lại|gây ra|dẫn đến|caused|generated", line,
             re.IGNORECASE,
@@ -180,6 +223,10 @@ def _check_sentence(
     if not assertion:
         output.append(line)
         return
+    if _DATASET_SESSION_GRAIN.search(assertion) and not _is_limitation(assertion, None):
+        if not _dataset_session_grain_supported(queries):
+            issues.append("unsupported_grain")
+            return
     checks = (
         (
             _CART_ABANDONMENT,

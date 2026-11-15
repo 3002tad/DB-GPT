@@ -46,6 +46,7 @@ def make_sql_query(
 ):
     call_count = 0
     schema_cache: Dict[str, Any] = {}
+    empty_schema_discoveries = 0
     limit_description = (
         f" Dashboard planning allows at most {max_calls} discovery calls; "
         "after that, use the collected observations and call plan_dashboard."
@@ -65,7 +66,7 @@ def make_sql_query(
     async def sql_query(sql: str) -> str:
         """Execute a read-only SQL query against the selected database."""
 
-        nonlocal call_count
+        nonlocal call_count, empty_schema_discoveries
         def with_recovery(payload: Dict[str, Any], query: str) -> str:
             signal = observe_tool_result(
                 react_state, "sql_query", query,
@@ -153,8 +154,26 @@ def make_sql_query(
             )) and
             not re.search(r"\b(?:JOIN|UNION)\b", sql_stripped, re.IGNORECASE)
         )
+        broad_schema_query = schema_query and not re.search(
+            r"\b(?:table_name|relname)\s*(?:=|~|\b(?:IN|LIKE|ILIKE|SIMILAR\s+TO)\b)",
+            sql_stripped, re.IGNORECASE,
+        )
+        if broad_schema_query and empty_schema_discoveries >= 2:
+            return json.dumps({
+                "success": False,
+                "error_code": "SQL_SCHEMA_DISCOVERY_EMPTY_LOOP",
+                "chunks": [{"output_type": "text", "content": (
+                    "Broad schema discovery returned no rows twice in this task. "
+                    "This query was not executed. Check the selected database and "
+                    "schema/search_path, query a known schema-qualified relation, "
+                    "or target a specific table_name."
+                )}],
+                "recovery_hint": "Use a schema-qualified relation or a targeted metadata query.",
+            }, ensure_ascii=False)
         cached = schema_cache.get(sql_stripped) if schema_query else None
         if cached and time.monotonic() - cached[0] < 60:
+            if broad_schema_query and cached[1].get("schema_discovery_empty"):
+                empty_schema_discoveries += 1
             return with_recovery({**cached[1], "cached_schema_result": True}, sql_stripped)
         started = time.perf_counter()
         cancel_event = Event()
@@ -176,6 +195,8 @@ def make_sql_query(
 
             result = await asyncio.wait_for(execute(), timeout=query_timeout_seconds)
             if not result:
+                if broad_schema_query:
+                    empty_schema_discoveries += 1
                 artifact_id = capture_sql_execution(
                     sql=sql_stripped,
                     database=connector_database_name(database_connector, artifact_sink),
@@ -197,6 +218,10 @@ def make_sql_query(
             columns = result[0]
             col_names = [str(c[0]) if isinstance(c, tuple) else str(c) for c in columns]
             rows = result[1:]
+            if broad_schema_query and not rows:
+                empty_schema_discoveries += 1
+            elif rows:
+                empty_schema_discoveries = 0
 
             artifact_id = capture_sql_execution(
                 sql=sql_stripped,
@@ -230,6 +255,13 @@ def make_sql_query(
                 "artifact_id": artifact_id,
                 "chunks": [{"output_type": "markdown", "content": table}],
             }
+            if broad_schema_query and not rows:
+                response["schema_discovery_empty"] = True
+                response["recovery_hint"] = (
+                    "No metadata rows matched. Check the selected database and "
+                    "schema/search_path; use a known schema-qualified relation "
+                    "or target a specific table_name."
+                )
             # A returned quality status is evidence, not an empty dataset. Do
             # not infer a gate from arbitrary NULLs or from SQL text alone.
             quality_columns = [
@@ -287,6 +319,7 @@ def make_sql_query(
                 "BLOCKED_BY_QUALITY" if quality_blocked else
                 "SQL_UNDEFINED_TABLE" if sql_state == "42P01" or "does not exist" in error_text and "relation" in error_text else
                 "SQL_UNDEFINED_COLUMN" if sql_state == "42703" or "column" in error_text and "does not exist" in error_text else
+                "SQL_AMBIGUOUS_COLUMN" if sql_state == "42702" or "column reference" in error_text and "ambiguous" in error_text else
                 "SQL_QUERY_FAILED"
             )
             message = (
@@ -296,12 +329,16 @@ def make_sql_query(
                 else f"{code}: SQL execution failed: {e}"
             )
             recovery_hint = (
+                "PostgreSQL does not require FROM dual. Remove it and select the expression directly."
+                if code == "SQL_UNDEFINED_TABLE" and re.search(r"\bfrom\s+dual\b", sql_stripped, re.IGNORECASE) else
                 "Inspect information_schema.tables/views and use a schema-qualified name, "
                 "for example funnelmetry_demo.browser_events."
                 if code == "SQL_UNDEFINED_TABLE" else
                 "Inspect information_schema.columns for the named view; use its actual "
                 "columns and grain before rewriting the query."
                 if code == "SQL_UNDEFINED_COLUMN" else
+                "Qualify the column with the correct table or CTE alias in joins."
+                if code == "SQL_AMBIGUOUS_COLUMN" else
                 "Inspect EXPLAIN and narrow the query before retrying."
                 if timed_out else None
             )

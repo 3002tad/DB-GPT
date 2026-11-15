@@ -186,5 +186,35 @@ class ClaimGuardTest(unittest.TestCase):
         self.assertNotIn("Facebook mang lại", result)
 
 
+class TraceRegressionTests(unittest.TestCase):
+    def test_dataset_session_grain_requires_both_keys_in_query(self):
+        answer = "Grain: (dataset_id, session_id).\nCount: 2,241 sessions."
+        guarded, issues = guard_final_claims(
+            answer, [sql_step("SELECT COUNT(DISTINCT session_id) FROM funnelmetry_demo.cart_links")]
+        )
+        self.assertIn("unsupported_grain", issues)
+        self.assertNotIn("Grain:", guarded)
+        self.assertIn("Count: 2,241 sessions", guarded)
+
+    def test_verified_composite_grain_is_kept(self):
+        answer = "Grain: (dataset_id, session_id)."
+        guarded, issues = guard_final_claims(
+            answer, [sql_step("SELECT COUNT(DISTINCT (dataset_id, session_id)) FROM funnelmetry_demo.cart_links")]
+        )
+        self.assertEqual((guarded, issues), (answer, []))
+
+    def test_unverified_sql_example_is_removed_from_analysis(self):
+        answer = (
+            "Observed ON orders.\n```sql\nSELECT SUM(amount_minor) "
+            "FROM funnelmetry_demo.payments WHERE action='CAPTURED';\n```"
+        )
+        guarded, issues = guard_final_claims(
+            answer, [sql_step("SELECT COUNT(*) FROM funnelmetry_demo.orders")]
+        )
+        self.assertIn("unverified_sql_example", issues)
+        self.assertNotIn("FROM funnelmetry_demo.payments", guarded)
+        self.assertIn("Observed ON orders", guarded)
+
+
 if __name__ == "__main__":
     unittest.main()

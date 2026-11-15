@@ -84,6 +84,14 @@ Trong cùng task, truy vấn schema `information_schema`/`pg_catalog` giống h�
 dùng kết quả cũ khi dữ liệu live thay đổi. Cache này không áp dụng cho đường
 Dashboard có giới hạn discovery calls riêng.
 
+Nếu hai truy vấn khám phá schema rộng liên tiếp trả rỗng, tool SQL từ chối truy
+vấn rộng tiếp theo với `SQL_SCHEMA_DISCOVERY_EMPTY_LOOP`. Agent được hướng dẫn
+kiểm tra database/schema đã chọn, truy vấn trực tiếp relation có schema đầy đủ
+hoặc truy vấn metadata nhắm đúng `table_name`; truy vấn dữ liệu nghiệp vụ và
+metadata nhắm bảng cụ thể vẫn dùng được. Câu trả lời cuối chỉ ghi grain mà SQL
+đã kiểm chứng, và SQL minh họa tham chiếu relation chưa xác minh trong lượt
+được lược bỏ để tránh đưa hướng dẫn không chạy được.
+
 ## Cơ chế phục hồi hiện hành
 
 - `knowledge_retrieve` trả lỗi có cấu trúc. Sau hai lần lỗi giống hệt, lời gọi đọc `knowledge_retrieve`, `kb_ls` hoặc `kb_cat` lần thứ ba được bỏ qua và trả `TOOL_REPEATED_FAILURE`. Agent vẫn có thể đổi tham số hoặc dùng tool khác; các tool còn lại chỉ nhận gợi ý phục hồi.
