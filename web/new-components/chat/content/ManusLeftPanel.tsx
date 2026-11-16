@@ -135,7 +135,8 @@ export interface ArtifactItem {
     | 'query'
     | 'skill'
     | 'dashboard'
-    | 'expert_suite';
+    | 'expert_suite'
+    | 'artifact_bundle';
   name: string;
   content: any;
   createdAt: number;

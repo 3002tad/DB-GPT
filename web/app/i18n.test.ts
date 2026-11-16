@@ -8,6 +8,18 @@ import { localizeConnectorCatalog, localizeConnectorField } from '@/new-componen
 import { dashboardSourceLabel } from '@/new-components/dashboard/dashboard-source-label';
 import { officialSkillDescription, skillDisplayDescription, skillMatchesSearch } from '@/new-components/skills/official-skill-descriptions';
 
+function translationLeaves(value: Record<string, unknown>, prefix = ''): Record<string, string> {
+  const leaves: Record<string, string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (typeof item === 'string') leaves[path] = item;
+    else if (item && typeof item === 'object' && !Array.isArray(item)) {
+      Object.assign(leaves, translationLeaves(item as Record<string, unknown>, path));
+    }
+  }
+  return leaves;
+}
+
 describe('Vietnamese interface locale', () => {
   it('localizes bundled skill descriptions and preserves unknown or Chinese descriptions', () => {
     const original = '原始描述';
@@ -61,23 +73,25 @@ describe('Vietnamese interface locale', () => {
     expect(localizeConnectorCatalog('feishu', 'zh', fallback)).toEqual(fallback);
     expect(localizeConnectorField('auth_type', 'vi', '认证方式')).toBe('Phương thức xác thực');
     expect(localizeConnectorField('unknown', 'vi', 'Custom field')).toBe('Custom field');
-    expect(dashboardSourceLabel('sqlite_voice_lab', 'vi')).toContain('Dữ liệu mẫu tổng hợp');
-    expect(dashboardSourceLabel('my-own-source', 'vi')).toBe('my-own-source');
+    expect(dashboardSourceLabel('sqlite_voice_lab')).toContain('Dữ liệu mẫu tổng hợp');
+    expect(dashboardSourceLabel('my-own-source')).toBe('my-own-source');
   });
 
   it('preserves interpolation variables in translated strings', () => {
     const english = i18n.getResourceBundle('en', 'translation') as Record<string, unknown>;
     const placeholders = (value: string) => [...value.matchAll(/{{\s*([^{}]+?)\s*}}/g)].map(match => match[1]).sort();
-    for (const [key, translated] of Object.entries(vi)) {
-      if (typeof english[key] === 'string') {
-        expect(placeholders(translated), key).toEqual(placeholders(english[key] as string));
+    for (const [key, translated] of Object.entries(translationLeaves(vi))) {
+      const original = translationLeaves(english)[key];
+      if (typeof original === 'string') {
+        expect(placeholders(translated), key).toEqual(placeholders(original));
       }
     }
   });
 
   it('covers every English translation key', () => {
     const english = i18n.getResourceBundle('en', 'translation') as Record<string, unknown>;
-    expect(Object.keys(english).filter(key => key !== '__fallback_test' && !(key in vi))).toEqual([]);
+    const translated = translationLeaves(vi);
+    expect(Object.keys(translationLeaves(english)).filter(key => key !== '__fallback_test' && !(key in translated))).toEqual([]);
   });
 
   it('covers literal bilingual Dashboard labels', () => {

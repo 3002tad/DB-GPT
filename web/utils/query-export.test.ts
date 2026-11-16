@@ -4,7 +4,7 @@ import { buildQueryCsv } from './query-export';
 
 describe('buildQueryCsv', () => {
   it('emits header + escaped rows with CRLF', () => {
-    const csv = buildQueryCsv({
+    const csv = buildQueryCsv({ sql: 'SELECT demo',
       columns: ['品类', '金额'],
       rows: [
         ['美妆,护肤', 'say "hi"'],
@@ -19,7 +19,7 @@ describe('buildQueryCsv', () => {
   });
 
   it('handles empty result sets', () => {
-    const csv = buildQueryCsv({ columns: ['a'], rows: [] });
+    const csv = buildQueryCsv({ sql: 'SELECT demo', columns: ['a'], rows: [] });
     expect(csv).toBe('a');
   });
 });

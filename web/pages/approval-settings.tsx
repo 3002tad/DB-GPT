@@ -338,7 +338,7 @@ export default function ApprovalSettingsPage() {
               placeholder={t('setting_pg_ph')}
               className='h-8 flex-1 rounded-lg border border-[#e6e6e2] px-2 font-mono text-[12.5px] dark:border-[#33353b] dark:bg-[#17181c]'
             />
-            <button className='h-8 rounded-lg border border-[#e6e6e2] px-3 text-[12.5px] text-[#5c5c55] dark:border-[#33353b]' onClick={runPlayground}>
+            <button className='h-8 rounded-lg border border-[#e6e6e2] px-3 text-[12.5px] text-[#5c5c55] dark:border-[#33353b]' onClick={() => void runPlayground()}>
               {t('setting_pg_run')}
             </button>
           </div>

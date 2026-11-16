@@ -82,7 +82,7 @@ describe('question slots and request identity', () => {
         onReject={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'qdock_recommend', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'qdock_recommend' }));
     fireEvent.click(screen.getByRole('button', { name: /qdock_submit/ }));
     expect(onReply).toHaveBeenCalledWith('A', [['HTML 报告']]);
   });

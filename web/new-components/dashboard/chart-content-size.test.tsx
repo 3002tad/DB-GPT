@@ -18,7 +18,7 @@ describe('dashboard chart content-box sizing', () => {
       xField: 'day',
       yField: 'value',
     });
-    const ticks = data.filter((row, index) => config.axis.x.tickFilter(row.day, index));
+    const ticks = data.filter((row, index) => config.axis.x.tickFilter(row.day));
     expect(ticks.length).toBeLessThanOrEqual(8);
     expect(ticks[0]).toBe(data[0]);
     expect(ticks.at(-1)).toBe(data.at(-1));

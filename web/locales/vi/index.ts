@@ -1,3 +1,5 @@
+import upstreamVi from './upstream-integration';
+
 // Missing translations deliberately fall back to English in app/i18n.ts.
 const vi: Record<string, string> = {
   language: 'Ngôn ngữ',
@@ -1628,4 +1630,5 @@ const vi: Record<string, string> = {
   feed_back_desc: '0: Không có kết quả\n1: Có kết quả nhưng không liên quan, hệ thống chưa hiểu câu hỏi\n2: Có kết quả, hệ thống hiểu câu hỏi nhưng cho biết không thể trả lời\n3: Có kết quả và câu trả lời nhưng câu trả lời sai\n4: Câu trả lời đúng nhưng dài dòng và thiếu tóm tắt\n5: Câu trả lời và lập luận đúng, có tóm tắt ngắn gọn, đi thẳng vào vấn đề\n',
 };
 
-export default vi;
+const translations: Record<string, unknown> = { ...vi, ...upstreamVi };
+export default translations;

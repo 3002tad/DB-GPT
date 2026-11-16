@@ -9,7 +9,7 @@ import {
 } from '@/utils/semantic-provenance';
 import { act, cleanup, fireEvent, render as renderUI, screen, waitFor } from '@testing-library/react';
 import { createInstance } from 'i18next';
-import type { ReactElement } from 'react';
+import type { ComponentProps, ReactElement } from 'react';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SemanticProvenance from './SemanticProvenance';
@@ -28,7 +28,7 @@ i18n.use(initReactI18next).init({
 
 function render(ui: ReactElement, expandSources = true) {
   const result = renderUI(ui, {
-    wrapper: ({ children }) => <I18nextProvider i18n={i18n}>{children}</I18nextProvider>,
+    wrapper: ({ children }) => <I18nextProvider i18n={i18n as NonNullable<ComponentProps<typeof I18nextProvider>['i18n']>}>{children}</I18nextProvider>,
   });
   if (expandSources) {
     const toggle = screen.queryByRole('button', { name: /展开引用来源|Expand sources/ });
@@ -229,7 +229,7 @@ describe('semantic citation interactions', () => {
         ...querySources[0].payload,
         sql: `SELECT ${index}`,
         execution: {
-          ...querySources[0].payload.execution,
+          ...querySources[0].payload.execution!,
           artifact_id: `sql-${index}`,
         },
       },

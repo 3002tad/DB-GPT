@@ -1,5 +1,6 @@
 /** Translations for built-in dashboard copy not yet migrated to i18next keys. */
 export const viUiText: Record<string, string> = {
+  'AI voice interaction · Synthetic demo data': 'Tương tác giọng nói AI · Dữ liệu mẫu tổng hợp',
   'Running...': 'Đang thực thi...',
   'Please wait. Results will appear shortly.': 'Vui lòng đợi, kết quả sẽ sớm hiển thị.',
   'No outputs yet': 'Chưa có kết quả',

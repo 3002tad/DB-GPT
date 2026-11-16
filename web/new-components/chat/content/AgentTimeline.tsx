@@ -29,6 +29,7 @@ import {
 import cls from 'classnames';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { QueryArtifactPayload } from '@/utils/query-export';
 import QueryArtifactBlock from './QueryArtifactBlock';
 import TerminalToolRow, { isTerminalTool, terminalCommand, TerminalIcon } from './TerminalToolRow';
 import { resolveImageUrl } from './image-url';
@@ -51,14 +52,7 @@ interface TimelineBlock {
   input?: string;
   output?: string;
   /** sql_query rows: structured result set rendered as the shared data card */
-  queryPayload?: {
-    sql?: string;
-    columns?: string[];
-    rows?: unknown[];
-    row_count?: number;
-    truncated?: boolean;
-    db_name?: string;
-  };
+  queryPayload?: QueryArtifactPayload;
   /** image payloads lifted out of tool-result envelopes (chart pngs) */
   outputImages?: string[];
   /** accumulated thinking text (drives the live summary) */
@@ -635,7 +629,8 @@ export function stepsToTimelineBlocks(
         ].find(output => output.output_type === 'code' && typeof output.content === 'string')?.content
       : undefined;
     const queryChunk = [...rawOutputs, ...embeddedChunks].find(
-      o => o.output_type === 'query' && o.content && typeof o.content === 'object',
+      o => o.output_type === 'query' && o.content && typeof o.content === 'object' &&
+        typeof o.content.sql === 'string' && Array.isArray(o.content.columns) && Array.isArray(o.content.rows),
     );
     const queryPayload = queryChunk ? (queryChunk.content as NonNullable<TimelineBlock['queryPayload']>) : undefined;
     // Tool-result envelopes must never leak as raw JSON: lift image payloads

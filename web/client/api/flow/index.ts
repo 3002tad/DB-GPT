@@ -77,7 +77,7 @@ export const getFlowTemplates = () => {
   // Templates ship per-language; follow the UI locale instead of the server
   // process language so the EN UI never shows zh-only template cards.
   const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
-  return GET<null, any>(`/api/v2/serve/awel/flow/templates`, { lang });
+  return GET<{ lang: string }, any>(`/api/v2/serve/awel/flow/templates`, { lang });
 };
 
 /** TaskFlow: product node kind manifest (drives palette + property panel) */

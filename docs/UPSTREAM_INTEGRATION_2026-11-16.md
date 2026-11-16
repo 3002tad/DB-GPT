@@ -171,3 +171,42 @@ before mutation, and check semantic connector grants. Nine Node origin/locale
 tests remain passing. Changed TypeScript parses; full typecheck/build, database
 bootstrap and deployed UI/network validation are still required. Isolated handler
 checks are not a full ASGI/DB integration test. Main/VPS remain unchanged.
+
+## UI TypeScript repair validation
+
+VPS worktree /srv/KLTN/DB-GPT-integration-build was based on e5c2837e,
+then received the local UI repair patch without changing the running service.
+Full `tsc --noEmit --pretty false --incremental false` completed with exit 0.
+Repairs cover duplicate locale properties, obsolete API arguments, event callback
+signatures, typed query artifacts with required-field checks, the artifact_bundle
+union member, test fixtures and stale sidebar fields. No ignoreBuildErrors or
+broad any cast was added to suppress the compiler.
+
+Focused Vitest run: SemanticProvenance, QuestionDock, chart-content-size and
+query-export tests passed. app/i18n.test.ts still has two failures: the synthetic
+voice-source label falls back to English and newly merged English keys lack
+Vietnamese entries. These are localization coverage gaps, not TypeScript errors;
+the checks were retained. Existing QuestionDock act warnings were also observed.
+No UI build/image rebuild, commit, push or deployment was performed for this
+repair patch; the backend-candidate image still points to e5c2837e.
+
+## Vietnamese coverage follow-up
+
+Both remaining i18n failures are resolved. Added upstream-integration.ts with
+Vietnamese values for 838 previously missing top-level entries (941 string
+leaves, including the nested Semantic Center). Existing Vietnamese definitions
+are retained. The synthetic voice-source label is translated in the Dashboard
+copy bridge, while unknown/user-defined source names remain unchanged.
+
+The coverage and interpolation tests now recurse through nested translations;
+they are not relaxed to accept English fallback as Vietnamese coverage. English
+and Chinese locale selection and unknown-key fallback remain supported.
+
+VPS verification on the integration worktree plus this patch:
+- app/i18n.test.ts: 11/11 passed, including nested key coverage and placeholder parity.
+- Full tsc --noEmit --pretty false --incremental false: exit 0.
+- git diff --check: passed locally.
+
+This verifies the locale resources covered by the tests, not every hardcoded
+string in every newly imported module. No commit, push, image rebuild or runtime
+deployment was performed for this translation patch.

@@ -1025,7 +1025,7 @@ const OutputRenderer: React.FC<{ output: ExecutionOutput; index: number; action?
             {(() => {
               const rawHtml =
                 typeof content === 'string' ? content : content?.html || content?.content || String(content);
-              return <AutoHeightIframe srcDoc={resolveHtmlImageUrls(rawHtml, true)} title={content?.title} />;
+              return <AutoHeightIframe srcDoc={resolveHtmlImageUrls(rawHtml)} title={content?.title} />;
             })()}
           </div>
         )}
@@ -1310,7 +1310,7 @@ const HtmlTabbedRenderer: React.FC<{
   const htmlContent = html.content;
   const rawHtml =
     typeof htmlContent === 'string' ? htmlContent : htmlContent?.html || htmlContent?.content || String(htmlContent);
-  const htmlString = resolveHtmlImageUrls(rawHtml, true);
+  const htmlString = resolveHtmlImageUrls(rawHtml);
   const sourceCode = code ? String(code.content) : rawHtml;
 
   if (isFinancialReportReference(htmlContent)) {
@@ -2518,7 +2518,7 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
         ? previewArtifact.content
         : previewArtifact.content?.html || previewArtifact.content?.content || String(previewArtifact.content)
       : undefined;
-    const fallback = fallbackHtml ? cleanReportHtmlForExport(resolveHtmlImageUrls(fallbackHtml, true)) : undefined;
+    const fallback = fallbackHtml ? cleanReportHtmlForExport(resolveHtmlImageUrls(fallbackHtml)) : undefined;
     const exported = (iframe ? await exportRenderedReportHtml(iframe) : undefined) || fallback;
     if (!exported) {
       message.error(t('report_export_not_ready'));
@@ -2990,7 +2990,7 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
                   : previewArtifact.content?.html ||
                     previewArtifact.content?.content ||
                     String(previewArtifact.content);
-              const srcDoc = resolveHtmlImageUrls(rawHtml, true);
+              const srcDoc = resolveHtmlImageUrls(rawHtml);
               return (
                 <>
                   <ReportIframe
