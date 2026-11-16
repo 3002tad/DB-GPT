@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import time
+from datetime import datetime, timezone
 from functools import wraps
 from threading import Event
 from typing import Any, Dict, Optional
@@ -16,6 +17,10 @@ from dbgpt.core.interface.report_capture import (
 from dbgpt.datasource.rdbms.base import RDBMSConnector
 from dbgpt.agent.expand.tool_recovery import observe_tool_result, repeated_failure
 
+from .query_artifact import (
+    build_query_chunk,
+    check_read_only,
+)
 from .sql_read_only import ReadOnlySqlError, read_only_sql
 
 
@@ -123,6 +128,24 @@ def make_sql_query(
                 sql,
             )
 
+        sql_stripped = sql.strip().rstrip(";")
+        forbidden_kw = check_read_only(sql_stripped)
+        if forbidden_kw:
+            return json.dumps(
+                {
+                    "success": False,
+                    "error_code": "SQL_READ_ONLY_REQUIRED",
+                    "chunks": [
+                        {
+                            "output_type": "text",
+                            "content": f"安全限制: 不允许执行 {forbidden_kw} 语句，"
+                            "仅支持 SELECT 查询。",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            )
+
         try:
             sql_stripped = read_only_sql(sql)
         except ReadOnlySqlError:
@@ -182,6 +205,7 @@ def make_sql_query(
                 empty_schema_discoveries += 1
             return with_recovery({**cached[1], "cached_schema_result": True}, sql_stripped)
         started = time.perf_counter()
+        started_at = datetime.now(timezone.utc).isoformat()
         cancel_event = Event()
         try:
             if _supports_bounded_query(database_connector):
@@ -200,30 +224,10 @@ def make_sql_query(
                     return await asyncio.to_thread(database_connector.run, sql_stripped)
 
             result = await asyncio.wait_for(execute(), timeout=query_timeout_seconds)
-            if not result:
-                if broad_schema_query:
-                    empty_schema_discoveries += 1
-                artifact_id = capture_sql_execution(
-                    sql=sql_stripped,
-                    database=connector_database_name(database_connector, artifact_sink),
-                    duration_ms=int((time.perf_counter() - started) * 1000),
-                    columns=[],
-                    rows=[],
-                    artifact_sink=artifact_sink,
-                )
-                return with_recovery(
-                    {
-                        "artifact_id": artifact_id,
-                        "chunks": [
-                            {"output_type": "text", "content": "Query returned no rows."}
-                        ],
-                    },
-                    sql_stripped,
-                )
-
-            columns = result[0]
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            columns = result[0] if result else []
             col_names = [str(c[0]) if isinstance(c, tuple) else str(c) for c in columns]
-            rows = result[1:]
+            rows = result[1:] if result else []
             if broad_schema_query and not rows:
                 empty_schema_discoveries += 1
             elif rows:
@@ -232,7 +236,7 @@ def make_sql_query(
             artifact_id = capture_sql_execution(
                 sql=sql_stripped,
                 database=connector_database_name(database_connector, artifact_sink),
-                duration_ms=int((time.perf_counter() - started) * 1000),
+                duration_ms=duration_ms,
                 columns=col_names,
                 rows=rows,
                 artifact_sink=artifact_sink,
@@ -244,6 +248,8 @@ def make_sql_query(
             for row in rows[:50]:
                 md_rows.append("| " + " | ".join(str(v) for v in row) + " |")
             table = "\n".join([header, separator] + md_rows)
+            if not result:
+                table = "查询返回空结果。"
             if len(rows) > 50:
                 table += f"\n\n（仅显示前 50 行，共 {len(rows)} 行）"
 
@@ -257,9 +263,36 @@ def make_sql_query(
                     f"Total rows: {len(rows)}]"
                 )
 
+            # First-class query artifact (SQL + capped full result set) rides
+            # alongside the markdown observation: the client renders it as a
+            # data artifact with CSV / Excel export, the model only sees the
+            # compact markdown table.  db_name travels with the payload so
+            # the edit & re-run endpoint can re-resolve the connector.
+            chunks = [
+                build_query_chunk(
+                    sql_stripped,
+                    col_names,
+                    rows,
+                    db_name=(react_state or {}).get("database_name"),
+                    execution={
+                        "status": "succeeded",
+                        "started_at": started_at,
+                        "duration_ms": duration_ms,
+                        "tool": "sql_query",
+                        "artifact_id": artifact_id,
+                    },
+                ),
+                {
+                    "output_type": "markdown",
+                    "content": table,
+                },
+            ]
+            react_state.setdefault("_query_artifacts", {})[artifact_id] = chunks[0][
+                "content"
+            ]
             response = {
                 "artifact_id": artifact_id,
-                "chunks": [{"output_type": "markdown", "content": table}],
+                "chunks": chunks,
             }
             if broad_schema_query and not rows:
                 response["schema_discovery_empty"] = True
@@ -356,10 +389,11 @@ def make_sql_query(
                     "Independent data with its own valid quality contract may "
                     "still be analyzed, with its scope clearly identified."
                 )
-            capture_sql_execution(
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            artifact_id = capture_sql_execution(
                 sql=sql_stripped,
                 database=connector_database_name(database_connector, artifact_sink),
-                duration_ms=int((time.perf_counter() - started) * 1000),
+                duration_ms=duration_ms,
                 error=message,
                 artifact_sink=artifact_sink,
             )
@@ -369,7 +403,21 @@ def make_sql_query(
                         {
                             "output_type": "text",
                             "content": message,
-                        }
+                        },
+                        build_query_chunk(
+                            sql_stripped,
+                            [],
+                            [],
+                            db_name=(react_state or {}).get("database_name"),
+                            execution={
+                                "status": "failed",
+                                "started_at": started_at,
+                                "duration_ms": duration_ms,
+                                "tool": "sql_query",
+                                "artifact_id": artifact_id,
+                                "error": message,
+                            },
+                        ),
                     ],
                     "error_code": code,
                     "success": False,

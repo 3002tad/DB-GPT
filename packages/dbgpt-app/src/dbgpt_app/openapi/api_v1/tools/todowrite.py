@@ -24,7 +24,11 @@ def make_todowrite(
             "status (pending | in_progress | completed | cancelled), "
             "priority (high | medium | low). "
             "Rules: only ONE task in_progress at a time; mark tasks completed "
-            "immediately after finishing; do NOT use for single trivial tasks."
+            "immediately after finishing; do NOT use for single trivial tasks. "
+            "IMPORTANT: You MUST call todowrite again after EACH task completes "
+            "to update status. The user sees progress in real time — never "
+            "skip an update, and never end the turn while finished work is "
+            "still pending or in_progress."
             " Optionally provide estimated_model_calls: your rough total model "
             "calls for the task; revise it if the plan changes. It is not a limit."
             '\nParameter: {"todos": [{"content": "...", "status": "...", '

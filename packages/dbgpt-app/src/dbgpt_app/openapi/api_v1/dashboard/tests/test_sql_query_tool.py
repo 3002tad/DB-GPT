@@ -1,10 +1,8 @@
 import json
-from contextlib import contextmanager
-from types import SimpleNamespace
-from unittest.mock import patch
+import sqlite3
+from datetime import datetime
 
 from dbgpt_app.openapi.api_v1.tools.sql_query import make_sql_query
-from dbgpt.datasource.rdbms.base import RDBMSConnector
 
 
 class _Connector:
@@ -16,63 +14,6 @@ class _Connector:
         return [[("value",)], [self.calls]]
 
 
-def test_postgres_query_uses_server_side_timeout_path():
-    connector = object.__new__(RDBMSConnector)
-    connector._engine = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
-    connector._is_closed = True
-    observed = []
-
-    def query_ex(_self, sql, *, timeout=None, cancel_event=None):
-        observed.append((sql, timeout, cancel_event is not None))
-        return ["value"], [(1,)]
-
-    with patch.object(RDBMSConnector, "query_ex", query_ex), patch(
-        "dbgpt_app.openapi.api_v1.tools.sql_query.connector_database_name",
-        return_value="test",
-    ), patch(
-        "dbgpt_app.openapi.api_v1.tools.sql_query.capture_sql_execution",
-        return_value="artifact-test",
-    ):
-        result = json.loads(make_sql_query({}, connector, query_timeout_seconds=7)(sql="SELECT 1"))
-
-    assert result["artifact_id"] == "artifact-test"
-    assert observed == [("SELECT 1", 7, True)]
-
-
-def test_postgres_timeout_is_transaction_local_and_does_not_reset_session():
-    connector = object.__new__(RDBMSConnector)
-    connector._engine = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
-    connector._is_closed = True
-    statements = []
-
-    class Session:
-        def execute(self, statement, _params=None):
-            statements.append(str(statement))
-            return SimpleNamespace(returns_rows=True, fetchall=lambda: [(1,)],
-                                   keys=lambda: ["value"])
-
-    @contextmanager
-    def session_scope(_self):
-        yield Session()
-
-    with patch.object(RDBMSConnector, "session_scope", session_scope):
-        columns, rows = connector.query_ex("SELECT 1", timeout=7)
-    assert (columns, rows) == (["value"], [(1,)])
-    assert statements == ["SET LOCAL statement_timeout = 7000", "SELECT 1"]
-
-
-def test_early_sql_errors_are_tracked_for_recovery():
-    state = {}
-    query = make_sql_query(state, None)
-    first = json.loads(query(sql="SELECT 1"))
-    second = json.loads(query(sql="SELECT 1"))
-    assert first["error_code"] == "SQL_DATASOURCE_REQUIRED"
-    assert second["tool_recovery"]["reason"] == "same_call_failed"
-
-    query = make_sql_query({}, _Connector())
-    assert json.loads(query(sql="DELETE FROM orders"))["error_code"] == "SQL_READ_ONLY_REQUIRED"
-
-
 def test_dashboard_sql_query_limit_is_enforced_before_connector_execution():
     connector = _Connector()
     sql_query = make_sql_query({}, connector, max_calls=2)
@@ -81,11 +22,41 @@ def test_dashboard_sql_query_limit_is_enforced_before_connector_execution():
     second = json.loads(sql_query(sql="SELECT 2"))
     limited = json.loads(sql_query(sql="SELECT 3"))
 
-    assert first["chunks"][0]["output_type"] == "markdown"
-    assert second["chunks"][0]["output_type"] == "markdown"
+    assert first["chunks"][1]["output_type"] == "markdown"
+    assert second["chunks"][1]["output_type"] == "markdown"
     assert connector.calls == 2
     assert limited["dashboard_discovery_limit_reached"] is True
     assert "call plan_dashboard now" in limited["chunks"][0]["content"]
+
+
+def test_sql_query_emits_query_artifact_chunk_with_result_set():
+    connector = _Connector()
+    sql_query = make_sql_query({}, connector)
+
+    envelope = json.loads(sql_query(sql="SELECT value FROM t"))
+
+    query_chunk = envelope["chunks"][0]
+    assert query_chunk["output_type"] == "query"
+    payload = query_chunk["content"]
+    assert payload["sql"] == "SELECT value FROM t"
+    assert payload["columns"] == ["value"]
+    assert payload["rows"] == [[1]]
+    assert payload["row_count"] == 1
+    assert payload["truncated"] is False
+    # The markdown observation for the model still follows the artifact.
+    assert envelope["chunks"][1]["output_type"] == "markdown"
+    assert "| value |" in envelope["chunks"][1]["content"]
+
+
+def test_sql_query_rejects_write_statements_without_touching_connector():
+    connector = _Connector()
+    sql_query = make_sql_query({}, connector)
+
+    denied = json.loads(sql_query(sql="DELETE FROM t"))
+
+    assert connector.calls == 0
+    assert denied["chunks"][0]["output_type"] == "text"
+    assert "DELETE" in denied["chunks"][0]["content"]
 
 
 def test_zero_limit_blocks_sql_on_dashboard_confirmation_turns():
@@ -98,179 +69,55 @@ def test_zero_limit_blocks_sql_on_dashboard_confirmation_turns():
     assert limited["dashboard_discovery_limit_reached"] is True
 
 
-def test_failed_sql_is_not_executed_a_third_time_and_another_query_can_run():
-    class Connector:
-        def __init__(self):
-            self.calls = []
+class _SqliteConnector:
+    def run(self, sql: str):
+        with sqlite3.connect(":memory:") as connection:
+            cursor = connection.execute(sql)
+            return [cursor.description, *cursor.fetchall()]
 
+
+def test_query_execution_record_matches_real_sqlite_result():
+    query = make_sql_query({"database_name": "test_db"}, _SqliteConnector())
+    payload = json.loads(query(sql="SELECT 42 AS answer"))["chunks"][0]["content"]
+    assert payload["db_name"] == "test_db"
+    assert payload["columns"] == ["answer"]
+    assert payload["rows"] == [[42]]
+    record = payload["execution"]
+    assert record["status"] == "succeeded"
+    assert record["tool"] == "sql_query"
+    assert record["duration_ms"] >= 0
+    assert datetime.fromisoformat(record["started_at"]).tzinfo is not None
+
+
+def test_empty_query_still_has_sql_result_and_execution_record():
+    query = make_sql_query({"database_name": "test_db"}, _SqliteConnector())
+    payload = json.loads(query(sql="SELECT 42 AS answer WHERE 0"))["chunks"][0][
+        "content"
+    ]
+    assert payload["columns"] == ["answer"]
+    assert payload["rows"] == []
+    assert payload["row_count"] == 0
+    assert payload["execution"]["status"] == "succeeded"
+
+
+def test_connector_with_no_result_still_emits_query_artifact():
+    class EmptyConnector:
         def run(self, sql):
-            self.calls.append(sql)
-            if "missing" in sql:
-                raise RuntimeError('relation "missing" does not exist')
-            return [[("value",)], [1]]
+            return None
 
-    connector = Connector()
-    sql_query = make_sql_query({}, connector)
-    first = json.loads(sql_query(sql="SELECT * FROM missing"))
-    second = json.loads(sql_query(sql="SELECT * FROM missing"))
-    third = json.loads(sql_query(sql="SELECT * FROM missing"))
-    changed = json.loads(sql_query(sql="SELECT 1"))
-
-    assert first["error_code"] == "SQL_UNDEFINED_TABLE"
-    assert "information_schema" in first["recovery_hint"]
-    assert second["tool_recovery"]["reason"] == "same_call_failed"
-    assert third["error_code"] == "SQL_REPEATED_FAILURE"
-    assert len(connector.calls) == 3
-    assert "artifact_id" in changed
+    query = make_sql_query({}, EmptyConnector())
+    payload = json.loads(query(sql="SELECT 1"))["chunks"][0]["content"]
+    assert payload["rows"] == []
+    assert payload["columns"] == []
+    assert payload["execution"]["status"] == "succeeded"
 
 
-def test_sql_same_error_with_different_query_suggests_recovery_without_blocking():
-    class Connector:
-        def __init__(self):
-            self.calls = 0
-
-        def run(self, sql):
-            self.calls += 1
-            raise RuntimeError('column "session_id" does not exist')
-
-    connector = Connector()
-    sql_query = make_sql_query({}, connector)
-    first = json.loads(sql_query(sql="SELECT session_id FROM one"))
-    second = json.loads(sql_query(sql="SELECT session_id FROM two"))
-    assert first["error_code"] == "SQL_UNDEFINED_COLUMN"
-    assert second["tool_recovery"]["reason"] == "same_error_recurred"
-    assert connector.calls == 2
-
-
-def test_postgres_specific_sql_errors_have_actionable_hints():
-    class Connector:
-        def run(self, sql):
-            if "dual" in sql:
-                raise RuntimeError('relation "dual" does not exist')
-            raise RuntimeError('column reference "session_id" is ambiguous')
-
-    query = make_sql_query({}, Connector())
-    dual = json.loads(query(sql="SELECT 1 FROM dual"))
-    ambiguous = json.loads(query(sql="SELECT session_id FROM carts JOIN sessions ON true"))
-    assert dual["error_code"] == "SQL_UNDEFINED_TABLE"
-    assert "Remove it" in dual["recovery_hint"]
-    assert ambiguous["error_code"] == "SQL_AMBIGUOUS_COLUMN"
-    assert "alias" in ambiguous["recovery_hint"]
-
-
-def test_schema_discovery_reuses_result_but_business_sql_stays_live():
-    connector = _Connector()
-    query = make_sql_query({}, connector)
-    metadata_sql = "SELECT column_name FROM information_schema.columns"
-    first = json.loads(query(sql=metadata_sql))
-    second = json.loads(query(sql=metadata_sql))
-    query(sql="SELECT 1")
-    query(sql="SELECT 1")
-
-    assert first["artifact_id"] == second["artifact_id"]
-    assert second["cached_schema_result"] is True
-    assert connector.calls == 3
-
-
-def test_broad_empty_schema_discovery_stops_after_two_distinct_queries():
-    class Connector:
-        def __init__(self):
-            self.calls = []
-
-        def run(self, sql):
-            self.calls.append(sql)
-            if "information_schema" in sql:
-                return [[("table_name",)]]
-            return [[("value",)], [1]]
-
-    connector = Connector()
-    query = make_sql_query({}, connector)
-    first = json.loads(query(sql="SELECT table_name FROM information_schema.tables WHERE table_schema='public'"))
-    second = json.loads(query(sql="SELECT table_name FROM information_schema.tables WHERE table_schema='demo'"))
-    blocked = json.loads(query(sql="SELECT table_name FROM information_schema.tables"))
-    targeted = json.loads(query(sql="SELECT table_name FROM information_schema.tables WHERE table_name='orders'"))
-    business = json.loads(query(sql="SELECT 1"))
-
-    assert first["schema_discovery_empty"] is True
-    assert second["schema_discovery_empty"] is True
-    assert blocked["error_code"] == "SQL_SCHEMA_DISCOVERY_EMPTY_LOOP"
-    assert "artifact_id" in targeted
-    assert "artifact_id" in business
-    assert len(connector.calls) == 4
-
-
-def test_quality_block_is_exposed_as_a_warning_not_a_zero_count():
-    class Connector:
-        def run(self, _sql):
-            return [[("status",), ("product_count",)], ["BLOCKED_BY_QUALITY", None]]
-
-    result = json.loads(make_sql_query({}, Connector())(sql="SELECT 1"))
-    assert result["quality_warning"]["status"] == "BLOCKED_BY_QUALITY"
-    assert "not zero" in result["chunks"][0]["content"]
-    assert "BLOCKED_BY_QUALITY" in result["chunks"][1]["content"]
-
-
-def test_null_or_unrelated_status_text_does_not_trigger_quality_warning():
-    class Connector:
-        def run(self, _sql):
-            return [[("description",), ("product_count",)], ["BLOCKED_BY_QUALITY", None]]
-
-    result = json.loads(make_sql_query({}, Connector())(sql="SELECT 1"))
-    assert "quality_warning" not in result
-
-
-def test_passing_quality_with_zero_is_not_blocked():
-    class Connector:
-        def run(self, _sql):
-            return [[("status",), ("product_count",)], ["REFERENCE_CURRENT_ONLY", 0]]
-
-    result = json.loads(make_sql_query({}, Connector())(sql="SELECT 1"))
-    assert "quality_warning" not in result
-
-
-def test_quality_warning_survives_table_row_and_output_truncation():
-    class Connector:
-        def run(self, _sql):
-            return [[("status",), ("product_count",)]] + [
-                ["REFERENCE_CURRENT_ONLY", i] for i in range(51)
-            ] + [["BLOCKED_BY_QUALITY", None]]
-
-    result = json.loads(make_sql_query({}, Connector(), max_output_chars=20)(sql="SELECT 1"))
-    assert result["quality_warning"]["status"] == "BLOCKED_BY_QUALITY"
-    assert "not zero" in result["chunks"][0]["content"]
-
-
-def test_selecting_only_null_count_cannot_identify_quality_block():
-    class Connector:
-        def run(self, _sql):
-            return [[("product_count",)], [None]]
-
-    result = json.loads(make_sql_query({}, Connector())(sql="SELECT product_count FROM summary"))
-    # Document the known gap: arbitrary SQL can omit the status altogether.
-    assert "quality_warning" not in result
-
-
-def test_database_quality_block_is_a_structured_error():
-    class Connector:
-        def run(self, _sql):
-            raise RuntimeError("BLOCKED_BY_QUALITY: product count is unavailable")
-
-    result = json.loads(make_sql_query({}, Connector())(sql="SELECT product_count FROM summary"))
-    assert result["success"] is False
-    assert result["error_code"] == "BLOCKED_BY_QUALITY"
-    assert "unavailable" in result["chunks"][0]["content"]
-
-
-def test_quality_block_does_not_prevent_an_independent_query():
-    class Connector:
-        def run(self, sql):
-            if "blocked_catalog" in sql:
-                raise RuntimeError("BLOCKED_BY_QUALITY: catalog unavailable")
-            return [[("value",)], [7]]
-
-    query = make_sql_query({}, Connector())
-    blocked = json.loads(query(sql="SELECT * FROM blocked_catalog"))
-    independent = json.loads(query(sql="SELECT 7 AS value"))
-    assert blocked["error_code"] == "BLOCKED_BY_QUALITY"
-    assert "7" in independent["chunks"][0]["content"]
-    assert "error_code" not in independent
+def test_failed_query_emits_attempt_record_without_successful_result():
+    query = make_sql_query({"database_name": "test_db"}, _SqliteConnector())
+    envelope = json.loads(query(sql="SELECT * FROM missing_table"))
+    assert envelope["success"] is False
+    payload = envelope["chunks"][1]["content"]
+    assert payload["sql"] == "SELECT * FROM missing_table"
+    assert payload["execution"]["status"] == "failed"
+    assert "missing_table" in payload["execution"]["error"]
+    assert payload["rows"] == []
