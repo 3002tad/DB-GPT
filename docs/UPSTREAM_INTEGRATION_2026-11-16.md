@@ -210,3 +210,60 @@ VPS verification on the integration worktree plus this patch:
 This verifies the locale resources covered by the tests, not every hardcoded
 string in every newly imported module. No commit, push, image rebuild or runtime
 deployment was performed for this translation patch.
+
+## Runtime regression follow-up (2026-11-16)
+
+VPS logs from the integration candidate confirm repeated Analyst GET 403 on
+`/api/v2/serve/awel/chat/flows` and a separate MySQL missing-table error for
+`dbgpt_serve_plugins`. The latter is a schema bootstrap failure, not a role denial.
+Source now allows only GET on the chat-flow listing for both trusted roles and
+creates the two plugin registry tables with checkfirst during plugin startup.
+The sidebar Semantic Center label uses the locale catalog. Flex minimum sizes
+were corrected around the main content and chat page to prevent content from
+forcing the composer outside its bounded viewport.
+
+Local route checks pass for both roles, reject POST to the listing and retain
+the Analyst restriction on global plugin sync. Full pytest is unavailable in
+the local Python environment; frontend dependencies are also absent locally.
+These changes have not yet been built/deployed or verified in a real browser.
+Do not mark the UI regression case closed on source checks alone.
+
+## BUG-01: isolate model metadata caches
+
+The live model allocation failure was caused by LLMClient's class-level TTL
+cache. Independent proxy clients and aggregate clients shared the model-list
+key, so a proxy worker could fail its own metadata lookup after another
+worker populated the cache. DefaultLLMClient.models() then failed before the
+Agent applied the requested model priority. This was not evidence of a model
+selection override.
+
+The cache is now lazy and instance-local, preserving TTL and subclasses that
+do not call a base constructor. Four regression tests pass in the runtime
+image; the unpatched image fails three, including the exact missing-model
+exception. No model/API call is needed by these tests.
+
+Deployed worktree image: funnelmetry-db-gpt:ff22dfc5-bug01-cache-fix.
+Analyst UI retest reached the provider using qwen3.5-27b. A separate provider
+400 rejects required/object tool_choice with thinking mode (BUG-13); the run
+ended failed. Model allocation is verified fixed, full Chat acceptance remains
+open. See System_Local_Docs/DB_GPT_MODULE_UI_RUNTIME_AUDIT_2026-11-16.md.
+
+## BUG-13: thinking-compatible native tool selection
+
+Native Agent requests now use tool_choice=auto during normal turns, protocol
+recovery, report authoring and financial pending/completion phases. Tool
+filtering, recovery guidance and workflow validation remain active. Thinking
+configuration is not disabled or otherwise changed.
+
+The request regression test covers normal/recovery/report, retains the selected
+model and native tool definitions and verifies returned tool calls. It passes
+in an isolated runtime container. Financial request expectations were updated;
+the financial pytest suite could not execute because pytest is absent from the
+runtime image, so full financial-workflow acceptance remains open.
+
+Deployed worktree image: funnelmetry-db-gpt:ff22dfc5-bug13-auto. Analyst UI
+conversation a8e614df-4583-432d-b16b-a70edaf78f41 used qwen3.5-27b and completed
+with a Vietnamese answer. Provider payloads use auto, with no thinking-mode
+InvalidParameter in this turn. The evidence postprocessor unnecessarily
+removed part of the conceptual answer; this is tracked separately as BUG-14.
+No full analytical/Dashboard/financial retest was performed in this change.

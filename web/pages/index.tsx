@@ -5003,7 +5003,7 @@ const Playground: NextPage = () => {
         },
       }}
     >
-      <div className='flex h-full w-full bg-[#f7f7f9] dark:bg-[#0f1012] text-[#1a1b1e] dark:text-gray-200 font-sans overflow-hidden'>
+      <div className='flex flex-1 min-h-0 h-full w-full bg-[#f7f7f9] dark:bg-[#0f1012] text-[#1a1b1e] dark:text-gray-200 font-sans overflow-hidden'>
         {/* Main Content */}
         <div className='flex-1 min-h-0 flex flex-col relative overflow-hidden bg-white dark:bg-[#111217]'>
           {/* From Task Banner - shown when navigating from a scheduled task */}

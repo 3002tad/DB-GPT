@@ -17,6 +17,7 @@ from dbgpt_app.openapi.api_v1.tools.question_manager import QuestionManager
 class ModuleRoutesTest(unittest.TestCase):
     def test_native_dependencies_for_both_roles(self):
         cases = [
+            ("GET", "/api/v2/serve/awel/chat/flows"),
             ("POST", "/api/v1/chat/completions"),
             ("POST", "/api/v1/chat/prepare"),
             ("POST", "/api/v1/chat/dialogue/scenes"),

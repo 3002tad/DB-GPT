@@ -66,6 +66,12 @@ class Serve(BaseServe):
 
     def before_start(self):
         self._db_manager = self.create_or_get_db_manager()
+        # Upgrades may initialize metadata before this module registers its
+        # models. Create only the additive plugin registry tables here.
+        from .models.models import SuiteEntity, SuiteEventEntity
+
+        for entity in (SuiteEntity, SuiteEventEntity):
+            entity.__table__.create(bind=self._db_manager.engine, checkfirst=True)
 
     def after_start(self):
         """Sync official suite packages from disk into the registry (fail-soft)."""

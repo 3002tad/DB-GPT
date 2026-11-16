@@ -87,11 +87,9 @@ class FinancialWorkflowAgent(ToolCallingReActAgent):
         return [t for t in tools if t["function"]["name"] in allowed]
 
     def _native_tool_choice(self):
-        return (
-            "required"
-            if self._pending_report() or self._completion_phase()
-            else super()._native_tool_choice()
-        )
+        # Keep workflow-specific tool filtering/validation without forcing a
+        # provider choice that is incompatible with Qwen thinking mode.
+        return super()._native_tool_choice()
 
     async def thinking(self, messages, sender=None, prompt=None, stream_callback=None):
         phase = self._completion_phase()

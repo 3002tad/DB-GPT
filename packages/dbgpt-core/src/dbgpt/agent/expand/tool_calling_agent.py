@@ -811,8 +811,12 @@ class ToolCallingReActAgent(ReActAgent):
         return _build_openai_tools(self.resource)
 
     def _native_tool_choice(self) -> str:
-        """Require a native tool call while recovering from a protocol failure."""
-        return "required" if self._tool_protocol_failures else "auto"
+        """Let thinking-capable providers choose a valid native tool call.
+
+        Recovery guidance and action validation still enforce the tool protocol;
+        forcing a call at the provider rejects valid Qwen thinking-mode requests.
+        """
+        return "auto"
 
     async def _thinking_native(
         self,
@@ -975,9 +979,7 @@ class ToolCallingReActAgent(ReActAgent):
                     stream_out=self.stream_out,
                     stream_callback=native_stream if stream_callback else None,
                     tools=tools,
-                    tool_choice=(
-                        "required" if is_report_author else self._native_tool_choice()
-                    ),
+                    tool_choice=self._native_tool_choice(),
                 )
                 if budget_state is not None:
                     record_model_usage(budget_state, getattr(response, "usage", None))

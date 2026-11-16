@@ -173,7 +173,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
             <SideBar />
           </div>
         )}
-        <div className='flex flex-col flex-1 relative overflow-hidden'>
+        <div className='flex flex-col flex-1 min-w-0 min-h-0 relative overflow-hidden'>
           {router.pathname.startsWith('/dashboards') ? <DashboardRouteFrame>{children}</DashboardRouteFrame> : children}
         </div>
         {!hideSidebar && !embedded && <FloatHelper />}

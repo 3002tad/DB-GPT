@@ -12,6 +12,7 @@ _DASH = rf"/api/v1/dashboards/{_ID}"
 _KB = rf"/api/v2/serve/knowledge/{_SPACE}"
 
 SHARED_MODULE_ROUTES = {
+    "awel_chat": {"GET": [r"/api/v2/serve/awel/chat/flows"]},
     "agent": {
         "POST": [r"/api/v1/chat/(?:completions|prepare)",
                  r"/api/v1/chat/(?:dialogue/scenes|mode/params/list)",

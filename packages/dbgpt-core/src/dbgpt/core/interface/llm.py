@@ -1032,9 +1032,6 @@ class DefaultMessageConverter(MessageConverter):
 class LLMClient(ABC):
     """An abstract class for LLM client."""
 
-    # Cache the model metadata for 60 seconds
-    _MODEL_CACHE_ = TTLCache(maxsize=100, ttl=60)
-
     @property
     def cache(self) -> collections.abc.MutableMapping:
         """Return the cache object to cache the model metadata.
@@ -1043,6 +1040,12 @@ class LLMClient(ABC):
         Returns:
             collections.abc.MutableMapping: The cache object.
         """
+        # Clients may advertise disjoint models (for example one proxy client
+        # per worker). A class-level cache lets the first client's model list
+        # mask all other clients until the TTL expires. Initialize lazily since
+        # existing subclasses do not necessarily call a base constructor.
+        if "_MODEL_CACHE_" not in self.__dict__:
+            self._MODEL_CACHE_ = TTLCache(maxsize=100, ttl=60)
         return self._MODEL_CACHE_
 
     @abstractmethod

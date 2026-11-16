@@ -318,7 +318,7 @@ async def test_native_thinking_requires_current_transition_and_pins_revision(
     message = AgentMessage(role="system", content="Analyze the saved report.")
     await agent.thinking([message])
     request = create_output.call_args.kwargs
-    assert request["tool_choice"] == "required"
+    assert request["tool_choice"] == "auto"
     assert {tool["function"]["name"] for tool in request["tools"]} == {
         "review_financial_report",
         "read_financial_report",
@@ -461,7 +461,7 @@ async def test_completion_native_prompt_only_supplies_required_terminate(
     original = AgentMessage(role="system", content="Finish analysis.")
     await agent.thinking([original])
     request = create_output.call_args.kwargs
-    assert request["tool_choice"] == "required"
+    assert request["tool_choice"] == "auto"
     assert {tool["function"]["name"] for tool in request["tools"]} == {"terminate"}
     assert "现在只调用 terminate" in request["messages"][0]["content"]
     assert original.content == "Finish analysis."

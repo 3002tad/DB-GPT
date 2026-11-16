@@ -268,7 +268,7 @@ function SideBar() {
       },
       {
         key: 'semantic',
-        name: i18n.language === 'en' ? 'Semantic Layer' : '语义层',
+        name: t('semantic_center.title'),
         isActive: pathname.startsWith('/construct/semantic'),
         IconComponent: DeploymentUnitOutlined,
         path: '/construct/semantic',
