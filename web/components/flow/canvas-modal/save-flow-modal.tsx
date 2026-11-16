@@ -50,15 +50,21 @@ export const SaveFlowModal: React.FC<Props> = ({
   // }
   function onLabelChange(e: React.ChangeEvent<HTMLInputElement>) {
     const label = e.target.value;
-    // replace spaces with underscores, convert letters to lowercase, but preserve Chinese and other characters
+    // The API accepts ASCII identifiers; Vietnamese titles remain in `label`.
     const result = label
-      .replace(/\s+/g, '_') // replace spaces with underscores
-      .toLowerCase();
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^[_-]+|[_-]+$/g, '');
     form.setFieldsValue({ name: result });
   }
 
   async function onSaveFlow() {
-    const { name, label, description = '', editable = false, state = 'deployed' } = form.getFieldsValue();
+    const { name, label, description = '', editable = false } = form.getFieldsValue();
+    const state = deploy ? 'deployed' : 'developing';
     const reactFlowObject = mapHumpToUnderline(reactFlow.toObject() as IFlowData);
 
     if (id) {
@@ -77,8 +83,7 @@ export const SaveFlowModal: React.FC<Props> = ({
 
       if (res?.success) {
         messageApi.success(t('save_flow_success'));
-      } else if (res?.err_msg) {
-        messageApi.error(res?.err_msg);
+        setIsSaveFlowModalOpen(false);
       }
     } else {
       const [_, res] = await apiInterceptors(
@@ -96,9 +101,9 @@ export const SaveFlowModal: React.FC<Props> = ({
       if (res?.uid) {
         messageApi.success(t('save_flow_success'));
         router.push(`/construct/flow/canvas?id=${res.uid}`, undefined, { shallow: true });
+        setIsSaveFlowModalOpen(false);
       }
     }
-    setIsSaveFlowModalOpen(false);
   }
 
   return (
@@ -160,7 +165,7 @@ export const SaveFlowModal: React.FC<Props> = ({
             <TextArea rows={3} />
           </Form.Item>
 
-          <Form.Item label='Editable' name='editable' initialValue={flowInfo?.editable || true} valuePropName='checked'>
+          <Form.Item label='Editable' name='editable' initialValue={flowInfo?.editable ?? true} valuePropName='checked'>
             <Checkbox />
           </Form.Item>
 
