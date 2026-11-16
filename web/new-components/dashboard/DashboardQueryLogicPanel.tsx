@@ -1,5 +1,5 @@
-import { useTranslation } from 'react-i18next';
 import { getDashboardQueryLogic } from '@/client/api/dashboard';
+import { dashboardText as dt, useDashboardTranslation } from '@/new-components/dashboard/dashboard-i18n';
 import { DashboardFilter, DashboardQueryLogic, DashboardWidget } from '@/types/dashboard';
 import { CopyOutlined } from '@ant-design/icons';
 import { App, Button, Spin } from 'antd';
@@ -45,10 +45,8 @@ export default function DashboardQueryLogicPanel({
   filters: DashboardFilter[];
   values: Record<string, unknown>;
 }) {
+  useDashboardTranslation();
   const { message } = App.useApp();
-  const { i18n } = useTranslation();
-  const tr = (zh: string, en: string, vi: string) =>
-    i18n.language?.startsWith('vi') ? vi : i18n.language?.startsWith('en') ? en : zh;
   const sql = widget.query.sql || '';
   const source = widget.query.data_source_id;
   const key = JSON.stringify([dashboardId, source, sql]);
@@ -60,10 +58,10 @@ export default function DashboardQueryLogicPanel({
     const timer = setTimeout(async () => {
       try {
         const response = await getDashboardQueryLogic(dashboardId, sql, source);
-        if (!response.data.success || !response.data.data) throw new Error('无法解析');
+        if (!response.data.success || !response.data.data) throw new Error(dt('无法解析'));
         if (active) setResult({ key, logic: response.data.data });
       } catch {
-        if (active) setResult({ key, error: '暂时无法解析计算步骤，可直接查看下方原始 SQL。' });
+        if (active) setResult({ key, error: dt('暂时无法解析计算步骤，可直接查看下方原始 SQL。') });
       }
     }, 180);
     return () => {
@@ -82,30 +80,35 @@ export default function DashboardQueryLogicPanel({
   return (
     <div className='space-y-4 text-xs' data-testid='dashboard-query-logic'>
       <section className='space-y-3 rounded-lg border border-[var(--app-border)] p-3'>
-        <h3 className='text-sm font-semibold'>{tr('计算口径', 'Calculation logic', 'Logic tính toán')}</h3>
+        <h3 className='text-sm font-semibold'>{dt('计算口径')}</h3>
         <p>
-          <span className='text-[var(--app-muted)]'>{tr('数据源：', 'Data source: ', 'Nguồn dữ liệu: ')}</span>
-          {dashboardSourceLabel(source, i18n.language)}
+          <span className='text-[var(--app-muted)]'>{dt('数据源：')}</span>
+          {dashboardSourceLabel(source)}
         </p>
         {!sql.trim() ? (
-          <p className='text-[var(--app-muted)]'>{tr('尚未配置 SQL，可在高级数据设置中添加。', 'SQL is not configured. Add it in advanced data settings.', 'Chưa cấu hình SQL. Hãy thêm trong cài đặt dữ liệu nâng cao.')}</p>
+          <p className='text-[var(--app-muted)]'>{dt('尚未配置 SQL，可在高级数据设置中添加。')}</p>
         ) : !current ? (
           <Spin size='small' />
         ) : current.error ? (
-          <p role='status'>{tr(current.error, 'Could not analyze calculation steps; the original SQL is shown below.', 'Không thể phân tích các bước tính toán; SQL gốc được hiển thị bên dưới.')}</p>
+          <p role='status'>{current.error}</p>
         ) : (
           current.logic && (
             <>
               <p className='break-words'>
-                <span className='text-[var(--app-muted)]'>{tr('数据表：', 'Tables: ', 'Bảng dữ liệu: ')}</span>
-                {current.logic.tables.join(', ') || tr('查询常量或派生结果', 'Constants or derived results', 'Hằng số hoặc kết quả dẫn xuất')}
+                <span className='text-[var(--app-muted)]'>{dt('数据表：')}</span>
+                {current.logic.tables.join('、') || dt('查询常量或派生结果')}
               </p>
-              {!!current.logic.set_operations.length && <p>{tr('合并方式：', 'Set operations: ', 'Phép hợp tập: ')}{current.logic.set_operations.join(' → ')}</p>}
+              {!!current.logic.set_operations.length && (
+                <p>
+                  {dt('合并方式：')}
+                  {current.logic.set_operations.join(' → ')}
+                </p>
+              )}
               {current.logic.stages.map((stage, index) => (
                 <details key={index} open={index === 0} className='space-y-2 border-t border-[var(--app-border)] pt-3'>
                   <summary className='cursor-pointer font-medium'>{stage.label}</summary>
                   <div>
-                    <div className='mb-1 text-[var(--app-muted)]'>{tr('输出与计算表达式', 'Outputs and expressions', 'Đầu ra và biểu thức tính toán')}</div>
+                    <div className='mb-1 text-[var(--app-muted)]'>{dt('输出与计算表达式')}</div>
                     {stage.expressions.map((expression, i) => (
                       <code
                         key={i}
@@ -117,43 +120,51 @@ export default function DashboardQueryLogicPanel({
                   </div>
                   {!!stage.group_by.length && (
                     <p className='break-words'>
-                      {tr('分组维度：', 'Grouping: ', 'Chiều nhóm: ')}<code>{stage.group_by.join(', ')}</code>
+                      {dt('分组维度：')}
+                      <code>{stage.group_by.join('、')}</code>
                     </p>
                   )}
                   {stage.where && (
                     <p className='break-words'>
-                      {tr('数据筛选：', 'Row filter: ', 'Lọc dữ liệu: ')}<code>{stage.where}</code>
+                      {dt('数据筛选：')}
+                      <code>{stage.where}</code>
                     </p>
                   )}
                   {stage.having && (
                     <p className='break-words'>
-                      {tr('汇总后筛选：', 'Aggregate filter: ', 'Lọc sau tổng hợp: ')}<code>{stage.having}</code>
+                      {dt('汇总后筛选：')}
+                      <code>{stage.having}</code>
                     </p>
                   )}
                   {!!stage.joins.length && (
                     <p className='break-words'>
-                      {tr('关联条件：', 'Join conditions: ', 'Điều kiện liên kết: ')}<code>{stage.joins.join('; ')}</code>
+                      {dt('关联条件：')}
+                      <code>{stage.joins.join('; ')}</code>
                     </p>
                   )}
                   {stage.order_by && (
                     <p className='break-words'>
-                      {tr('排序：', 'Sort: ', 'Sắp xếp: ')}<code>{stage.order_by}</code>
+                      {dt('排序：')}
+                      <code>{stage.order_by}</code>
                     </p>
                   )}
                   {stage.limit && (
                     <p>
-                      {tr('查询条数：', 'Row limit: ', 'Giới hạn dòng: ')}<code>{stage.limit}</code>
+                      {dt('查询条数：')}
+                      <code>{stage.limit}</code>
                     </p>
                   )}
                 </details>
               ))}
-              <p className='text-[var(--app-muted)]'>{tr('以上步骤来自当前 SQL；展开子查询可核对指标的完整计算过程。', 'These steps come from the current SQL; expand subqueries to inspect the full calculation.', 'Các bước lấy từ SQL hiện tại; mở rộng truy vấn con để kiểm tra toàn bộ phép tính.')}</p>
+              <p className='text-[var(--app-muted)]'>
+                {dt('以上步骤来自当前 SQL；展开子查询可核对指标的完整计算过程。')}
+              </p>
             </>
           )
         )}
       </section>
       <details className='rounded-lg border border-[var(--app-border)] p-3'>
-        <summary className='cursor-pointer text-sm font-semibold'>{tr('实际 SQL', 'Actual SQL', 'SQL thực tế')}</summary>
+        <summary className='cursor-pointer text-sm font-semibold'>{dt('实际 SQL')}</summary>
         <div className='mb-2 flex items-center justify-between gap-2'>
           <Button
             size='small'
@@ -162,25 +173,25 @@ export default function DashboardQueryLogicPanel({
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(sql);
-                message.success(tr('SQL 已复制', 'SQL copied', 'Đã sao chép SQL'));
+                message.success(dt('SQL 已复制'));
               } catch {
-                message.error(tr('复制失败，请选中 SQL 手动复制', 'Copy failed; select and copy the SQL manually', 'Sao chép thất bại; hãy chọn và sao chép SQL thủ công'));
+                message.error(dt('复制失败，请选中 SQL 手动复制'));
               }
             }}
           >
-            {tr('复制 SQL', 'Copy SQL', 'Sao chép SQL')}
+            {dt('复制 SQL')}
           </Button>
         </div>
         <pre
           tabIndex={0}
-          aria-label={tr('图表实际 SQL', 'Actual chart SQL', 'SQL thực tế của biểu đồ')}
+          aria-label={dt('图表实际 SQL')}
           className='max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-muted)] p-3 font-mono text-xs leading-5'
         >
-          {formattedSql || tr('尚未配置 SQL', 'SQL not configured', 'Chưa cấu hình SQL')}
+          {formattedSql || dt('尚未配置 SQL')}
         </pre>
       </details>
       <details className='space-y-2 rounded-lg border border-[var(--app-border)] p-3'>
-        <summary className='cursor-pointer text-sm font-semibold'>{tr('当前筛选参数', 'Current filter parameters', 'Tham số bộ lọc hiện tại')}</summary>
+        <summary className='cursor-pointer text-sm font-semibold'>{dt('当前筛选参数')}</summary>
         {Object.keys(parameters).length ? (
           <dl className='space-y-1'>
             {Object.entries(parameters).map(([name, value]) => (
@@ -190,15 +201,21 @@ export default function DashboardQueryLogicPanel({
               >
                 <dt className='break-all font-mono'>{name}</dt>
                 <dd className='break-all'>
-                  {value == null ? tr('未设置', 'Not set', 'Chưa đặt') : typeof value === 'string' ? value || tr('空字符串', 'Empty string', 'Chuỗi rỗng') : JSON.stringify(value)}
+                  {value == null
+                    ? dt('未设置')
+                    : typeof value === 'string'
+                      ? value || dt('空字符串')
+                      : JSON.stringify(value)}
                 </dd>
               </div>
             ))}
           </dl>
         ) : (
-          <p className='text-[var(--app-muted)]'>{tr('这条查询没有绑定筛选参数。', 'This query has no bound filter parameters.', 'Truy vấn này không có tham số bộ lọc được liên kết.')}</p>
+          <p className='text-[var(--app-muted)]'>{dt('这条查询没有绑定筛选参数。')}</p>
         )}
-        <p className='text-[var(--app-muted)]'>{tr(`当前查询最多返回 ${widget.query.max_rows} 行。`, `This query returns at most ${widget.query.max_rows} rows.`, `Truy vấn trả tối đa ${widget.query.max_rows} dòng.`)}</p>
+        <p className='text-[var(--app-muted)]'>
+          {dt('当前查询最多返回')} {widget.query.max_rows} {dt('行。')}
+        </p>
       </details>
     </div>
   );

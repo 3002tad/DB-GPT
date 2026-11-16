@@ -118,6 +118,7 @@ def space_delete(request: KnowledgeSpaceRequest):
     logger.info("Knowledge space delete requested")
     try:
         name = request.name
+        # Reject any name that could escape the upload root.
         if (
             not name
             or name in (".", "..")
@@ -130,7 +131,9 @@ def space_delete(request: KnowledgeSpaceRequest):
         space_dir = os.path.realpath(os.path.join(upload_root, name))
         if not space_dir.startswith(upload_root + os.sep):
             return Result.failed(code="E000X", msg=f"invalid space name:{name}")
+        # Validate the space before touching the filesystem.
         result = knowledge_space_service.delete_space(name)
+        # delete Files in 'pilot/data/
         try:
             if os.path.exists(space_dir):
                 shutil.rmtree(space_dir)

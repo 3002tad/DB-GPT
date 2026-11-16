@@ -20,39 +20,46 @@ from dbgpt_app.openapi.api_v1.tools.skill_tools import make_execute_skill_script
 
 
 @pytest.mark.asyncio
-async def test_missing_skill_script_reports_actual_inventory(tmp_path, monkeypatch):
-    skills_dir = tmp_path / "skills"
-    skill_dir = skills_dir / "sql-skill"
-    (skill_dir / "scripts").mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: sql-skill\ndescription: SQL skill\n---\n",
-        encoding="utf-8",
-    )
-    (skill_dir / "scripts" / "query.py").write_text("print(1)\n", encoding="utf-8")
-    no_script_dir = skills_dir / "instructions-only"
-    no_script_dir.mkdir()
-    (no_script_dir / "SKILL.md").write_text(
-        "---\nname: instructions-only\ndescription: Instructions\n---\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(model_config, "SKILLS_DIR", str(skills_dir))
+@pytest.mark.parametrize("initially_exists", [False, True])
+async def test_script_changed_during_contract_validation_is_not_executed(
+    tmp_path, monkeypatch, initially_exists
+):
+    from dbgpt_app.openapi.api_v1.tools import skill_tools
+
+    skill_dir = tmp_path / "skills" / "changing-skill"
+    scripts_dir = skill_dir / "scripts"
+    scripts_dir.mkdir(parents=True)
+    script = scripts_dir / "run.py"
+    if initially_exists:
+        script.write_text("print('original')\n", encoding="utf-8")
+    marker = tmp_path / "executed.txt"
+    monkeypatch.setattr(model_config, "SKILLS_DIR", str(skill_dir.parent))
     monkeypatch.setattr(model_config, "PILOT_PATH", str(tmp_path / "pilot"))
     manager = SkillManager(None)
     monkeypatch.setattr(
         "dbgpt.agent.skill.manage.get_skill_manager", lambda app: manager
     )
-    execute = make_execute_skill_script_file({"conv_id": "missing-script"})
+    original_contract = skill_tools._apply_skill_input_contract
 
-    missing_name = json.loads(await execute("sql-skill", "invented.py"))
-    assert missing_name["success"] is False
-    assert missing_name["error_code"] == "SKILL_SCRIPT_NOT_FOUND"
-    assert missing_name["available_scripts"] == ["query.py"]
-    assert "do not guess" in missing_name["recovery_hint"]
+    def change_script(*args, **kwargs):
+        result = original_contract(*args, **kwargs)
+        replacement = scripts_dir / "replacement.py"
+        replacement.write_text(
+            f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+            encoding="utf-8",
+        )
+        replacement.replace(script)
+        return result
 
-    no_scripts = json.loads(await execute("instructions-only", "invented.py"))
-    assert no_scripts["error_code"] == "SKILL_SCRIPT_NOT_FOUND"
-    assert no_scripts["available_scripts"] == []
-    assert "no scripts" in no_scripts["recovery_hint"]
+    monkeypatch.setattr(skill_tools, "_apply_skill_input_contract", change_script)
+    result = json.loads(
+        await make_execute_skill_script_file({"conv_id": "changing-skill"})(
+            "changing-skill", "run.py", argv=[]
+        )
+    )
+    assert result["success"] is False
+    assert "SCRIPT_IDENTITY_MISMATCH" in result["chunks"][0]["content"]
+    assert not marker.exists()
 
 
 @pytest.mark.asyncio
@@ -181,3 +188,40 @@ async def test_cli_skill_tool_preserves_arguments_and_records_execution(
     )
     assert rejected["success"] is False
     assert "not both" in rejected["chunks"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_missing_skill_script_reports_actual_inventory(tmp_path, monkeypatch):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "sql-skill"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: sql-skill\ndescription: SQL skill\n---\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "scripts" / "query.py").write_text("print(1)\n", encoding="utf-8")
+    no_script_dir = skills_dir / "instructions-only"
+    no_script_dir.mkdir()
+    (no_script_dir / "SKILL.md").write_text(
+        "---\nname: instructions-only\ndescription: Instructions\n---\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_config, "SKILLS_DIR", str(skills_dir))
+    monkeypatch.setattr(model_config, "PILOT_PATH", str(tmp_path / "pilot"))
+    manager = SkillManager(None)
+    monkeypatch.setattr(
+        "dbgpt.agent.skill.manage.get_skill_manager", lambda app: manager
+    )
+    execute = make_execute_skill_script_file({"conv_id": "missing-script"})
+
+    missing_name = json.loads(await execute("sql-skill", "invented.py"))
+    assert missing_name["success"] is False
+    assert missing_name["error_code"] == "SKILL_SCRIPT_NOT_FOUND"
+    assert missing_name["available_scripts"] == ["query.py"]
+    assert "do not guess" in missing_name["recovery_hint"]
+
+    no_scripts = json.loads(await execute("instructions-only", "invented.py"))
+    assert no_scripts["error_code"] == "SKILL_SCRIPT_NOT_FOUND"
+    assert no_scripts["available_scripts"] == []
+    assert "no scripts" in no_scripts["recovery_hint"]
+

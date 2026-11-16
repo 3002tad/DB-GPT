@@ -1,4 +1,3 @@
-import { useUiText } from '@/hooks/use-ui-text';
 import {
   createDashboardSchedule,
   deleteDashboardSchedule,
@@ -10,6 +9,7 @@ import {
   updateDashboardSchedule,
 } from '@/client/api';
 import { type DashboardSchedulerStatus } from '@/client/api/dashboard';
+import { dashboardText as dt, useDashboardTranslation } from '@/new-components/dashboard/dashboard-i18n';
 import type {
   DashboardFilter,
   DashboardSchedule,
@@ -43,7 +43,7 @@ import {
   Typography,
 } from 'antd';
 import { isAxiosError } from 'axios';
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { describeDashboardError } from './dashboard-errors';
 import { scheduleDashboardFilterValues } from './dashboard-relative-date';
 import DashboardRefreshFrequencyInput, { describeDashboardScheduleCron } from './DashboardRefreshFrequencyInput';
@@ -75,6 +75,24 @@ const statusColors: Record<DashboardScheduleRunStatus, string> = {
   timeout: 'error',
 };
 
+const statusLabels: Record<DashboardScheduleRunStatus, string> = {
+  get running() {
+    return dt('运行中');
+  },
+  get success() {
+    return dt('成功');
+  },
+  get partial_success() {
+    return dt('部分成功');
+  },
+  get failed() {
+    return dt('失败');
+  },
+  get timeout() {
+    return dt('超时');
+  },
+};
+
 export default function DashboardSchedulePanel({
   children,
   dashboardId,
@@ -83,15 +101,7 @@ export default function DashboardSchedulePanel({
   open,
   onClose,
 }: DashboardSchedulePanelProps) {
-  const tr = useUiText();
-const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => ({
-  running: tr('运行中', 'Running'),
-  success: tr('成功', 'Success'),
-  partial_success: tr('部分成功', 'Partial success'),
-  failed: tr('失败', 'Failed'),
-  timeout: tr('超时', 'Timed out'),
-}), [tr]);
-
+  useDashboardTranslation();
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<ScheduleForm>();
   const [cron, setCron] = useState('*/5 * * * *');
@@ -113,7 +123,7 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
         listDashboardSchedules(dashboardId),
         getDashboardSchedulerStatus(dashboardId),
       ]);
-      if (!runtime.data.success) throw new Error(tr('后台状态读取失败', 'Could not read scheduler status'));
+      if (!runtime.data.success) throw new Error(dt('后台状态读取失败'));
       setScheduler(runtime.data.data);
       setSchedules(response.data.data || []);
       const history = await Promise.all(
@@ -129,11 +139,11 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
       setLatestRuns(Object.fromEntries(history));
     } catch (error) {
       setScheduler(null);
-      message.error(describeDashboardError(error, tr('读取刷新计划失败', 'Could not load refresh schedules')));
+      message.error(describeDashboardError(error, dt('读取刷新计划失败')));
     } finally {
       setLoading(false);
     }
-  }, [dashboardId, message, tr]);
+  }, [dashboardId, message]);
 
   useEffect(() => {
     // Opening the drawer is the external event that starts the remote refresh.
@@ -172,7 +182,7 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
       return;
     }
     if (cron.trim().split(/\s+/).length !== 5) {
-      message.error(tr('Cron 表达式必须包含 5 段', 'Cron expressions must have 5 fields'));
+      message.error(dt('Cron 表达式必须包含 5 段'));
       return;
     }
 
@@ -185,15 +195,15 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
     try {
       if (editing) {
         await updateDashboardSchedule(dashboardId, editing.task_id, request);
-        message.success(tr('刷新计划已更新', 'Refresh schedule updated'));
+        message.success(dt('刷新计划已更新'));
       } else {
         await createDashboardSchedule(dashboardId, request);
-        message.success(tr('刷新计划已创建', 'Refresh schedule created'));
+        message.success(dt('刷新计划已创建'));
       }
       resetEditor();
       await loadSchedules();
     } catch (error) {
-      message.error(describeDashboardError(error, editing ? tr('更新刷新计划失败', 'Could not update refresh schedule') : tr('创建刷新计划失败', 'Could not create refresh schedule')));
+      message.error(describeDashboardError(error, editing ? dt('更新刷新计划失败') : dt('创建刷新计划失败')));
     } finally {
       setSaving(false);
     }
@@ -203,9 +213,9 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
     try {
       const response = await toggleDashboardSchedule(dashboardId, schedule.task_id, enabled);
       setSchedules(current => current.map(item => (item.task_id === schedule.task_id ? response.data.data : item)));
-      message.success(enabled ? tr('刷新计划已启用', 'Refresh schedule enabled') : tr('刷新计划已暂停', 'Refresh schedule paused'));
+      message.success(enabled ? dt('刷新计划已启用') : dt('刷新计划已暂停'));
     } catch (error) {
-      message.error(describeDashboardError(error, tr('切换刷新计划失败', 'Could not change refresh schedule')));
+      message.error(describeDashboardError(error, dt('切换刷新计划失败')));
     }
   };
 
@@ -215,21 +225,21 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
       const response = await runDashboardSchedule(dashboardId, schedule.task_id, schedule.payload);
       const run = response.data.data;
       if (run.status === 'partial_success') {
-        message.warning(tr('刷新已完成，但部分组件失败，请查看运行记录', 'Refresh completed with failed widgets; review the run history'));
+        message.warning(dt('刷新已完成，但部分组件失败，请查看运行记录'));
       } else if (run.status === 'success') {
-        message.success(tr('刷新已完成', 'Refresh completed'));
+        message.success(dt('刷新已完成'));
       } else if (run.status === 'running') {
-        message.info(tr('任务仍在执行，请查看运行记录', 'The task is still running; review the run history'));
+        message.info(dt('任务仍在执行，请查看运行记录'));
       } else {
-        message.error(run.error_message || tr('任务执行未成功，请查看运行记录', 'The task did not succeed; review the run history'));
+        message.error(run.error_message || dt('任务执行未成功，请查看运行记录'));
       }
       if (runsFor?.task_id === schedule.task_id) await showRuns(schedule);
     } catch (error) {
       if (isAxiosError(error) && ['ECONNABORTED', 'ETIMEDOUT'].includes(error.code || '')) {
-        message.warning(tr('等待响应超时，任务可能仍在执行，请查看运行记录', 'Timed out waiting; the task may still be running. Review the run history.'));
+        message.warning(dt('等待响应超时，任务可能仍在执行，请查看运行记录'));
         await showRuns(schedule);
       } else {
-        message.error(describeDashboardError(error, tr('立即刷新失败', 'Refresh failed')));
+        message.error(describeDashboardError(error, dt('立即刷新失败')));
       }
     } finally {
       setRunningId(null);
@@ -238,11 +248,11 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
 
   const removeSchedule = (schedule: DashboardSchedule) => {
     modal.confirm({
-      title: tr('删除刷新计划？', 'Delete refresh schedule?'),
-      content: tr(`计划“${schedule.task_name}”将停止执行，已有运行记录一并停止展示。`, `Schedule “${schedule.task_name}” will stop and its run history will no longer be displayed.`),
-      okText: tr('删除', 'Delete'),
+      title: dt('删除刷新计划？'),
+      content: dt('计划“{{value0}}”将停止执行，已有运行记录一并停止展示。', { value0: schedule.task_name }),
+      okText: dt('删除'),
       okButtonProps: { danger: true },
-      cancelText: tr('取消', 'Cancel'),
+      cancelText: dt('取消'),
       onOk: async () => {
         try {
           await deleteDashboardSchedule(dashboardId, schedule.task_id);
@@ -251,9 +261,9 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
             setRuns([]);
           }
           await loadSchedules();
-          message.success(tr('刷新计划已删除', 'Refresh schedule deleted'));
+          message.success(dt('刷新计划已删除'));
         } catch (error) {
-          message.error(describeDashboardError(error, tr('删除刷新计划失败', 'Could not delete refresh schedule')));
+          message.error(describeDashboardError(error, dt('删除刷新计划失败')));
         }
       },
     });
@@ -266,83 +276,84 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
       const response = await listDashboardScheduleRuns(dashboardId, schedule.task_id);
       setRuns(response.data.data || []);
     } catch (error) {
-      message.error(describeDashboardError(error, tr('读取运行记录失败', 'Could not load run history')));
+      message.error(describeDashboardError(error, dt('读取运行记录失败')));
     } finally {
       setLoadingRuns(false);
     }
   };
 
-  const runColumns = useMemo(
-    () => [
-      {
-        title: tr('状态', 'Status'),
-        dataIndex: 'status',
-        width: 110,
-        render: (status: DashboardScheduleRunStatus) => <Tag color={statusColors[status]}>{statusLabels[status]}</Tag>,
-      },
-      { title: tr('开始时间', 'Started at'), dataIndex: 'started_at', width: 180, render: (value?: string) => value || '-' },
-      { title: tr('尝试次数', 'Attempts'), dataIndex: 'attempt_count', width: 90 },
-      {
-        title: tr('结果', 'Result'),
-        render: (_: unknown, run: DashboardScheduleRun) => (
-          <div>
-            <div>{run.result_summary || '-'}</div>
-            {run.error_message && <Text type='danger'>{run.error_message}</Text>}
-            {run.output_resource_id && (
-              <a className='ml-2' href={run.output_resource_id} target='_blank' rel='noreferrer'>
-                {tr('打开发布快照', 'Open published snapshot')}
-              </a>
-            )}
-          </div>
-        ),
-      },
-    ],
-    [tr, statusLabels],
-  );
+  const runColumns = [
+    {
+      title: dt('状态'),
+      dataIndex: 'status',
+      width: 110,
+      render: (status: DashboardScheduleRunStatus) => <Tag color={statusColors[status]}>{statusLabels[status]}</Tag>,
+    },
+    { title: dt('开始时间'), dataIndex: 'started_at', width: 180, render: (value?: string) => value || '-' },
+    { title: dt('尝试次数'), dataIndex: 'attempt_count', width: 90 },
+    {
+      title: dt('结果'),
+      render: (_: unknown, run: DashboardScheduleRun) => (
+        <div>
+          <div>{run.result_summary || '-'}</div>
+          {run.error_message && <Text type='danger'>{run.error_message}</Text>}
+          {run.output_resource_id && (
+            <a className='ml-2' href={run.output_resource_id} target='_blank' rel='noreferrer'>
+              {dt('打开发布快照')}
+            </a>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <Drawer title={tr('定时刷新与运行记录', 'Scheduled refresh and run history')} width={760} open={open} onClose={onClose} destroyOnClose={false}>
+    <Drawer title={dt('定时刷新与运行记录')} width={760} open={open} onClose={onClose} destroyOnClose={false}>
       {children}
       <Alert
         className='mb-3'
         showIcon
         type={scheduler?.running ? 'success' : 'warning'}
-        message={scheduler?.message || tr('后台运行状态尚未确认，请重新加载。', 'Scheduler status is unknown. Reload and try again.')}
+        message={scheduler?.message || dt('后台运行状态尚未确认，请重新加载。')}
       />
       <Alert
         className='mb-4'
         type='info'
         showIcon
-        message={tr('计划使用当前筛选条件刷新看板；只有全部组件成功时才允许自动发布。', 'Schedules refresh the dashboard with current filters. Automatic publication requires all widgets to succeed.')}
+        message={dt('计划使用当前筛选条件刷新看板；只有全部组件成功时才允许自动发布。')}
       />
 
       <div className='mb-5 rounded border border-gray-200 p-4 dark:border-gray-700'>
         <div className='mb-3 flex items-center justify-between'>
-          <Text strong>{editing ? tr('编辑刷新计划', 'Edit refresh schedule') : tr('新建刷新计划', 'New refresh schedule')}</Text>
-          {editing && <Button onClick={resetEditor}>{tr('取消编辑', 'Cancel editing')}</Button>}
+          <Text strong>{editing ? dt('编辑刷新计划') : dt('新建刷新计划')}</Text>
+          {editing && <Button onClick={resetEditor}>{dt('取消编辑')}</Button>}
         </div>
         <Form
           form={form}
           layout='vertical'
           initialValues={{ publish_after_refresh: false, timeout_seconds: 180, max_attempts: 2 }}
         >
-          <Form.Item name='task_name' label={tr('计划名称', 'Schedule name')} rules={[{ required: true, message: tr('请输入计划名称', 'Enter a schedule name') }]}>
-            <Input maxLength={256} placeholder={tr('例如：每天早上刷新经营看板', 'For example: refresh the dashboard every morning')} />
+          <Form.Item
+            name='task_name'
+            label={dt('计划名称')}
+            rules={[{ required: true, message: dt('请输入计划名称') }]}
+          >
+            <Input maxLength={256} placeholder={dt('例如：每天早上刷新经营看板')} />
           </Form.Item>
-          <Form.Item name='description' label={tr('说明', 'Description')}>
+          <Form.Item name='description' label={dt('说明')}>
             <Input.TextArea maxLength={2000} rows={2} />
           </Form.Item>
-          <Form.Item label={tr('执行频率', 'Frequency')} required>
+          <Form.Item label={dt('执行频率')} required>
             <DashboardRefreshFrequencyInput value={cron} onChange={setCron} />
           </Form.Item>
           <Space size='large' align='start' wrap>
-            <Form.Item name='publish_after_refresh' label={tr('成功后发布', 'Publish on success')} valuePropName='checked'>
+            <Form.Item name='publish_after_refresh' label={dt('成功后发布')} valuePropName='checked'>
               <Switch />
             </Form.Item>
-            <Form.Item name='timeout_seconds' label={tr('单次超时（秒）', 'Timeout per attempt (seconds)')}>
+            <Form.Item name='timeout_seconds' label={dt('单次超时（秒）')}>
               <InputNumber min={5} max={600} />
             </Form.Item>
-            <Form.Item name='max_attempts' label={tr('最多尝试次数', 'Maximum attempts')}>
+            <Form.Item name='max_attempts' label={dt('最多尝试次数')}>
               <InputNumber min={1} max={5} />
             </Form.Item>
           </Space>
@@ -353,21 +364,21 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
               loading={saving}
               onClick={saveSchedule}
             >
-              {editing ? tr('保存修改', 'Save changes') : tr('创建计划', 'Create schedule')}
+              {editing ? dt('保存修改') : dt('创建计划')}
             </Button>
           </div>
         </Form>
       </div>
 
       <div className='mb-3 flex items-center justify-between'>
-        <Text strong>{tr('已有计划', 'Existing schedules')}</Text>
+        <Text strong>{dt('已有计划')}</Text>
         <Button icon={<ReloadOutlined />} loading={loading} onClick={loadSchedules}>
-          {tr('重新加载', 'Reload')}
+          {dt('重新加载')}
         </Button>
       </div>
       <Spin spinning={loading}>
         {schedules.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('还没有刷新计划', 'No refresh schedules')} />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={dt('还没有刷新计划')} />
         ) : (
           <div className='space-y-3'>
             {schedules.map(schedule => (
@@ -377,35 +388,37 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
                     <div className='flex items-center gap-2'>
                       <Text strong>{schedule.task_name}</Text>
                       <Tag color={schedule.enabled && scheduler?.running ? 'green' : 'default'}>
-                        {!schedule.enabled ? tr('已暂停', 'Paused') : scheduler?.running ? tr('运行中', 'Running') : tr('等待后台启动', 'Waiting for scheduler')}
+                        {!schedule.enabled ? dt('已暂停') : scheduler?.running ? dt('运行中') : dt('等待后台启动')}
                       </Tag>
                     </div>
                     <Descriptions size='small' column={2} className='mt-2'>
-                      <Descriptions.Item label={tr('执行频率', 'Frequency')}>
+                      <Descriptions.Item label={dt('执行频率')}>
                         <div>{describeDashboardScheduleCron(schedule.cron_expression)}</div>
                         <Text type='secondary' className='text-xs'>
                           {schedule.cron_expression}
                         </Text>
                       </Descriptions.Item>
-                      <Descriptions.Item label={tr('下次执行', 'Next run')}>
+                      <Descriptions.Item label={dt('下次执行')}>
                         {!schedule.enabled
-                          ? tr('已暂停', 'Paused')
+                          ? dt('已暂停')
                           : !scheduler?.running
-                            ? tr('后台未运行', 'Scheduler is not running')
-                            : schedule.next_run_time || tr('等待调度器计算', 'Waiting for scheduler')}
+                            ? dt('后台未运行')
+                            : schedule.next_run_time || dt('等待调度器计算')}
                       </Descriptions.Item>
-                      <Descriptions.Item label={tr('失败重试', 'Retry attempts')}>{tr(`${schedule.payload.max_attempts} 次`, `${schedule.payload.max_attempts} attempts`)}</Descriptions.Item>
-                      <Descriptions.Item label={tr('自动发布', 'Automatic publication')}>
-                        {schedule.payload.publish_after_refresh ? tr('是', 'Yes') : tr('否', 'No')}
+                      <Descriptions.Item label={dt('失败重试')}>
+                        {schedule.payload.max_attempts} {dt('次')}
                       </Descriptions.Item>
-                      <Descriptions.Item label={tr('最近执行', 'Latest run')}>
+                      <Descriptions.Item label={dt('自动发布')}>
+                        {schedule.payload.publish_after_refresh ? dt('是') : dt('否')}
+                      </Descriptions.Item>
+                      <Descriptions.Item label={dt('最近执行')}>
                         {latestRuns[schedule.task_id]?.[0]
                           ? statusLabels[latestRuns[schedule.task_id][0].status]
-                          : tr('暂无记录', 'No runs')}
+                          : dt('暂无记录')}
                       </Descriptions.Item>
-                      <Descriptions.Item label={tr('上次成功', 'Last success')}>
+                      <Descriptions.Item label={dt('上次成功')}>
                         {latestRuns[schedule.task_id]?.find(run => run.status === 'success')?.finished_at ||
-                          tr('最近 20 次内暂无成功记录', 'No successful runs among the latest 20')}
+                          dt('最近 20 次内暂无成功记录')}
                       </Descriptions.Item>
                     </Descriptions>
                   </div>
@@ -417,16 +430,16 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
                     loading={runningId === schedule.task_id}
                     onClick={() => runNow(schedule)}
                   >
-                    {tr('立即运行', 'Run now')}
+                    {dt('立即运行')}
                   </Button>
                   <Button icon={<HistoryOutlined />} onClick={() => showRuns(schedule)}>
-                    {tr('运行记录', 'Run history')}
+                    {dt('运行记录')}
                   </Button>
                   <Button icon={<EditOutlined />} onClick={() => editSchedule(schedule)}>
-                    {tr('编辑', 'Edit')}
+                    {dt('编辑')}
                   </Button>
                   <Button danger icon={<DeleteOutlined />} onClick={() => removeSchedule(schedule)}>
-                    {tr('删除', 'Delete')}
+                    {dt('删除')}
                   </Button>
                 </Space>
               </div>
@@ -438,9 +451,12 @@ const statusLabels: Record<DashboardScheduleRunStatus, string> = useMemo(() => (
       {runsFor && (
         <div className='mt-6'>
           <div className='mb-2 flex items-center justify-between'>
-            <Text strong>{tr(`“${runsFor.task_name}”的运行记录`, `Run history for “${runsFor.task_name}”`)}</Text>
+            <Text strong>
+              “{runsFor.task_name}
+              {dt('”的运行记录')}
+            </Text>
             <Button size='small' loading={loadingRuns} onClick={() => showRuns(runsFor)}>
-              {tr('刷新记录', 'Refresh history')}
+              {dt('刷新记录')}
             </Button>
           </div>
           <Table<DashboardScheduleRun>

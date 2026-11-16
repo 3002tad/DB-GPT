@@ -1,4 +1,3 @@
-import { useUiText } from '@/hooks/use-ui-text';
 import {
   getDashboardPermissions,
   listDashboardAudit,
@@ -6,6 +5,7 @@ import {
   removeDashboardMember,
   upsertDashboardMember,
 } from '@/client/api';
+import { dashboardText as dt, useDashboardTranslation } from '@/new-components/dashboard/dashboard-i18n';
 import {
   DashboardAction,
   DashboardAuditRecord,
@@ -38,54 +38,100 @@ interface DashboardAccessPanelProps {
   onClose: () => void;
 }
 
+const roleLabels: Record<DashboardRole, string> = {
+  get owner() {
+    return dt('所有者');
+  },
+  get editor() {
+    return dt('编辑者');
+  },
+  get viewer() {
+    return dt('查看者');
+  },
+};
+
+const actionLabels: Record<DashboardAction, string> = {
+  get view() {
+    return dt('查看');
+  },
+  get edit() {
+    return dt('编辑');
+  },
+  get query() {
+    return dt('刷新数据');
+  },
+  get publish() {
+    return dt('发布与分享');
+  },
+  get manage_access() {
+    return dt('管理成员');
+  },
+  get manage_schedule() {
+    return dt('管理定时任务');
+  },
+};
+
+const auditLabels: Record<string, string> = {
+  get 'dashboard.created'() {
+    return dt('创建看板');
+  },
+  get 'dashboard.updated'() {
+    return dt('保存看板');
+  },
+  get 'dashboard.archived'() {
+    return dt('归档看板');
+  },
+  get 'dashboard.restored'() {
+    return dt('恢复看板');
+  },
+  get 'dashboard.refreshed'() {
+    return dt('刷新数据');
+  },
+  get 'dashboard.published'() {
+    return dt('发布看板');
+  },
+  get 'dashboard.revision_restored'() {
+    return dt('恢复历史版本');
+  },
+  get 'member.upserted'() {
+    return dt('更新成员权限');
+  },
+  get 'member.removed'() {
+    return dt('移除成员');
+  },
+  get 'publication.rotated'() {
+    return dt('轮换分享链接');
+  },
+  get 'publication.revoked'() {
+    return dt('撤销分享链接');
+  },
+  get 'schedule.created'() {
+    return dt('创建定时任务');
+  },
+  get 'schedule.updated'() {
+    return dt('更新定时任务');
+  },
+  get 'schedule.deleted'() {
+    return dt('删除定时任务');
+  },
+};
+
 const roleColor: Record<DashboardRole, string> = {
   owner: 'blue',
   editor: 'green',
   viewer: 'default',
 };
 
-const describeError = (error: unknown, fallback: string) => {
+const describeError = (error: unknown) => {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail || error.response?.data?.err_msg;
     if (typeof detail === 'string') return detail;
   }
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof Error ? error.message : dt('管理信息加载失败');
 };
 
 export default function DashboardAccessPanel({ dashboardId, open, onClose }: DashboardAccessPanelProps) {
-  const tr = useUiText();
-const roleLabels: Record<DashboardRole, string> = {
-  owner: tr('所有者', 'Owner'),
-  editor: tr('编辑者', 'Editor'),
-  viewer: tr('查看者', 'Viewer'),
-};
-
-const actionLabels: Record<DashboardAction, string> = {
-  view: tr('查看', 'View'),
-  edit: tr('编辑', 'Edit'),
-  query: tr('刷新数据', 'Refresh data'),
-  publish: tr('发布与分享', 'Publish and share'),
-  manage_access: tr('管理成员', 'Manage members'),
-  manage_schedule: tr('管理定时任务', 'Manage schedules'),
-};
-
-const auditLabels: Record<string, string> = {
-  'dashboard.created': tr('创建看板', 'Create dashboard'),
-  'dashboard.updated': tr('保存看板', 'Save dashboard'),
-  'dashboard.archived': tr('归档看板', 'Archive dashboard'),
-  'dashboard.restored': tr('恢复看板', 'Restore dashboard'),
-  'dashboard.refreshed': tr('刷新数据', 'Refresh data'),
-  'dashboard.published': tr('发布看板', 'Publish dashboard'),
-  'dashboard.revision_restored': tr('恢复历史版本', 'Restore previous version'),
-  'member.upserted': tr('更新成员权限', 'Update member access'),
-  'member.removed': tr('移除成员', 'Remove member'),
-  'publication.rotated': tr('轮换分享链接', 'Rotate share link'),
-  'publication.revoked': tr('撤销分享链接', 'Revoke share link'),
-  'schedule.created': tr('创建定时任务', 'Create schedule'),
-  'schedule.updated': tr('更新定时任务', 'Update schedule'),
-  'schedule.deleted': tr('删除定时任务', 'Delete schedule'),
-};
-
+  useDashboardTranslation();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -117,11 +163,11 @@ const auditLabels: Record<string, string> = {
       setMembers(memberResponse.data.data || []);
       setAudit(auditResponse.data.data || []);
     } catch (reason) {
-      setError(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
+      setError(describeError(reason));
     } finally {
       setLoading(false);
     }
-  }, [dashboardId, tr]);
+  }, [dashboardId]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -132,17 +178,17 @@ const auditLabels: Record<string, string> = {
   const addMember = async () => {
     const cleanPrincipal = principalId.trim();
     if (!cleanPrincipal) {
-      message.warning(tr('请输入成员账号', 'Enter a member account'));
+      message.warning(dt('请输入成员账号'));
       return;
     }
     setSaving(true);
     try {
       await upsertDashboardMember(dashboardId, cleanPrincipal, role);
       setPrincipalId('');
-      message.success(tr('成员权限已保存', 'Member access saved'));
+      message.success(dt('成员权限已保存'));
       await load();
     } catch (reason) {
-      message.error(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
+      message.error(describeError(reason));
     } finally {
       setSaving(false);
     }
@@ -151,20 +197,20 @@ const auditLabels: Record<string, string> = {
   const updateRole = async (member: DashboardMemberRecord, nextRole: Exclude<DashboardRole, 'owner'>) => {
     try {
       await upsertDashboardMember(dashboardId, member.principal_id, nextRole);
-      message.success(tr('成员角色已更新', 'Member role updated'));
+      message.success(dt('成员角色已更新'));
       await load();
     } catch (reason) {
-      message.error(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
+      message.error(describeError(reason));
     }
   };
 
   const removeMember = async (member: DashboardMemberRecord) => {
     try {
       await removeDashboardMember(dashboardId, member.principal_id);
-      message.success(tr('成员已移除', 'Member removed'));
+      message.success(dt('成员已移除'));
       await load();
     } catch (reason) {
-      message.error(describeError(reason, tr('管理信息加载失败', 'Could not load management information')));
+      message.error(describeError(reason));
     }
   };
 
@@ -174,32 +220,32 @@ const auditLabels: Record<string, string> = {
       title={
         <span className='inline-flex items-center gap-2'>
           <SafetyCertificateOutlined className='text-blue-500' />
-          {tr('权限与审计', 'Access and audit')}
+          {dt('权限与审计')}
         </span>
       }
       open={open}
       onClose={onClose}
-      extra={<Button aria-label={tr('刷新权限信息', 'Refresh access information')} icon={<ReloadOutlined />} onClick={() => void load()} />}
+      extra={<Button aria-label={dt('刷新权限信息')} icon={<ReloadOutlined />} onClick={() => void load()} />}
     >
       {loading ? (
         <Skeleton active paragraph={{ rows: 8 }} />
       ) : error ? (
-        <Alert type='error' showIcon message={tr('无法读取管理信息', 'Could not load management information')} description={error} />
+        <Alert type='error' showIcon message={dt('无法读取管理信息')} description={error} />
       ) : permission ? (
         <Tabs
           items={[
             {
               key: 'members',
-              label: tr('成员权限', 'Member access'),
+              label: dt('成员权限'),
               children: (
                 <div className='space-y-5'>
                   <div className='rounded-xl border border-blue-100 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/20'>
                     <Descriptions size='small' column={1} colon={false}>
-                      <Descriptions.Item label={tr('当前账号', 'Current account')}>{permission.actor_id}</Descriptions.Item>
-                      <Descriptions.Item label={tr('当前角色', 'Current role')}>
+                      <Descriptions.Item label={dt('当前账号')}>{permission.actor_id}</Descriptions.Item>
+                      <Descriptions.Item label={dt('当前角色')}>
                         <Tag color={roleColor[permission.role]}>{roleLabels[permission.role]}</Tag>
                       </Descriptions.Item>
-                      <Descriptions.Item label={tr('可执行操作', 'Available actions')}>
+                      <Descriptions.Item label={dt('可执行操作')}>
                         <Space size={[4, 6]} wrap>
                           {permission.actions.map(action => (
                             <Tag key={action}>{actionLabels[action]}</Tag>
@@ -211,23 +257,23 @@ const auditLabels: Record<string, string> = {
 
                   {canManage ? (
                     <div>
-                      <div className='mb-2 font-medium'>{tr('添加或更新成员', 'Add or update member')}</div>
+                      <div className='mb-2 font-medium'>{dt('添加或更新成员')}</div>
                       <Space.Compact block>
                         <Input
-                          aria-label={tr('成员账号', 'Member account')}
-                          placeholder={tr('输入 DB-GPT 用户账号', 'Enter a DB-GPT account')}
+                          aria-label={dt('成员账号')}
+                          placeholder={dt('输入 DB-GPT 用户账号')}
                           value={principalId}
                           onChange={event => setPrincipalId(event.target.value)}
                           onPressEnter={() => void addMember()}
                         />
                         <select
-                          aria-label={tr('成员角色', 'Member role')}
+                          aria-label={dt('成员角色')}
                           className='w-32 border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900'
                           value={role}
                           onChange={event => setRole(event.target.value as Exclude<DashboardRole, 'owner'>)}
                         >
-                          <option value='viewer'>{tr('查看者', 'Viewer')}</option>
-                          <option value='editor'>{tr('编辑者', 'Editor')}</option>
+                          <option value='viewer'>{dt('查看者')}</option>
+                          <option value='editor'>{dt('编辑者')}</option>
                         </select>
                         <Button
                           type='primary'
@@ -235,15 +281,15 @@ const auditLabels: Record<string, string> = {
                           loading={saving}
                           onClick={() => void addMember()}
                         >
-                          {tr('保存成员', 'Save member')}
+                          {dt('保存成员')}
                         </Button>
                       </Space.Compact>
                       <p className='mt-2 text-xs text-gray-400'>
-                        {tr('查看者只能浏览；编辑者可以编辑并刷新；发布、成员管理和定时任务仅所有者可用。', 'Viewers can browse; editors can edit and refresh. Only the owner can publish, manage members and schedules.')}
+                        {dt('查看者只能浏览；编辑者可以编辑并刷新；发布、成员管理和定时任务仅所有者可用。')}
                       </p>
                     </div>
                   ) : (
-                    <Alert type='info' showIcon message={tr('你可以访问此看板，但没有成员管理权限。', 'You can access this dashboard but cannot manage members.')} />
+                    <Alert type='info' showIcon message={dt('你可以访问此看板，但没有成员管理权限。')} />
                   )}
 
                   {canManage ? (
@@ -256,14 +302,15 @@ const auditLabels: Record<string, string> = {
                           <div className='min-w-[180px] flex-1'>
                             <div className='font-medium text-gray-800 dark:text-gray-100'>{member.principal_id}</div>
                             <div className='mt-0.5 text-xs text-gray-400'>
-                              {tr('由 ', 'Added by ')}{member.created_by} {tr('添加 · ', ' · ')}{new Date(member.updated_at).toLocaleString()}
+                              {dt('由')} {member.created_by} {dt('添加 ·')}{' '}
+                              {new Date(member.updated_at).toLocaleString()}
                             </div>
                           </div>
                           {member.role === 'owner' ? (
                             <Tag color={roleColor.owner}>{roleLabels.owner}</Tag>
                           ) : (
                             <select
-                              aria-label={tr(`${member.principal_id}角色`, `Role for ${member.principal_id}`)}
+                              aria-label={dt('{{value0}}角色', { value0: member.principal_id })}
                               value={member.role}
                               className='h-8 w-28 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900'
                               onChange={event =>
@@ -276,16 +323,16 @@ const auditLabels: Record<string, string> = {
                           )}
                           {member.role === 'owner' ? null : (
                             <Popconfirm
-                              title={tr(`移除成员 ${member.principal_id}？`, `Remove member ${member.principal_id}?`)}
-                              description={tr('移除后，该成员将不能再访问这个看板。', 'This member will no longer be able to access this dashboard.')}
-                              okText={tr('移除', 'Remove')}
-                              cancelText={tr('取消', 'Cancel')}
+                              title={dt('移除成员 {{value0}}？', { value0: member.principal_id })}
+                              description={dt('移除后，该成员将不能再访问这个看板。')}
+                              okText={dt('移除')}
+                              cancelText={dt('取消')}
                               onConfirm={() => void removeMember(member)}
                             >
                               <Button
                                 danger
                                 type='text'
-                                aria-label={tr(`移除成员 ${member.principal_id}`, `Remove member ${member.principal_id}`)}
+                                aria-label={dt('移除成员 {{value0}}', { value0: member.principal_id })}
                                 icon={<DeleteOutlined />}
                               />
                             </Popconfirm>
@@ -299,7 +346,7 @@ const auditLabels: Record<string, string> = {
             },
             {
               key: 'audit',
-              label: tr(`操作记录${audit.length ? ` (${audit.length})` : ''}`, `Activity log${audit.length ? ` (${audit.length})` : ''}`),
+              label: dt('操作记录{{value0}}', { value0: audit.length ? ` (${audit.length})` : '' }),
               disabled: !canManage,
               children: audit.length ? (
                 <Timeline
@@ -325,7 +372,7 @@ const auditLabels: Record<string, string> = {
                   }))}
                 />
               ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('暂无操作记录', 'No activity recorded')} />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={dt('暂无操作记录')} />
               ),
             },
           ]}

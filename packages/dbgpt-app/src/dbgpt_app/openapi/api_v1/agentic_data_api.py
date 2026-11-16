@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shutil
+import sqlite3
 import tempfile
 import uuid
 import zipfile
@@ -90,6 +91,12 @@ from .subagent.history import (
     fail_running_subagent_history,
     update_subagent_history,
 )
+from .task_progress import (
+    complete_delivery_task,
+    reconcile_report_delivery,
+    sync_task_plan_steps,
+    task_plan_meta,
+)
 
 _CHINESE_RECOMMENDATION_COUNTS = {
     "一": 1,
@@ -116,7 +123,30 @@ def _requested_recommendation_count(user_input: str) -> Optional[int]:
         re.IGNORECASE,
     )
     if not match:
-        return None
+        words = {
+            "one": 1,
+            "two": 2,
+            "three": 3,
+            "four": 4,
+            "five": 5,
+            "six": 6,
+            "seven": 7,
+            "eight": 8,
+            "nine": 9,
+            "ten": 10,
+        }
+        english = re.search(
+            r"\b(?P<count>\d+|one|two|three|four|five|six|seven|eight|nine|ten)"
+            r"\s+(?:(?:highest|top|priority|actionable|key|specific|practical|"
+            r"highest-priority)\s+){0,3}recommendations?\b",
+            user_input,
+            re.IGNORECASE,
+        )
+        if not english:
+            return None
+        value = english.group("count").lower()
+        count = int(value) if value.isdigit() else words[value]
+        return count if 1 <= count <= 20 else None
     raw_count = match.group("count")
     count = (
         int(raw_count)
@@ -275,6 +305,30 @@ async def _resolve_model_context_tokens(
             "Failed to resolve context window for model %s", model_name, exc_info=True
         )
     return None
+
+
+def _agentic_max_new_tokens(dialogue_value: Optional[int]) -> int:
+    """Completion budget: UI value wins when larger, else env > TOML > 16384."""
+    default = 16384
+    raw = os.getenv("DBGPT_AGENTIC_MAX_NEW_TOKENS", "").strip()
+    if raw:
+        try:
+            default = max(1024, int(raw))
+        except ValueError:
+            logger.warning(
+                "Invalid DBGPT_AGENTIC_MAX_NEW_TOKENS=%r; using %s", raw, default
+            )
+    else:
+        try:
+            _app_cfg = CFG.SYSTEM_APP.config.configs.get("app_config")
+            _web_cfg = getattr(getattr(_app_cfg, "service", None), "web", None)
+            _agent_ctx = getattr(_web_cfg, "agent_context", None)
+            _cfg_val = getattr(_agent_ctx, "max_new_tokens", None)
+            if isinstance(_cfg_val, int) and _cfg_val > 0:
+                default = _cfg_val
+        except Exception:
+            logger.debug("Failed to read agent_context.max_new_tokens; using 16384")
+    return max(dialogue_value or 0, default)
 
 
 async def _load_context_budget_config(
@@ -650,6 +704,8 @@ async def list_skills(
     """
     from dbgpt.agent.skill.loader import SkillLoader
 
+    from .dashboard.gallery_templates import is_internal_dashboard_skill
+
     skills_data = []
     skills_dir = DEFAULT_SKILLS_DIR
     skills_dir_resolved = Path(skills_dir).expanduser().resolve()
@@ -667,6 +723,8 @@ async def list_skills(
             file_path = getattr(metadata, "file_path", None) or ""
             if not file_path and hasattr(skill, "_config"):
                 file_path = skill._config.get("file_path", "")
+            if is_internal_dashboard_skill(file_path):
+                continue
 
             # Convert absolute file_path to relative (relative to skills_dir)
             if file_path:
@@ -1359,6 +1417,7 @@ def _build_react_history_payload(
     storage URIs, owner ids, hashes or inspection bodies. ``citations`` comes
     from the final-answer assembler and remains display-safe metadata.
     """
+    sync_task_plan_steps(steps, task_plan)
     value = {
         "version": 2,
         "protocol_version": 2,
@@ -1596,8 +1655,13 @@ def _react_terminal_events(
     except Exception:
         logger.exception("Failed to persist ReAct agent history")
 
+    final_payload = final_answer.to_sse_payload()
+    history = json.loads(history_payload)
+    if isinstance(history.get("task_plan"), list):
+        final_payload["task_plan"] = history["task_plan"]
+        final_payload["todo_meta"] = task_plan_meta(history["task_plan"])
     return (
-        _sse_event(final_answer.to_sse_payload()),
+        _sse_event(final_payload),
         _sse_event({"type": "done"}),
     )
 
@@ -2109,6 +2173,32 @@ async def _react_agent_stream_impl(
                 exc_info=True,
             )
 
+    if (
+        not database_name
+        and not dashboard_continuation_turn
+        and (attachment_ctx is not None or file_paths)
+        and (
+            skill_name == DASHBOARD_BUILDER_SKILL_NAME
+            or _is_dashboard_workflow_request(user_input, creation_mode)
+        )
+    ):
+        from .dashboard.uploaded_source import prepare_dashboard_files
+
+        try:
+            prepared = await prepare_dashboard_files(
+                attachment_ctx=attachment_ctx,
+                legacy_paths=file_paths,
+                owner_id=dialogue.user_name,
+                conversation_id=dialogue.conv_uid,
+            )
+            database_name = prepared["database_name"]
+            dataset_id = prepared["dataset_id"]
+            uploaded_files = prepared["files"]
+        except (ValueError, OSError) as exc:
+            yield _sse_event({"type": "error", "error": str(exc)})
+            yield _sse_event({"type": "done"})
+            return
+
     # Connector selection (Task C): only inject user-selected connectors.
     connector_ids: List[str] = _parse_connector_ids(dialogue.ext_info)
 
@@ -2338,7 +2428,13 @@ async def _react_agent_stream_impl(
 
     # Step 1: Pre-load skills
     load_skills_from_dir(skills_dir, recursive=True)
-    all_skills = registry.list_skills()
+    from .dashboard.gallery_templates import is_internal_dashboard_skill
+
+    all_skills = [
+        skill
+        for skill in registry.list_skills()
+        if not is_internal_dashboard_skill(skill.file_path)
+    ]
 
     # Step 2: Get business tools from ResourceManager
     rm = get_resource_manager(CFG.SYSTEM_APP)
@@ -2488,6 +2584,29 @@ async def _react_agent_stream_impl(
 ## Database
 - Warning: Could not load database '{database_name}'. Error: {str(e)}
 """
+
+    if database_connector is None and (
+        creation_mode == "dashboard"
+        or skill_name == DASHBOARD_BUILDER_SKILL_NAME
+        or (
+            not skill_name
+            and not dashboard_continuation_turn
+            and _is_dashboard_workflow_request(user_input)
+        )
+    ):
+        locale = str((dialogue.ext_info or {}).get("locale", "zh")).lower()
+        yield _sse_event(
+            AgentFinalAnswer(
+                content=(
+                    "Choose an available data source or upload a CSV/Excel file "
+                    "before generating a dashboard."
+                    if locale.startswith("en")
+                    else "请选择可用数据源或上传 CSV / Excel 文件，再生成看板。"
+                )
+            ).to_sse_payload()
+        )
+        yield _sse_event({"type": "done"})
+        return
 
     if database_connector is not None:
         database_context += """
@@ -3048,11 +3167,13 @@ async def _react_agent_stream_impl(
         user_prompt=user_input,
         model_name=dialogue.model_name,
         stream_callback=stream_callback,
+        gallery_template=(dialogue.ext_info or {}).get("dashboard_template"),
     )
     from .dashboard.confirmation import (
         DashboardConfirmationAgent,
         generation_failure,
         generation_start_event,
+        query_batch_size,
         run_bounded_generation,
     )
 
@@ -3250,7 +3371,8 @@ async def _react_agent_stream_impl(
             record_report_invocation_failure(react_state, raw_call, reason)
         )
 
-        if is_report_resume_request(user_input):
+        report_resume_requested = is_report_resume_request(user_input)
+        if report_resume_requested:
             try:
                 artifact_sink = await asyncio.to_thread(
                     restore_report_checkpoint,
@@ -3264,17 +3386,48 @@ async def _react_agent_stream_impl(
                 raise ValueError(
                     "REPORT_CHECKPOINT_INVALID: saved report recovery failed; keep completed artifacts and report this error"
                 )
+            if react_state.get("_report_required_recommendation_count") is None:
+                react_state["_report_required_recommendation_count"] = (
+                    _requested_recommendation_count(
+                        react_state.get("_report_original_request") or ""
+                    )
+                )
             if not requested_locale.startswith(("en", "zh")):
                 original_request = react_state.get("_report_original_request") or ""
                 react_state["_report_language"] = (
                     "zh" if re.search(r"[\u3400-\u9fff]", original_request) else "en"
                 )
-        artifact_sink = artifact_sink or InMemoryArtifactSink(
-            ArtifactCaptureContext(
+        from .tools.evidence_catalog import (
+            EvidenceCatalog,
+            SessionArtifactSink,
+            catalog_path,
+        )
+
+        context = (
+            artifact_sink.context
+            if artifact_sink is not None
+            else ArtifactCaptureContext(
                 conv_uid=conv_id,
                 run_id=f"turn-{uuid.uuid4().hex}",
             )
         )
+        try:
+            catalog = EvidenceCatalog(
+                catalog_path(), owner_id=str(dialogue.user_name or "anonymous")
+            )
+            session_sink = SessionArtifactSink(
+                context, catalog, include_prior=report_resume_requested
+            )
+            if artifact_sink is not None:
+                for restored in artifact_sink.snapshot():
+                    session_sink.restore_artifact(restored)
+            artifact_sink = session_sink
+        except (OSError, sqlite3.Error):
+            logger.warning(
+                "Session evidence catalog unavailable; using run capture",
+                exc_info=True,
+            )
+            artifact_sink = artifact_sink or InMemoryArtifactSink(context)
         # Kept in per-turn state for PR5a assembly after the agent task completes.
         # It is never included in prompts, SSE events, or conversation history.
         react_state["_report_artifact_sink"] = artifact_sink
@@ -3289,12 +3442,15 @@ async def _react_agent_stream_impl(
     # template spec inside its own analysis loop.
     from .subagent.report_agent import make_generate_report_tool
 
+    # Resolve once so the lead and dedicated report author share one budget.
+    agentic_max_new_tokens = _agentic_max_new_tokens(dialogue.max_new_tokens)
     report_tools = [
         make_generate_report_tool(
             react_state=react_state,
             skills_dir=DEFAULT_SKILLS_DIR,
             llm_client=llm_client,
             model_name=dialogue.model_name,
+            max_new_tokens=agentic_max_new_tokens,
         )
     ]
     if attachment_ctx is not None:
@@ -3400,6 +3556,7 @@ async def _react_agent_stream_impl(
         enable_context_management=True,
         enable_native_function_calling=True,
         pin_selected_model=bool(dialogue.model_name),
+        max_new_tokens=agentic_max_new_tokens,
     )
 
     # file_ids requests use the public manifest block; legacy file_path and
@@ -3430,6 +3587,16 @@ async def _react_agent_stream_impl(
             if hasattr(skill_template, "template")
             else str(skill_template)
         )
+        if pre_matched_skill.metadata.name == DASHBOARD_BUILDER_SKILL_NAME:
+            from .dashboard.skill_context import (
+                confirmed_skill_instructions,
+                planning_skill_instructions,
+            )
+
+            if react_state.get("dashboard_confirmation_contract"):
+                skill_text = confirmed_skill_instructions(skill_text)
+            elif not dashboard_continuation_turn:
+                skill_text = planning_skill_instructions(skill_text)
         skill_prompt_context = f"""
 ## Loaded skill instructions ({pre_matched_skill.metadata.name})
 Follow the complete instructions for the user's selected skill:
@@ -3442,6 +3609,17 @@ Follow the complete instructions for the user's selected skill:
 2. Follow its instructions and use the tools required for each step.
 3. Complete the skill goal in the specified order.
 """
+
+    if react_state.get("dashboard_gallery_context"):
+        gallery_context = react_state["dashboard_gallery_context"]
+        if react_state.get("dashboard_confirmation_contract"):
+            from .dashboard.skill_context import confirmed_gallery_context
+
+            gallery_context = confirmed_gallery_context(gallery_context)
+        skill_prompt_context += (
+            "\n## Loaded internal dashboard-design skill\n"
+            + json.dumps(gallery_context, ensure_ascii=False)
+        )
 
     # Build a hint listing all images currently available in
     # STATIC_MESSAGE_IMG_PATH so the LLM can reference them correctly in
@@ -3583,6 +3761,7 @@ report agent owns templates, evidence bindings and repairs. Reuse completed
 analysis and follow the latest renderer result. Do not write report HTML yourself
 or invent template paths. Do not retry accepted patches or non-retryable failures.
 {available_images_hint}
+When passing known metric definitions to generate_report, include real artifact IDs, selectors, meaning and grain; omit uncertain definitions.
 
 {file_context}
 {knowledge_context}
@@ -3737,7 +3916,8 @@ completed analysis.
             confirmation_contract_prompt = f"""
 ## Authoritative confirmed plan contract
 The following persisted contract is authoritative. Generate exactly one query for
-every listed widget_id across staged calls of at most two widgets each, use each id
+every listed widget_id across staged calls of at most {query_batch_size(react_state)}
+widgets each (fewer for long queries), use each id
 verbatim, and do not invent extra widgets. Pass the dashboard_id and
 expected_revision below unchanged.
 
@@ -4257,9 +4437,8 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                 if round_num in round_step_map:
                     _stale_id = round_step_map.pop(round_num)
                     yield step_meta(_stale_id, None, "terminate", None, "terminate")
-                # Do not fabricate plan completion.  Only an explicit
-                # todowrite update can mark a task complete; otherwise an
-                # early terminate must remain visibly incomplete.
+                # Termination alone does not prove any analysis/report task
+                # completed. Delivery is reconciled after verifying outcomes.
                 continue
 
             # ── TodoWrite: emit plan.update SSE and show step card ──
@@ -4287,22 +4466,10 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                 if not todos_payload and _todo_list:
                     todos_payload = list(_todo_list)
 
-                _td_total = len(todos_payload)
-                _td_done = sum(
-                    1 for t in todos_payload if t.get("status") == "completed"
-                )
-                if _td_done == 0:
-                    todo_state = "init"
-                elif _td_done == _td_total and _td_total > 0:
-                    todo_state = "done"
-                else:
-                    todo_state = "progress"
-
-                todo_meta = {
-                    "state": todo_state,
-                    "done": _td_done,
-                    "total": _td_total,
-                }
+                todo_meta = task_plan_meta(todos_payload)
+                _td_total = todo_meta["total"]
+                _td_done = todo_meta["done"]
+                todo_state = todo_meta["state"]
                 _todo_step_title = (
                     f"TODO::{todo_state}:{_td_done}/{_td_total}"
                     if _td_total > 0
@@ -4551,9 +4718,19 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
 
             # Mark step as done and track as last completed
             yield step_done(react_step_id, status)
+            report_task_completed = False
+            action_names = {name.strip().lower() for name in (action or "").split(",")}
+            if "generate_report" in action_names:
+                if react_state.get("_report_delivery_completed"):
+                    report_task_completed = reconcile_report_delivery(
+                        _todo_list, react_state
+                    )
+            if report_task_completed:
+                yield _sse_event({"type": "plan.update", "tasks": list(_todo_list)})
             if (
                 status == "done"
                 and action
+                and "generate_report" not in action_names
                 and action.lower() != "todowrite"
                 and should_advance_todo(
                     action, thought_text or thoughts, observation_text
@@ -4759,6 +4936,19 @@ Avoid introducing event names or lifecycle claims without relevant evidence.
                 "Removed unsupported final claims for conversation %s: %s",
                 conv_id, ", ".join(claim_issues),
             )
+    # A valid final response completes an explicit delivery task, never pending
+    # analysis or report work. Partial reports do not complete their report task.
+    if (
+        not stopped
+        and not incomplete
+        and reply.action_report
+        and reply.action_report.terminate
+        and final_content.strip()
+        and not final_content.startswith(("任务未完成", "HTML 分析报告未生成"))
+    ):
+        if react_state.get("_report_delivery_completed"):
+            reconcile_report_delivery(_todo_list, react_state)
+        complete_delivery_task(_todo_list, summary_delivered=True)
     final_answer = final_answer_assembler.finalize(final_content)
     final_answer = await _finalize_turn_report_persistence(
         dialogue=dialogue,

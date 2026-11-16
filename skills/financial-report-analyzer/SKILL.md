@@ -14,13 +14,13 @@ description: 专门用于上市公司财报（如年度报告、季度报告）�
    - 脚本支持 PDF 文件（通过 pdfplumber 解析）和纯文本文件，返回 JSON 格式的结构化数据。
 
 2. **财务比率计算**：
-   - 使用 `execute_skill_script_file` 执行 `scripts/calculate_ratios.py`，传入 Step 1 的 JSON 数据。
+   - 使用 `execute_skill_script_file` 执行 `scripts/calculate_ratios.py`，在 `input_artifact_ids` 指定 Step 1 的提取产物 ID；程序直接读取该产物作为输入，不接受手写覆盖数值。
    - 自动计算毛利率、净利率、ROE、资产负债率等关键指标，输出 30 个模板占位符键值。
    - 参考 `references/financial_metrics.md` 确保指标定义的准确性。
    - 系统将脚本的实际 JSON 结果捕获为 Python 产物，并通过通用 `auto_data` 传递模板字段，后续 `html_interpreter` 会自动合并。不使用专用 `ratio_data` 状态。
 
 3. **图表生成**：
-   - 使用 `execute_skill_script_file` 执行 `scripts/generate_charts.py`，传入 Step 1 的 JSON 数据。
+   - 使用 `execute_skill_script_file` 执行 `scripts/generate_charts.py`，在 `input_artifact_ids` 指定 Step 1 的提取产物 ID。图表和财务比率使用同一份提取结果。
    - 自动生成 3 张可视化图表：
      - `financial_overview.png`：核心财务指标对比柱状图
      - `profitability.png`：盈利能力指标横向条形图
@@ -35,32 +35,14 @@ description: 专门用于上市公司财报（如年度报告、季度报告）�
      - `SOLVENCY_ANALYSIS`：偿债与风险分析
      - `EFFICIENCY_ANALYSIS`：营运效率分析
      - `CASHFLOW_ANALYSIS`：现金流与利润质量分析
-     - `ADVANTAGES_LIST`：核心优势列表（HTML `<li>` 格式）
-     - `RISKS_LIST`：主要风险列表（HTML `<li>` 格式）
+     - `ADVANTAGES_LIST`：核心优势列表（纯文本段落数组，不包含 HTML 标签）
+     - `RISKS_LIST`：主要风险列表（纯文本段落数组，不包含 HTML 标签）
      - `OVERALL_ASSESSMENT`：综合评价
 
-5. **渲染报告**：
-   - 调用 `html_interpreter`，使用 `template_path` 模式：
-     ```json
-     {
-       "template_path": "financial-report-analyzer/templates/report_template.html",
-       "data": {
-         "PROFITABILITY_ANALYSIS": "LLM撰写的盈利能力分析...",
-         "SOLVENCY_ANALYSIS": "LLM撰写的偿债分析...",
-         "EFFICIENCY_ANALYSIS": "LLM撰写的营运效率分析...",
-         "CASHFLOW_ANALYSIS": "LLM撰写的现金流分析...",
-         "ADVANTAGES_LIST": "<li>优势1</li><li>优势2</li>",
-         "RISKS_LIST": "<li>风险1</li><li>风险2</li>",
-         "OVERALL_ASSESSMENT": "LLM撰写的综合评价..."
-       },
-       "title": "XX公司 2023年度财报分析报告"
-     }
-     ```
-   - **重要**：`data` 字典中只需传入你撰写的 7 段分析文本！后端会自动合并：
-     - Step 2 的 30 个数据指标（COMPANY_NAME、REVENUE、NET_PROFIT 等）
-     - Step 3 的图表 URL（CHART_FINANCIAL_OVERVIEW、CHART_PROFITABILITY、CHART_ASSET_STRUCTURE）
-   - **绝对不要**在 `data` 中包含数据指标或图表路径，否则 JSON 过大会导致截断。
-   - 分析正文中的业务数值必须引用产生它的 SQL/Python 产物；通过 `report_evidence_manifest` 查看实际字段和路径，不手填或猜测选择器。使用知识库口径时，将对应切片绑定到具体方法说明；来源绑定不代表已通过确定性核验。
+5. **交付报告**：
+   - 调用 `generate_report`，传入报告标题、需要覆盖的分析维度和建议要求。
+   - 报告子代理使用已捕获的脚本结果、图表及模板生成报告；通过证据清单读取实际指标路径，缺失计算只补算缺失部分。
+   - 不要自行调用 `html_interpreter`，不要手写图表文件路径或猜测指标值及来源。
 
 6. **完成**：
    - 调用 `terminate` 返回 1-2 句话的简短摘要。
@@ -72,15 +54,15 @@ description: 专门用于上市公司财报（如年度报告、季度报告）�
 Step 1: execute_skill_script_file(skill_name="financial-report-analyzer", script_file_name="extract_financials.py", args={"file_path": "/path/to/report.pdf"})
   → 返回 JSON: {"revenue": 10500000000, "net_profit": 1200000000, ...}  （记为 raw_data）
 
-Step 2: execute_skill_script_file(skill_name="financial-report-analyzer", script_file_name="calculate_ratios.py", args=<raw_data>)
+Step 2: execute_skill_script_file(skill_name="financial-report-analyzer", script_file_name="calculate_ratios.py", input_artifact_ids=[Step 1 的实际产物 ID])
   → 返回 30 个模板键值，系统捕获 Python 产物并通过通用 auto_data 传递模板字段
 
-Step 3: execute_skill_script_file(skill_name="financial-report-analyzer", script_file_name="generate_charts.py", args=<raw_data>)
+Step 3: execute_skill_script_file(skill_name="financial-report-analyzer", script_file_name="generate_charts.py", input_artifact_ids=[Step 1 的实际产物 ID])
   → 生成图表，系统自动复制到 /images/ 并记录 URL 映射
 
 Step 4: （LLM 自行撰写 7 段深度分析文本）
 
-Step 5: html_interpreter(template_path="financial-report-analyzer/templates/report_template.html", data={仅包含 7 段分析文本}, title="报告标题")
+Step 5: generate_report(instructions="财报分析报告：包含财务摘要、盈利、偿债、效率、现金流、优势和风险")
   → 后端自动合并数据指标 + 图表 URL + 分析文本，渲染完整报告
 
 Step 6: terminate(result="简短摘要")
@@ -103,6 +85,9 @@ Step 6: terminate(result="简短摘要")
 ## 注意事项
 
 - **必须使用 `execute_skill_script_file`** 执行脚本（不要用 shell_interpreter），因为 `execute_skill_script_file` 会自动处理图片复制和数据记录。
+- **PDF 页文本必须按源文件和提取方式缓存复用**：`code_interpreter` 对同一 PDF、同一组提取参数最多进行一次全量解析。首次解析后，将结果写入当前会话工作目录 `.cache/financial-report-analyzer/pages_<源文件SHA256>_<提取方式及参数哈希>.json`；缓存内容包含源文件 SHA256、提取方式及参数和按原始页序排列的 `pages` 数组，并使用同目录临时文件和原子替换完成写入。
+- 后续补充提取、指标核对和计算必须优先读取对应缓存，复用前核对源文件 SHA256 与提取方式及参数；禁止仅按文件名复用，禁止在缓存可用时再次调用 `pdfplumber.open` 全量解析。只有对应缓存不存在或损坏时才重新生成。多份 PDF、同名但内容不同或内容已更新的文件必须使用不同缓存；文本、版面、表格、OCR 等不同提取方式或参数不得混用缓存。非 PDF 文件保持原有处理流程。
+- 输入文件未变化且已有成功提取产物时，后续比率、图表与补充分析必须复用该产物；缺失信息优先从对应页文本缓存补提。除非用户明确要求或提取口径改变，否则不得重复执行全量提取脚本。
 - 脚本提取可能受排版影响，建议在计算前人工核对提取的关键数值。
 - 始终关注"非经常性损益"，以评估公司核心业务的真实盈利能力。
 - 对比至少三年的历史数据，以识别趋势。
