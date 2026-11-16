@@ -11,6 +11,7 @@ import { WarningOutlined } from '@ant-design/icons';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
 import type { PendingApproval } from '@/utils/react-sse-parser';
 
 export interface ApprovalDockProps {
@@ -43,6 +44,14 @@ const ApprovalCard: React.FC<{
 }> = ({ approval, onResolve }) => {
   const { t } = useTranslation();
   const [scope, setScope] = useState('once');
+  const integrated = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
+  let canApproveGlobally = !integrated;
+  try {
+    if (typeof window !== 'undefined' && integrated) {
+      canApproveGlobally = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role === 'super_admin';
+    }
+  } catch { canApproveGlobally = false; }
+
   const [reason, setReason] = useState('');
   const [confirmingReject, setConfirmingReject] = useState(false);
   const [intentGrace, setIntentGrace] = useState(false);
@@ -135,7 +144,7 @@ const ApprovalCard: React.FC<{
             onChange={e => setScope(e.target.value)}
             className='ml-auto h-8 rounded-lg border border-gray-200 bg-white px-2 text-[12.5px] text-gray-500 dark:border-[#33353b] dark:bg-[#17181c]'
           >
-            {SCOPE_VALUES.map(v => (
+            {SCOPE_VALUES.filter(v => v !== 'always' || canApproveGlobally).map(v => (
               <option key={v} value={v}>
                 {t(`approval_scope_${v}`)} {v}
               </option>

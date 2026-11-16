@@ -38,7 +38,7 @@ class SkillPromptBudgetTest(unittest.TestCase):
         values = {name: f'{name}: {{"status":"UNVERIFIED","amount":null}}'
                   for name in ("skill_prompt_context", "execution_instruction",
                                "file_context", "knowledge_context", "database_context",
-                               "available_images_hint", "language_instruction")}
+                               "language_instruction")}
         prompt = render_skill_prompt(SOURCE.read_text(encoding="utf-8"), **values)
         for value in values.values():
             self.assertEqual(prompt.count(value), 1)
@@ -52,7 +52,7 @@ class SkillPromptBudgetTest(unittest.TestCase):
         prompt = render_skill_prompt(SOURCE.read_text(encoding="utf-8"),
                                      mode="general")
         for value in ("SKILLS", "KNOWLEDGE", "DATABASE", "FILES", "REPORT_POLICY",
-                      "CODEGRAPH", "WIKI", "NATIVE"):
+                      "WIKI", "NATIVE"):
             self.assertEqual(prompt.count(value), 1, value)
         self.assertIn("dispatch_parallel_tasks", prompt)
         self.assertIn("generate_report", prompt)
@@ -92,11 +92,11 @@ class SkillPromptBudgetTest(unittest.TestCase):
                            and node.test.left.id == "tool_mode")
         context = {name: name for name in (
             "execute_skill_script", "get_skill_resource",
-            "execute_skill_script_file_tool", "code_interpreter_tool",
+            "execute_skill_script_file_tool", "code_tool", "bash_tool", "html_interpreter_tool",
             "read_file_tool", "sql_query_tool", "chart_query_tool",
             "todowrite_tool", "question_tool")}
         context.update(kb_tool_list=["kb_grep", "kb_cat"],
-                       report_tools=["generate_report"], business_tools=[],
+                       report_tools=["generate_report"], financial_tools=[], business_tools=[],
                        connector_tool_extras=[], Terminate=lambda: "terminate",
                        ToolPack=lambda tools: tools)
         for mode, branch in (("knowledge", mode_branch.body),
@@ -110,6 +110,9 @@ class SkillPromptBudgetTest(unittest.TestCase):
             self.assertIn("kb_cat", tools, mode)
             self.assertEqual(tools.count("kb_grep"), 1, mode)
             self.assertEqual("sql_query_tool" in tools, mode == "analysis")
+            if mode == "analysis":
+                self.assertIn("code_tool", tools)
+                self.assertIn("read_file_tool", tools)
 
     def test_zero_temperature_is_preserved(self):
         tree = ast.parse(SOURCE.read_text(encoding="utf-8"))

@@ -22,6 +22,25 @@ SHARED_MODULE_ROUTES = {
         "GET": [r"/api/v1/agent/skills/download", r"/api/v1/conv/feedback/reasons"],
     },
     "skills": {"POST": [r"/api/v1/skills/(?:upload|import_github)"]},
+    # Shared analytical workspace, not datasource/provider credential management.
+    "semantic": {
+        "GET": [r"/api/v1/semantic/spaces", rf"/api/v1/semantic/spaces/{_ID}(?:/(?:coverage|tables|entries|metrics|relations|examples|rules))?",
+                rf"/api/v1/semantic/tables/{_ID}/columns", rf"/api/v1/semantic/spaces/{_ID}/metrics/{_ID}/versions/{_ID}"],
+        "POST": [r"/api/v1/semantic/spaces/backfill", rf"/api/v1/semantic/spaces/{_ID}/(?:activate|sync|drafts|entries|metrics|examples)",
+                 rf"/api/v1/semantic/entries/{_ID}/review", rf"/api/v1/semantic/metrics/{_ID}/publish", rf"/api/v1/semantic/rules/{_ID}/status"],
+    },
+    "plugins": {
+        "GET": [r"/api/v1/suites", rf"/api/v1/suites/{_ID}(?:/events)?", rf"/api/v1/suite-drafts/{_ID}",
+                rf"/api/v1/suite-artifacts/{_ID}(?:/(?:download|installation))?"],
+        "POST": [r"/api/v1/suites/upload", rf"/api/v1/suites/{_ID}/(?:enable|disable)", r"/api/v1/suite-drafts",
+                 rf"/api/v1/suite-drafts/{_ID}/(?:validate|build)", rf"/api/v1/suite-artifacts/{_ID}/(?:install|configure)"],
+        "PATCH": [rf"/api/v1/suite-drafts/{_ID}"],
+        "DELETE": [rf"/api/v1/suites/{_ID}"],
+    },
+    "chat_execution": {
+        "GET": [r"/api/v1/chat/approval/(?:pending|log|session-mode)"],
+        "POST": [r"/api/v1/chat/sql/run", rf"/api/v1/chat/approval/{_ID}/resolve", r"/api/v1/chat/approval/session-mode"],
+    },
     "reports": {
         "GET": [rf"/api/v1/reports/{_ID}(?:/runs(?:/{_ID}(?:/preview|/blocks/{_ID}/evidence|/artifacts/{_ID}/content|/render-observations(?:/{_ID}/{_ID}/content)?)?)?)?"],
         "POST": [rf"/api/v1/reports/{_ID}/runs/{_ID}/render-observations"],
@@ -57,6 +76,12 @@ SHARED_MODULE_ROUTES = {
 }
 
 ADMIN_MODULE_ROUTES = {
+    "plugins_sync": {"GET": [r"/api/v1/suites/sync"], "POST": [r"/api/v1/suites/sync"]},
+    "agent_configuration": {
+        "GET": [r"/api/v1/chat/harness/engines", r"/api/v1/chat/approval/(?:policy|whitelist)"],
+        "PUT": [r"/api/v1/chat/harness/engine"],
+        "POST": [r"/api/v1/chat/approval/(?:policy/(?:save|playground)|whitelist/revoke)"],
+    },
     "observability": {"GET": [
         rf"/api/v1/observability/(?:capabilities|agents(?:/{_ID}/stats)?|health|sessions|metrics|models/usage)"
     ]},
@@ -77,6 +102,8 @@ ADMIN_MODULE_ROUTES = {
 def module_request_allowed(role: str, method: str, path: str) -> bool:
     if role not in ("analyst", "super_admin"):
         return False
+    if path == "/api/v1/suites/sync":
+        return role == "super_admin" and method in ("GET", "POST")
     groups = [SHARED_MODULE_ROUTES]
     if role == "super_admin":
         groups.append(ADMIN_MODULE_ROUTES)

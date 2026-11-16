@@ -5,7 +5,9 @@ const path = require("path");
 
 // Next.js 16 uses a config option for static export instead of `next export`.
 const staticExport = process.env.DBGPT_WEB_STATIC_EXPORT === "1";
-const apiBaseUrl = (process.env.API_BASE_URL || "http://127.0.0.1:5670").replace(/\/+$/, "");
+// Static exports are served by the public DB-GPT origin through Pipeline.
+// An empty base is intentional: never send the browser to its own loopback.
+const apiBaseUrl = (process.env.API_BASE_URL ?? (staticExport ? "" : "http://127.0.0.1:5670")).replace(/\/+$/, "");
 
 const nextConfig = {
   agentRules: false,

@@ -428,6 +428,9 @@ def register_approval_policy_endpoints(router: APIRouter) -> None:
         """Per-conversation permission mode shown by the composer badge."""
         from .approval import approval_center
 
+        from .agentic_data_api import _guard_pipeline_conversation_owner
+
+        _guard_pipeline_conversation_owner(con_uid, user_token.user_id if user_token else None)
         return Result.succ(
             {"con_uid": con_uid, "mode": approval_center.conv_mode(con_uid or "")}
         )
@@ -446,6 +449,9 @@ def register_approval_policy_endpoints(router: APIRouter) -> None:
             return Result.failed(msg="con_uid is required")
         if mode not in approval_center.CONV_MODES:
             return Result.failed(msg=f"invalid mode: {mode}")
+        from .agentic_data_api import _guard_pipeline_conversation_owner
+
+        _guard_pipeline_conversation_owner(conv_id, user_token.user_id if user_token else None)
         old = approval_center.conv_mode(conv_id)
         approval_center.set_conv_mode(conv_id, mode)
         audit_policy_change(

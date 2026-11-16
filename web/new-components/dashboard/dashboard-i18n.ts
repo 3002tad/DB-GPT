@@ -19,7 +19,10 @@ export function dashboardText(text: string, values: Record<string, unknown> = {}
     const rendered = english.replace(/\{\{\s*(\w+)\s*\}\}/g, (token, key: string) =>
       values[key] === undefined ? token : String(values[key]),
     );
-    return viUiText[english] || viUiText[rendered] || translateDynamicVi(rendered) || rendered;
+    const translated = viUiText[english] || viUiText[rendered] || translateDynamicVi(rendered) || rendered;
+    return translated.replace(/\{\{\s*(\w+)\s*\}\}/g, (token, key: string) =>
+      values[key] === undefined ? token : String(values[key]),
+    );
   }
   return String(
     i18next.t(text, {

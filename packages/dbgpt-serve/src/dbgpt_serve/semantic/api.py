@@ -9,6 +9,7 @@ returning the repo-standard ``Result`` envelope. Registered by
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import asdict
 from typing import Any, Dict, Optional
 
@@ -38,6 +39,13 @@ def _connector(db_name: str) -> Any:
     from dbgpt_serve.datasource.manages import ConnectorManager
 
     manager = ConnectorManager.get_instance(Config().SYSTEM_APP)
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+        # Both trusted Pipeline roles share this deployment-bound source.
+        # Do not let metadata sync reach an internal/unapproved connection.
+        if not PipelineDataSourcePolicy(manager).can_query("semantic-center", db_name):
+            raise PermissionError("Selected database is not available")
     return manager.get_connector(db_name)
 
 
@@ -110,8 +118,8 @@ async def backfill_spaces():
     failed: list = []
     for db_name, db_type in conns:
         try:
-            sync.ensure_space(db_name, db_name, db_type or "")
             connector = _connector(db_name)
+            sync.ensure_space(db_name, db_name, db_type or "")
             sync.sync(db_name, connector)
             done.append(db_name)
         except Exception as e:  # noqa: BLE001 - one bad conn must not stop all

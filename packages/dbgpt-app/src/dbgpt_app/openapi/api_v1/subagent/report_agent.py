@@ -361,7 +361,7 @@ def make_request_report_calculation(react_state: Dict[str, Any]):
                 "missing_calculation": request,
                 "instruction": (
                     "terminate now; the lead will capture only this calculation "
-                    "using code_interpreter."
+                    "using code."
                 ),
             },
             ensure_ascii=False,
@@ -550,7 +550,7 @@ def _missing_calculation_response(state: Dict[str, Any]) -> str | None:
             "artifact_ids": request["source_artifact_ids"],
             "missing_calculation": request,
             "instruction": (
-                "Use code_interpreter once to compute only this missing "
+                "Use code once to compute only this missing "
                 "calculation from REPORT_CALCULATION_INPUTS (JSON keyed by "
                 "source artifact ID). Print a JSON object, then resume "
                 "generate_report. Preserve the saved spec; do not rerun SQL, KB "
@@ -805,7 +805,7 @@ def make_generate_report_tool(
                     "artifact_ids": [item.artifact_id for item in data_artifacts],
                     "instruction": (
                         "Capture the report's missing structured results with "
-                        "code_interpreter: assign REPORT_RESULT to a JSON-compatible "
+                        "code: assign REPORT_RESULT to a JSON-compatible "
                         "dict/list of computed metrics and tables. Printed text alone "
                         "cannot be bound. Then call generate_report again. "
                         "Do not write report HTML yourself."

@@ -3470,7 +3470,6 @@ async def _react_agent_stream_impl(
     from .tools.report_capability import make_traceable_report_capability
 
     chart_query_tool = make_chart_query(react_state, database_connector)
-    code_interpreter_tool = make_code_interpreter(react_state)
     # Report rendering/provenance is a small capability bundle.  The ReAct loop
     # only composes it; deployments can replace its policy/tool factory without
     # changing agent orchestration.
@@ -4112,7 +4111,7 @@ one item in_progress, and update completed/next items together at transitions.
 {execution_instruction}
 
 ## Skill resources and files
-Use get_skill_resource for references/templates and execute_skill_script_file for
+Use get_skill_resource for references/templates and run_skill_script for
 existing scripts. Use args for structured parameters or argv for CLI arguments,
 never both. Pass CLI arguments as separate strings. Never invent script names.
 For creating/editing skills, inspect existing files and use code with
@@ -4120,7 +4119,7 @@ UTF-8 pathlib operations. Store new skills under
 {json.dumps(str(Path(DEFAULT_SKILLS_DIR).resolve() / "user"), ensure_ascii=False)}.
 For init_skill.py, pass the positional skill name and --path with this absolute
 directory; finish an existing skill instead of repeatedly initializing it.
-Test/package through execute_skill_script_file. A skill-creation task does not
+Test/package through run_skill_script. A skill-creation task does not
 require an analysis report. Use supplied image tools only when supported.
 
 ## Reports when requested
@@ -4153,6 +4152,8 @@ When passing known metric definitions to generate_report, include real artifact 
                     get_skill_resource,
                     execute_skill_script_file_tool,
                     bash_tool,
+                    code_tool,
+                    read_file_tool,
                     html_interpreter_tool,
                     sql_query_tool,
                     todowrite_tool,
@@ -4187,7 +4188,7 @@ list, keep one visible item in_progress, and update status at each transition.
 For independent items already split in the todo list, dispatch_parallel_tasks
 may run them concurrently. Follow the loaded skill's relevant workflow and
 explicit skip conditions. To run an existing skill script, use
-execute_skill_script_file with args or separate argv values. Read skill
+run_skill_script with args or separate argv values. Read skill
 references with get_skill_resource; do not invent script names.
 
 ## Analysis and reports
@@ -4650,6 +4651,7 @@ Do not inspect suite configuration or repeat completed analysis. Do not write HT
 or substitute a textual summary for a requested report.
 """
 
+    discovery_catalog_names = set()
     if (
         suite_binding is None
         and not dashboard_agent_mode
@@ -4659,6 +4661,7 @@ or substitute a textual summary for a requested report.
         from .tools.tool_catalog import BASE_TOOLS, make_tool_search
 
         catalog = tool_pack.sub_resources
+        discovery_catalog_names = {resource.name for resource in catalog}
         initial_names = set(BASE_TOOLS)
         if database_connector is not None:
             initial_names.add("sql_query")
@@ -4702,6 +4705,11 @@ or substitute a textual summary for a requested report.
                 "Do not start analysis, retrieve sources, or create a task plan."
             )
 
+    from .tool_names import tool_availability_guidance
+
+    workflow_prompt += tool_availability_guidance(
+        [resource.name for resource in tool_pack.sub_resources], discovery_catalog_names
+    )
     workflow_prompt_template = build_react_prompt_template(
         workflow_prompt,
         financial_enabled=financial_enabled and not dashboard_agent_mode,
@@ -5952,6 +5960,17 @@ def _guard_pipeline_conversation_owner(conv_uid: Optional[str], actor_id: Option
         raise HTTPException(status_code=404, detail="Conversation not found")
 
 
+def _require_pipeline_chat_owner(conv_uid, actor_id):
+    """Require an existing owned thread for integrated chat mutations/reads."""
+    if not os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+        return
+    if not actor_id:
+        raise HTTPException(status_code=401, detail="Authenticated user required")
+    if not conv_uid:
+        raise HTTPException(status_code=400, detail="Conversation ID required")
+    _require_owned_conversation(conv_uid, actor_id)
+
+
 def _require_owned_conversation(conv_uid: str, actor_id: str) -> None:
     """Return a uniform 404 for absent and non-owned conversations."""
 
@@ -6346,6 +6365,7 @@ class _ApprovalResolveBody(_BaseModel):
 async def approval_resolve(
     approval_id: str,
     body: _ApprovalResolveBody,
+    request: Request,
     user_token: UserRequest = Depends(get_user_from_headers),
 ):
     """User decides on a pending high-risk tool call, unblocking the gate."""
@@ -6355,6 +6375,13 @@ async def approval_resolve(
         return Result.failed(msg=f"invalid decision: {body.decision}")
     if body.scope not in ("once", "session", "always"):
         return Result.failed(msg=f"invalid scope: {body.scope}")
+    pending = approval_center.get(approval_id)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    _require_pipeline_chat_owner(pending.conv_id, user_token.user_id if user_token else None)
+    actor = getattr(request.state, "pipeline_actor", None)
+    if actor is not None and actor.role != "super_admin" and body.scope == "always":
+        raise HTTPException(status_code=403, detail="Global approvals require Admin")
     decision = "approved" if body.decision.startswith("approve") else "rejected"
     ok = approval_center.resolve(
         approval_id,
@@ -6378,6 +6405,7 @@ async def approval_pending(
     """List pending approvals for a conversation (page-refresh recovery)."""
     from dbgpt_app.openapi.api_v1.approval import approval_center
 
+    _require_pipeline_chat_owner(con_uid, user_token.user_id if user_token else None)
     return Result.succ(approval_center.pending_for(con_uid))
 
 

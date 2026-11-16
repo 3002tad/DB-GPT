@@ -43,7 +43,7 @@ class TraceableReportPolicy:
             "Numeric values use SQL/Python sources; citations must be valid. Reuse "
             "saved results/spec, never write or patch HTML. See "
             "skills/business-report/SKILL.md. For status=needs_analysis, use "
-            "code_interpreter only for missing_calculation from "
+            "code only for missing_calculation from "
             "REPORT_CALCULATION_INPUTS, print JSON, then resume generate_report. "
             "Draft HTML is a preview; only status=completed means completion. "
             "Stop when retryable=false."
