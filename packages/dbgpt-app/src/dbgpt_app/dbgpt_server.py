@@ -296,16 +296,27 @@ def initialize_app(param: ApplicationConfig, args: List[str] = None):
     return param
 
 
+def _web_cors_config(allowed_origins: str):
+    config = build_cors_config(allowed_origins)
+    if pipeline_identity_url:
+        ui_origin = os.getenv("DBGPT_PIPELINE_UI_ORIGIN", "").strip()
+        if ui_origin and ui_origin not in config["allow_origins"]:
+            config["allow_origins"] = [
+                origin for origin in config["allow_origins"] if origin != "*"
+            ] + [ui_origin]
+            config["allow_credentials"] = True
+    return config
+
+
 def run_uvicorn(param: ServiceWebParameters):
     import uvicorn
 
     setup_http_service_logging()
 
     # https://github.com/encode/starlette/issues/617
-    cors_app = CORSMiddleware(
-        app=app,
-        **build_cors_config(param.cors_allowed_origins),
-    )
+    # The Pipeline opens the AI session from its own origin. Starlette handles
+    # preflight before PipelineIdentityMiddleware can handle the session route.
+    cors_app = CORSMiddleware(app=app, **_web_cors_config(param.cors_allowed_origins))
     log_level = "info"
     if param.log:
         log_level = logging_str_to_uvicorn_level(param.log.level)
