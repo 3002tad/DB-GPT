@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import i18n from '@/app/i18n';
 import { apiInterceptors, deleteFlowById, getFlows, getFlowTemplates, getTaskflowNodeKinds } from '@/client/api';
 import MyEmpty from '@/components/common/MyEmpty';
@@ -105,7 +106,7 @@ function TaskflowCard({
       </div>
       <FlowChainPreview dsl={item.taskflow_source} manifest={manifest} />
       <div className='flex items-center gap-2 border-t border-gray-50 dark:border-white/5 pt-3'>
-        {item.gmt_modified && <span className='text-[11px] text-gray-400'>{moment(item.gmt_modified).fromNow()}</span>}
+        {item.gmt_modified && <span className='text-[11px] text-gray-400'>{moment(serverDate(item.gmt_modified)).fromNow()}</span>}
         <span className='flex-1' />
         {onEdit && (
           <Button size='small' onClick={() => onEdit(item)}>

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   createDashboardLiveShare,
   getDashboardLiveShare,
@@ -87,7 +88,7 @@ export default function DashboardLiveShareControl({
       {mode === 'live' && status.active && status.expires_at && (
         <p className='mb-2 text-xs text-[var(--app-muted)]'>
           {dt('有效至：')}
-          {new Date(status.expires_at).toLocaleString(dashboardDateLocale())}
+          {serverDate(status.expires_at).toLocaleString(dashboardDateLocale())}
         </p>
       )}
       {url && (

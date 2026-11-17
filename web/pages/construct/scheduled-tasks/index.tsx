@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { useScheduledTask } from '@/hooks/use-scheduled-task';
 import ConstructLayout from '@/new-components/layout/Construct';
 import EditScheduledTaskDrawer from '@/new-components/scheduled-task/EditScheduledTaskDrawer';
@@ -19,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 /** 格式化 ISO 时间字符串，去掉时区后缀，返回友好格式 */
 function fmtTime(iso?: string | null): string | null {
   if (!iso) return null;
-  const d = dayjs(iso);
+  const d = dayjs(serverDate(iso));
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : iso;
 }
 

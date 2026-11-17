@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, getModelList, startModel, stopModel } from '@/client/api';
 import ModelForm from '@/components/model/model-form';
 import BlurredCard, { InnerDropdown } from '@/new-components/common/blurredCard';
@@ -147,7 +148,7 @@ function Models() {
                   </div>
                   <div className='flex overflow-hidden'>
                     <p className='w-28 text-gray-500 mr-2'>Last Heart Beat:</p>
-                    <p className='flex-1 text-ellipsis'>{moment(item.last_heartbeat).format('YYYY-MM-DD HH:mm:ss')}</p>
+                    <p className='flex-1 text-ellipsis'>{moment(serverDate(item.last_heartbeat)).format('YYYY-MM-DD HH:mm:ss')}</p>
                   </div>
                 </div>
               }

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   archiveDashboard,
   copyDashboard,
@@ -83,7 +84,7 @@ const toItem = (r: DashboardRecord): DashboardListItem => ({
   updated_at: r.updated_at,
 });
 const formatTime = (value: string) =>
-  new Date(value).toLocaleString(dashboardDateLocale(), {
+  serverDate(value).toLocaleString(dashboardDateLocale(), {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

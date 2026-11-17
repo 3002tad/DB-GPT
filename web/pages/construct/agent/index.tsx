@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   apiInterceptors,
   postAgentHubUpdate,
@@ -162,7 +163,7 @@ function Agent() {
                 <div className='flex gap-2'>
                   {agent.author && <span>{agent.author}</span>}
                   {agent.author && <span>•</span>}
-                  {agent?.gmt_created && <span>{moment(agent?.gmt_created).fromNow() + ' ' + t('update')}</span>}
+                  {agent?.gmt_created && <span>{moment(serverDate(agent?.gmt_created)).fromNow() + ' ' + t('update')}</span>}
                 </div>
               }
               RightBottom={

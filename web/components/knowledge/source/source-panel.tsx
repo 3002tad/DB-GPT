@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 /**
  * Knowledge source panel: binding cards + create wizard + sync logs.
  */
@@ -106,7 +107,7 @@ export default function SourcePanel({ spaceId, spaceName }: { spaceId: string | 
                   }
                 />
                 <span className='ml-auto text-xs text-gray-400'>
-                  {binding.last_sync_at ? new Date(binding.last_sync_at).toLocaleString() : t('ks_never_synced')}
+                  {binding.last_sync_at ? serverDate(binding.last_sync_at).toLocaleString() : t('ks_never_synced')}
                 </span>
               </div>
               {binding.error_message && (

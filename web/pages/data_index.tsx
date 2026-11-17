@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, collectApp, getAppList, newDialogue, recommendApps, unCollectApp } from '@/client/api';
 import { PlusOutlined, SearchOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
@@ -254,7 +255,7 @@ const Playground: NextPage = () => {
                   <span className='text-[#878c93]'>{item.hot_value}</span>
                 </div>
               ) : (
-                <div>{moment(item?.updated_at).fromNow() + ' ' + t('update')}</div>
+                <div>{moment(serverDate(item?.updated_at)).fromNow() + ' ' + t('update')}</div>
               )}
             </div>
           }

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import type { DashboardCover } from '@/client/api/dashboard';
 import { getDashboardCover } from '@/client/api/dashboard';
 import {
@@ -61,7 +62,7 @@ export default function DashboardAssetCover({
             : cover.stale
               ? dt('历史预览 · 待更新')
               : dt('截图 {{value0}}', {
-                  value0: cover.captured_at ? new Date(cover.captured_at).toLocaleString(dashboardDateLocale()) : '',
+                  value0: cover.captured_at ? serverDate(cover.captured_at).toLocaleString(dashboardDateLocale()) : '',
                 })}
       </span>
     </>

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { ChatContext } from '@/app/chat-context';
 import {
   apiInterceptors,
@@ -387,7 +388,7 @@ export default function AppContent() {
                     <div className='flex gap-2'>
                       <span>{item.owner_name}</span>
                       <span>•</span>
-                      {item?.updated_at && <span>{moment(item?.updated_at).fromNow() + ' ' + t('update')}</span>}
+                      {item?.updated_at && <span>{moment(serverDate(item?.updated_at)).fromNow() + ' ' + t('update')}</span>}
                     </div>
                   }
                   RightBottom={

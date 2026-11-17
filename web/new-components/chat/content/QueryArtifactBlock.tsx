@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 /**
  * QueryArtifactBlock — first-class data artifact for SQL result sets.
  *
@@ -102,7 +103,7 @@ export default function QueryArtifactBlock({ payload, onRerun, fileName, classNa
   const exportName = fileName || 'query_result';
   const execution = payload.execution;
   const failed = execution?.status === 'failed';
-  const executionTime = execution?.started_at ? new Date(execution.started_at) : null;
+  const executionTime = execution?.started_at ? serverDate(execution.started_at) : null;
   const executionTimeLabel =
     executionTime && !Number.isNaN(executionTime.getTime())
       ? executionTime.toLocaleString(i18n?.language || 'zh', { hour12: false })

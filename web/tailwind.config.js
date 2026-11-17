@@ -35,7 +35,7 @@ module.exports = {
       },
       backgroundImage: {
         'gradient-light': "url('/pictures/bg.png')",
-        'gradient-dark': 'url("/images/bg_dark.png")',
+        'gradient-dark': 'url("/pictures/bg_dark.png")',
         'button-gradient': 'linear-gradient(to right, theme("colors.gradientL"), theme("colors.gradientR"))',
       },
       keyframes: {

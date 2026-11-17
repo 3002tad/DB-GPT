@@ -2,6 +2,30 @@ import type { SuiteItem } from '@/types/suite';
 import { useId } from 'react';
 
 const artwork = {
+  'legal-expert-suite': {
+    colors: ['#a28bea', '#6650b6'],
+    shape: (
+      <>
+        <path d='M30 13v32M20 47h20M15 22h30' stroke='white' strokeWidth='3' strokeLinecap='round' />
+        <circle cx='30' cy='15' r='4' fill='white' />
+        <path d='m17 23-7 13h14l-7-13Zm26 0-7 13h14l-7-13Z' stroke='white' strokeWidth='2' strokeLinejoin='round' fill='white' fillOpacity='.18' />
+        <path d='M10 36c1 7 13 7 14 0M36 36c1 7 13 7 14 0' fill='white' />
+      </>
+    ),
+  },
+  'mysql-ops-expert': {
+    colors: ['#5eaac9', '#286780'],
+    shape: (
+      <>
+        <ellipse cx='25' cy='16' rx='13' ry='5' fill='white' />
+        <path d='M12 16v26c0 7 26 7 26 0V16M12 25c0 7 26 7 26 0M12 34c0 7 26 7 26 0' stroke='white' strokeWidth='2.5' fill='none' />
+        <circle cx='42' cy='40' r='11' fill='#286780' />
+        <path d='M42 28v4m0 16v4M30 40h4m16 0h4M34 32l3 3m10 10 3 3M34 48l3-3m10-10 3-3' stroke='white' strokeWidth='3' strokeLinecap='round' />
+        <circle cx='42' cy='40' r='7' stroke='white' strokeWidth='3' fill='none' />
+        <circle cx='42' cy='40' r='2' fill='white' />
+      </>
+    ),
+  },
   'db-analysis': {
     colors: ['#457ff5', '#2550ce'],
     shape: (

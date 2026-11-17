@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({ createTask: vi.fn(), push: vi.fn() }));
 vi.mock('next/router', () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock('@/hooks/use-connector-api', () => ({ useConnectors: () => ({ connectors: [] }) }));
 vi.mock('@/hooks/use-scheduled-task', () => ({ useScheduledTask: () => ({ createTask: mocks.createTask }) }));
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('react-i18next', async importOriginal => ({
+  ...await importOriginal<typeof import('react-i18next')>(),
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 describe('save current dashboard as an official scheduled task', () => {
   const dashboard = { dashboard_id: 'board-1', title: 'Sales', filters: { year: 2026 } };

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { ChatContext } from '@/app/chat-context';
 import {
   apiInterceptors,
@@ -62,7 +63,7 @@ export default function ObservabilityOverviewPage() {
   );
   const metrics = metricsTuple?.[1];
   const chartData = (metrics?.points || []).map(p => ({
-    name: moment(p.timestamp).format('HH:mm'),
+    name: moment(serverDate(p.timestamp)).format('HH:mm'),
     value: p.value,
   }));
 
@@ -94,7 +95,7 @@ export default function ObservabilityOverviewPage() {
   const latencyPoints = latencyTuple?.[1]?.points || [];
   const maxLatency = latencyPoints.reduce((m, p) => Math.max(m, p.value), 0);
   const latencyChartData = latencyPoints.map(p => ({
-    name: moment(p.timestamp).format('HH:mm'),
+    name: moment(serverDate(p.timestamp)).format('HH:mm'),
     value: Math.round(p.value),
   }));
 
@@ -138,7 +139,7 @@ export default function ObservabilityOverviewPage() {
     {
       title: t('observability_time') || 'Time',
       dataIndex: 'start_time',
-      render: (s?: string) => (s ? moment(s).fromNow() : '-'),
+      render: (s?: string) => (s ? moment(serverDate(s)).fromNow() : '-'),
     },
   ];
 

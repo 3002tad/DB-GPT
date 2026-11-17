@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, delSpace, getKnowledgeSpaceStats, getSpaceConfig, getSpaceList } from '@/client/api';
 import DocTypeForm from '@/components/knowledge/doc-type-form';
 import DocUploadForm from '@/components/knowledge/doc-upload-form';
@@ -242,7 +243,7 @@ const Knowledge = () => {
                   <div className='flex gap-2'>
                     <span>{space.owner}</span>
                     <span>•</span>
-                    {space?.gmt_modified && <span>{moment(space?.gmt_modified).fromNow() + ' ' + t('update')}</span>}
+                    {space?.gmt_modified && <span>{moment(serverDate(space?.gmt_modified)).fromNow() + ' ' + t('update')}</span>}
                   </div>
                 }
                 RightBottom={null}

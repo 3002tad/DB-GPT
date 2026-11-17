@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, searchObservabilityTraces } from '@/client/api';
 import { useRequest } from 'ahooks';
 import { Input, Pagination, Spin, Table, Tag } from 'antd';
@@ -83,7 +84,7 @@ export default function ObservabilityTracesPage() {
               {
                 title: 'Time',
                 dataIndex: 'start_time',
-                render: (s?: string) => (s ? moment(s).fromNow() : '-'),
+                render: (s?: string) => (s ? moment(serverDate(s)).fromNow() : '-'),
               },
             ]}
           />

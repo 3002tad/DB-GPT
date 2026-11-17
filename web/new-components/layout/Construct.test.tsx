@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
 import '@/app/i18n';
 import ConstructLayout from './Construct';
+import { FunnelmetryIdentityContext } from '@/app/funnelmetry-identity';
 
 const route = vi.hoisted(() => ({ pathname: '/construct/semantic', push: vi.fn() }));
 vi.mock('next/router', () => ({ useRouter: () => route }));
@@ -15,6 +16,18 @@ afterEach(() => {
 });
 
 describe('Construct module navigation', () => {
+  it.each(['analyst', 'super_admin'])('uses runtime role without the build flag for %s', role => {
+    vi.stubEnv('NEXT_PUBLIC_FUNNELMETRY_IDENTITY', '');
+    // A stale stored Admin identity must not override the verified runtime role.
+    localStorage.setItem(STORAGE_USERINFO_KEY, JSON.stringify({ role: 'super_admin' }));
+    render(<FunnelmetryIdentityContext.Provider value={{ integrated: true, role }}>
+      <ConstructLayout><h1>Runtime content</h1></ConstructLayout>
+    </FunnelmetryIdentityContext.Provider>);
+    expect(screen.getByRole('heading', { name: 'Runtime content' })).not.toBeNull();
+    expect(screen.queryByRole('tab', { name: /Nhà cung cấp/ }) !== null).toBe(role === 'super_admin');
+    expect(screen.queryByRole('tab', { name: /Cơ sở dữ liệu/ }) !== null).toBe(role === 'super_admin');
+    expect(screen.queryByRole('tab', { name: /Kết nối/ }) !== null).toBe(role === 'super_admin');
+  });
   it.each(['analyst', 'super_admin'])('renders Plugin content and selects its tab for %s', role => {
     route.pathname = '/construct/suites';
     vi.stubEnv('NEXT_PUBLIC_FUNNELMETRY_IDENTITY', '1');

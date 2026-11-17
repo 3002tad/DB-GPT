@@ -442,3 +442,122 @@ errors were observed on the final image. Admin-specific workflows and arbitrary
 model text were not validated. Brand names, identifiers, text in illustration
 assets and original package documentation may remain English/Chinese; these
 are not claimed as translated user-interface controls.
+## BUG-10: one workflow navigation entry
+
+The sidebar retains Workflow AWEL as the single entry to
+`/construct/taskflow`. Removed the duplicate tail entry labelled Workflow
+(`Luồng công việc` in Vietnamese) and its unused icon import. Both entries
+previously shared the same destination, active-route conditions and role
+filter; they did not expose separate modules. This applies to expanded and
+collapsed navigation, which consume the same menu definitions.
+
+The legacy `/construct/flow` redirect, TaskFlow editor, scheduled tasks and
+Admin/Analyst permissions remain unchanged. Six Construct navigation tests
+(including both roles) and TypeScript preflight pass. Source inspection confirms
+one workflow destination in the shared sidebar menu. Runtime deployment and
+browser acceptance of this change are pending.
+
+## BUG-11: runtime identity drives integrated navigation
+
+The previous layout only read Pipeline identity when the build-time public
+flag was present. A static bundle missing that flag used native mock login,
+exposed Admin tabs to Analyst and reached APIs which correctly returned 403.
+
+The application now discovers `/api/auth/funnelmetry/me` before rendering
+authenticated content and provides the verified runtime role through one React
+context. Sidebar, Construct tabs, connector controls and global approval scope
+use that shared identity. Direct Analyst navigation to existing Admin-only
+configuration pages retains the Admin-only notice. Backend permissions and
+Agent/tool capabilities are unchanged.
+
+Native standalone login is allowed only on an absent identity endpoint (404)
+when the build does not explicitly require integration. HTTP 401/403/5xx,
+network errors and malformed/unsupported identities do not fall back to mock
+login. Stale localStorage roles do not override the runtime context. The public
+build flag remains supported but is no longer the only integration signal.
+
+Validation: 23 tests pass across runtime discovery, Admin/Analyst Construct
+tabs and connector presentation; TypeScript preflight passes. Tests include
+missing build flags, stale stored Admin identity, standalone 404 and rejected
+sessions. This source fix has not been rebuilt/deployed or browser-accepted;
+it does not assert that every 403 in other modules has been resolved.
+
+## BUG-12: operational timestamp presentation
+
+Conversation APIs serialize database timestamps without timezone suffixes;
+application metadata uses naive UTC timestamps. The VPS and DB-GPT container
+were both verified as UTC on 2026-11-17. Native browser/Moment/Day.js parsing
+interpreted those strings as local time, displaying a fresh record as seven
+hours old in Vietnam.
+
+`web/utils/server-time.ts` now interprets legacy naive operational timestamps
+as UTC before local display/comparison. Explicit Z/offsets, numeric epoch
+milliseconds and Date inputs retain their instant; missing/invalid timestamps
+remain invalid. This is an operational-metadata convention for the UTC server,
+not a generic interpretation of analytical data or non-UTC historical imports.
+Changing the server clock timezone requires revisiting this convention.
+
+The source sweep covers 35 consumers across conversation history/sidebar,
+applications/legacy agents, TaskFlow, Knowledge Base sync, scheduled task
+list/detail/run history, model heartbeat, observability and execution traces,
+financial progress/history, Semantic Center and Dashboard lifecycle/shares/
+freshness. Schedule run durations now also compare mixed offset/naive strings
+consistently. Sidebar ignores invalid timestamps rather than throwing during
+relative formatting. Calendar filters, analytical chart/date columns, local
+draft timestamps, numeric artifact timestamps and cron wall-time configuration
+are unchanged. Semantic Center uses the Vietnamese date locale when selected.
+
+An additional application timestamp defect was found: `GptsApp` and
+`GptsAppDetail` evaluated their default timestamps once at module import.
+Both now use `Field(default_factory=datetime.utcnow)` for each new object.
+Explicit timestamps and existing database rows are preserved; no migration
+or database rewrite is required.
+
+Validation: 13 timestamp tests pass separately in UTC, Asia/Ho_Chi_Minh and
+America/New_York (including DST offsets); 32 existing schedule/Dashboard/
+provenance regression tests pass in the Vietnam timezone. The schedule-drawer
+test's incomplete react-i18next mock was corrected to retain real exports.
+TypeScript preflight passes. Focused Pydantic checks on the actual timestamp
+field declarations confirm fresh defaults for both models and preservation of
+explicit values; the complete model module compiles. These are not full DAO
+or end-to-end runtime acceptance tests. Source is not rebuilt/deployed yet.
+
+## BUG-14: distinguish explanation from empirical claims
+
+The final-answer guard previously treated terms such as conversion rate and
+added-to-cart as measured business claims even in a general definition. This
+removed part of the two-sentence funnel explanation observed during BUG-13
+retesting. A separate unconditional KB-retrieval/listing exemption could also
+let unrelated shop-outcome assertions through.
+
+The guard now scopes each sentence as conceptual, empirical or uncertain,
+using the current user request as a presentation hint, not an Agent router.
+Definitions, qualified hypotheses, examples and proposals remain visible
+without SQL. A conceptual request does not exempt a measured shop claim in
+the same answer. Listing/retrieving KB alone no longer exempts the whole answer.
+
+Clearly empirical unsupported assertions in the recognized narrow source
+cases retain the existing removal behavior. Ambiguous interpretations are
+retained with an explicit review note. Custom SQL, CTEs/joins, Python results
+and document excerpts outside the guard's understanding are reviewed rather
+than deleted for not matching known SQL source names. This is not evidence
+certification: even matching query keywords receive a review note for the
+high-impact claim families because SQL text alone cannot verify result values
+or business meaning. Empty KB listings or reference shells do not certify data.
+Proposed SQL examples are preserved verbatim with a source-verification notice
+when they reference unconfirmed relations, instead of being erased.
+
+No execution-loop, prompt, model setting, budget, tool registration/discovery,
+skill, SQL permission or KB-retrieval behavior changes. The Agent API only
+passes `request_text=user_input` to the existing final-presentation guard and
+uses an accurate review log label for both removed and retained claims. There
+are no added model calls. Reports still follow their existing separate path.
+
+Validation: 40 claim-guard tests pass, including the observed conceptual answer,
+definitions across business families, mixed conceptual/measured statements,
+hypotheses and contrasting factual clauses, KB listing/content distinctions,
+custom SQL/Python results, unknown scope, sellable-stock wording and preserved
+SQL examples. Four tool-availability and five skill-prompt regression tests also
+pass; both changed API/guard modules parse successfully. These deterministic
+heuristics do not certify arbitrary prose, numeric correctness or causation.
+Source has not been rebuilt/deployed or browser/model accepted for BUG-14.

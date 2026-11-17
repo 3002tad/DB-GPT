@@ -1,4 +1,5 @@
 import { ChatContext, ChatContextProvider } from '@/app/chat-context';
+import { discoverFunnelmetryActor, FunnelmetryIdentityContext } from '@/app/funnelmetry-identity';
 import SideBar from '@/components/layout/side-bar';
 import { NewTaskProvider } from '@/modules/new-task';
 import FloatHelper from '@/new-components/layout/FloatHelper';
@@ -63,6 +64,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const [isLogin, setIsLogin] = useState(false);
   const [authError, setAuthError] = useState('');
   const [pipelineRole, setPipelineRole] = useState('');
+  const [integrated, setIntegrated] = useState(process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1');
   const [embedded, setEmbedded] = useState(false);
 
   const router = useRouter();
@@ -70,23 +72,25 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // 登录检测
   const handleAuth = async () => {
     setIsLogin(false);
-    if (process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1') {
-      try {
-        const response = await fetch('/api/auth/funnelmetry/me', { credentials: 'same-origin', cache: 'no-store' });
-        if (!response.ok) throw new Error('session_unavailable');
-        const data = await response.json();
-        if (!data?.actor?.id || !['super_admin', 'analyst'].includes(data.actor.role)) throw new Error('invalid_actor');
+    try {
+      const actor = await discoverFunnelmetryActor();
+      if (actor) {
+        setIntegrated(true);
         localStorage.setItem(STORAGE_USERINFO_KEY, JSON.stringify({
-          user_id: data.actor.id, user_no: data.actor.id, nick_name: data.actor.id, role: data.actor.role,
+          user_id: actor.id, user_no: actor.id, nick_name: actor.id, role: actor.role,
         }));
         localStorage.setItem(STORAGE_USERINFO_VALID_TIME_KEY, Date.now().toString());
         setAuthError('');
-        setPipelineRole(data.actor.role);
+        setPipelineRole(actor.role);
         setIsLogin(true);
-      } catch {
-        localStorage.removeItem(STORAGE_USERINFO_KEY);
-        setAuthError('Phiên đăng nhập AI không khả dụng. Hãy mở lại AI từ Funnelmetry.');
+        return;
       }
+      setIntegrated(false);
+    } catch {
+      localStorage.removeItem(STORAGE_USERINFO_KEY);
+      localStorage.removeItem(STORAGE_USERINFO_VALID_TIME_KEY);
+      setPipelineRole('');
+      setAuthError('Phiên đăng nhập AI không khả dụng. Hãy mở lại AI từ Funnelmetry.');
       return;
     }
     // 如果已有登录信息，直接展示首页
@@ -113,7 +117,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const framed = window.self !== window.top && process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
+    const framed = window.self !== window.top && integrated;
     setEmbedded(framed);
     document.body.classList.toggle('funnelmetry-ai-embedded', framed);
     if (!framed) return;
@@ -134,7 +138,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
       document.body.classList.remove('funnelmetry-ai-embedded');
       window.removeEventListener('message', onMessage);
     };
-  }, [i18n, router, setMode]);
+  }, [i18n, router, setMode, integrated]);
 
   useEffect(() => {
     const parentOrigin = process.env.NEXT_PUBLIC_FUNNELMETRY_UI_ORIGIN;
@@ -147,7 +151,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   if (!isLogin && !isPublicShare) {
     return authError ? <div role='alert' style={{ padding: 24 }}>{authError}</div> : null;
   }
-  if (process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1' && pipelineRole === 'analyst' &&
+  if (integrated && pipelineRole === 'analyst' &&
       ['/construct/models-config', '/construct/connectors', '/construct/database',
        '/models_evaluation', '/observability'].some(
         path => router.pathname === path || router.pathname.startsWith(`${path}/`),
@@ -182,18 +186,20 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ConfigProvider
-      locale={i18n.language.startsWith('vi') ? viVN : i18n.language.startsWith('zh') ? zhCN : enUS}
-      theme={{
-        token: {
-          colorPrimary: '#0C75FC',
-          borderRadius: 4,
-        },
-        algorithm: mode === 'dark' ? antdDarkTheme : undefined,
-      }}
-    >
-      <App>{renderContent()}</App>
-    </ConfigProvider>
+    <FunnelmetryIdentityContext.Provider value={{ integrated, role: pipelineRole }}>
+      <ConfigProvider
+        locale={i18n.language.startsWith('vi') ? viVN : i18n.language.startsWith('zh') ? zhCN : enUS}
+        theme={{
+          token: {
+            colorPrimary: '#0C75FC',
+            borderRadius: 4,
+          },
+          algorithm: mode === 'dark' ? antdDarkTheme : undefined,
+        }}
+      >
+        <App>{renderContent()}</App>
+      </ConfigProvider>
+    </FunnelmetryIdentityContext.Provider>
   );
 }
 

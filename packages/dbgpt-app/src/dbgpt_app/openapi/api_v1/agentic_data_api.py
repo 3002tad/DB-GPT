@@ -5830,10 +5830,11 @@ or substitute a textual summary for a requested report.
         final_content, claim_issues = guard_final_claims(
             final_content, history_steps, requested_locale,
             artifacts=artifact_sink.snapshot() if artifact_sink is not None else None,
+            request_text=user_input,
         )
         if claim_issues:
             logger.warning(
-                "Removed unsupported final claims for conversation %s: %s",
+                "Final-claim presentation review for conversation %s: %s",
                 conv_id, ", ".join(claim_issues),
             )
     if not stopped:

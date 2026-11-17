@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors } from '@/client/api';
 import {
   SemanticCoverage,
@@ -394,8 +395,8 @@ const SemanticCenter = () => {
                     dataIndex: 'last_sync_at',
                     render: (v?: string) => (
                       <span className={styles.muted}>
-                        {v && Number.isFinite(Date.parse(v))
-                          ? new Date(v).toLocaleString(i18n.language.startsWith('en') ? 'en-US' : 'zh-CN', {
+                        {v && Number.isFinite(serverDate(v).getTime())
+                          ? serverDate(v).toLocaleString(i18n.language.startsWith('vi') ? 'vi-VN' : i18n.language.startsWith('en') ? 'en-US' : 'zh-CN', {
                               month: 'short',
                               day: 'numeric',
                               hour: '2-digit',

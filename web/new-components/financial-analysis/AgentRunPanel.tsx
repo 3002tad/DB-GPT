@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import type { ArtifactItem, ExecutionStep, ThinkingSection } from '@/new-components/chat/content/ManusLeftPanel';
 import dynamic from 'next/dynamic';
 import React, { useMemo } from 'react';
@@ -71,7 +72,7 @@ const AgentRunPanel: React.FC<AgentRunPanelProps> = ({
       name: item.name,
       type: 'html',
       content: { reportId: data.report.id },
-      createdAt: data.report.run.completedAt ? new Date(data.report.run.completedAt).getTime() : 0,
+      createdAt: data.report.run.completedAt ? serverDate(data.report.run.completedAt).getTime() : 0,
       downloadable: false,
       mimeType: 'text/html',
       size: item.sizeBytes,

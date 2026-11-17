@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, stopModel } from '@/client/api';
 import { IModelData } from '@/types/model';
 import { MODEL_ICON_MAP } from '@/utils';
@@ -79,7 +80,7 @@ function ModelCard({ info }: Props) {
         </div>
         <div className='flex overflow-hidden'>
           <p className='w-28 text-gray-500 mr-2'>Last Heart Beat:</p>
-          <p className='flex-1 text-ellipsis'>{moment(info.last_heartbeat).format('YYYY-MM-DD HH:mm:ss')}</p>
+          <p className='flex-1 text-ellipsis'>{moment(serverDate(info.last_heartbeat)).format('YYYY-MM-DD HH:mm:ss')}</p>
         </div>
       </div>
     </GptCard>

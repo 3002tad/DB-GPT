@@ -16,8 +16,8 @@ import {
 import ConstructLayout from '@/new-components/layout/Construct';
 import { ApiOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Button, Input, message, Segmented, Spin } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
-import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
+import { useMemo, useState } from 'react';
+import { useFunnelmetryIdentity } from '@/app/funnelmetry-identity';
 import { useTranslation } from 'react-i18next';
 
 /* ─────────────────────────────────────────────────────────────────
@@ -45,27 +45,8 @@ const STATUS_ATTENTION_SET = new Set<ConnectorStatus>(['error', 'needs_reactivat
 
 function Connectors() {
   const { t } = useTranslation();
-  const [canManage, setCanManage] = useState(false);
-  useEffect(() => {
-    let disposed = false;
-    let role = '';
-    try { role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || ''; } catch { /* no identity */ }
-    if (role) {
-      setCanManage(role === 'super_admin');
-      return;
-    }
-    // A bundle built without the public identity flag may contain the native
-    // mock user. Discover the runtime identity before showing credential UI.
-    void fetch('/api/auth/funnelmetry/me', { credentials: 'same-origin', cache: 'no-store' })
-      .then(async response => {
-        const allowed = response.status === 404
-          ? process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY !== '1'
-          : response.ok && (await response.json())?.actor?.role === 'super_admin';
-        if (!disposed) setCanManage(allowed);
-      })
-      .catch(() => { if (!disposed) setCanManage(false); });
-    return () => { disposed = true; };
-  }, []);
+  const { integrated, role } = useFunnelmetryIdentity();
+  const canManage = !integrated || role === 'super_admin';
   const { connectors, loading, refresh } = useConnectors();
   const { types: catalog, loading: catalogLoading } = useConnectorTypes();
   const { create, loading: creating } = useCreateConnector();

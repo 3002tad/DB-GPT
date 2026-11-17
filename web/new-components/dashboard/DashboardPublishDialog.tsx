@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { getDashboardLiveShare, revokeDashboardLiveShare, type DashboardLiveShareStatus } from '@/client/api/dashboard';
 import {
   dashboardDateLocale,
@@ -131,7 +132,7 @@ export default function DashboardPublishDialog({
           </div>
           {result.expiresAt && (
             <small>
-              {dt('有效至')} {new Date(result.expiresAt).toLocaleString(dashboardDateLocale())}
+              {dt('有效至')} {serverDate(result.expiresAt).toLocaleString(dashboardDateLocale())}
             </small>
           )}
           {result.mode === 'live' && (

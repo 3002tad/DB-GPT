@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { serverDate } from '@/utils/server-time';
 import { financialStageTitle, financialText, useFinancialLocale } from '../../financial-analysis/i18n';
 import TaskPlanCard, { TaskItem } from './TaskPlanCard';
 
@@ -29,9 +30,9 @@ export default function FinancialProgressPanel({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [running, current?.startedAt]);
-  const start = Date.parse(current?.startedAt || '');
+  const start = serverDate(current?.startedAt).getTime();
   const elapsed = Number.isFinite(start) ? Math.max(0, Math.floor((now - start) / 1000)) : 0;
-  const updated = Date.parse(current?.updatedAt || '');
+  const updated = serverDate(current?.updatedAt).getTime();
   const waiting = running && Number.isFinite(updated) && now - updated >= 30000;
   const title = finished
     ? financialText('financial.report_generated')

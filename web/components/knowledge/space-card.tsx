@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, delSpace, newDialogue } from '@/client/api';
 import { ISpace } from '@/types/knowledge';
 import { ClockCircleOutlined, DeleteFilled, MessageFilled, UserOutlined, WarningOutlined } from '@ant-design/icons';
@@ -94,7 +95,7 @@ export default function SpaceCard(props: IProps) {
                 text: (
                   <>
                     <ClockCircleOutlined className='mr-1' />
-                    {moment(space.gmt_modified).format('YYYY-MM-DD')}
+                    {moment(serverDate(space.gmt_modified)).format('YYYY-MM-DD')}
                   </>
                 ),
               },

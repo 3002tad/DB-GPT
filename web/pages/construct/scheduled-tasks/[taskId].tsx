@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { AttachmentMessageGroup, legacyFilePathDisplayName, scheduledTaskFiles } from '@/modules/session-files';
 import {
   ArrowLeftOutlined,
@@ -24,7 +25,7 @@ import type { TaskResponse } from '@/types/scheduled-task';
 /** 格式化 ISO 时间字符串，去掉时区后缀，返回友好格式 */
 function fmtTime(iso?: string | null): string | null {
   if (!iso) return null;
-  const d = dayjs(iso);
+  const d = dayjs(serverDate(iso));
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : iso;
 }
 

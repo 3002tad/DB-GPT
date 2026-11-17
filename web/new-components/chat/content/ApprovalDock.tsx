@@ -11,7 +11,7 @@ import { WarningOutlined } from '@ant-design/icons';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
+import { useFunnelmetryIdentity } from '@/app/funnelmetry-identity';
 import type { PendingApproval } from '@/utils/react-sse-parser';
 
 export interface ApprovalDockProps {
@@ -44,13 +44,8 @@ const ApprovalCard: React.FC<{
 }> = ({ approval, onResolve }) => {
   const { t } = useTranslation();
   const [scope, setScope] = useState('once');
-  const integrated = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
-  let canApproveGlobally = !integrated;
-  try {
-    if (typeof window !== 'undefined' && integrated) {
-      canApproveGlobally = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role === 'super_admin';
-    }
-  } catch { canApproveGlobally = false; }
+  const { integrated, role } = useFunnelmetryIdentity();
+  const canApproveGlobally = !integrated || role === 'super_admin';
 
   const [reason, setReason] = useState('');
   const [confirmingReject, setConfirmingReject] = useState(false);

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   getDashboardEditVersion,
   listDashboardEditVersions,
@@ -291,7 +292,7 @@ export default function DashboardLifecyclePanel({
                       <Tag>{editSourceLabels[version.source] || version.source}</Tag>
                     </Space>
                   }
-                  description={`${version.actor_id} · ${new Date(version.created_at).toLocaleString()}`}
+                  description={`${version.actor_id} · ${serverDate(version.created_at).toLocaleString()}`}
                 />
               </List.Item>
             )}
@@ -325,7 +326,7 @@ export default function DashboardLifecyclePanel({
               >
                 <List.Item.Meta
                   title={dt('发布版本 {{value0}}', { value0: revision.published_revision })}
-                  description={new Date(revision.published_at).toLocaleString()}
+                  description={serverDate(revision.published_at).toLocaleString()}
                 />
               </List.Item>
             )}
@@ -364,11 +365,11 @@ export default function DashboardLifecyclePanel({
                   </Space>
                   <span className='text-xs text-[var(--app-muted)]'>
                     {dt('创建：')}
-                    {new Date(share.created_at).toLocaleString()}
+                    {serverDate(share.created_at).toLocaleString()}
                   </span>
                   <span className='text-xs text-[var(--app-muted)]'>
                     {dt('到期：')}
-                    {share.expires_at ? new Date(share.expires_at).toLocaleString() : dt('长期有效')}
+                    {share.expires_at ? serverDate(share.expires_at).toLocaleString() : dt('长期有效')}
                   </span>
                 </Space>
               </List.Item>

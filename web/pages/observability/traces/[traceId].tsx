@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { apiInterceptors, getObservabilityTrace, type SpanNode } from '@/client/api';
 import { useRequest } from 'ahooks';
 import { Card, Descriptions, Empty, Spin, Tag, Typography } from 'antd';
@@ -117,7 +118,7 @@ export default function TraceDetailPage() {
                     {trace.duration_ms != null ? `${(trace.duration_ms / 1000).toFixed(2)}s` : '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label={t('observability_time') || 'Start'}>
-                    {trace.start_time ? moment(trace.start_time).format('YYYY-MM-DD HH:mm:ss') : '-'}
+                    {trace.start_time ? moment(serverDate(trace.start_time)).format('YYYY-MM-DD HH:mm:ss') : '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label={t('observability_conversation_id') || 'Conversation ID'} span={2}>
                     {trace.conversation_id ? (

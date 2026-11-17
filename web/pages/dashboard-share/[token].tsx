@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { filterPublicDashboard, getPublicDashboard } from '@/client/api';
 import { dashboardAntdTokens, interfaceThemeVariables } from '@/lib/interface-tokens';
 import { DashboardFilters, DashboardRenderer } from '@/new-components/dashboard';
@@ -178,7 +179,7 @@ export default function DashboardSharePage() {
             <span>{dt('发布版本 {{value0}}', { value0: published.published_revision })}</span>
             <span>{dt('粒度：{{grain}}', { grain: schema.metric_context.grain || dt('未说明') })}</span>
             <DashboardDataFreshness schema={schema} snapshot={snapshot} />
-            <span>{new Date(published.published_at).toLocaleString(dashboardDateLocale())}</span>
+            <span>{serverDate(published.published_at).toLocaleString(dashboardDateLocale())}</span>
           </div>
         </header>
         <section className={`${styles.filterBar} ${styles.publicFilterBar}`} aria-label={dt('分享页筛选条')}>

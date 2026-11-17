@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { ChatContext } from '@/app/chat-context';
 import { apiInterceptors, delDialogue, getDialogueListPaged } from '@/client/api';
 import UnviewedResultDot from '@/components/layout/unviewed-result-dot';
@@ -80,7 +81,7 @@ function ConversationsPage() {
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return '';
-    return moment(dateStr).fromNow();
+    return moment(serverDate(dateStr)).fromNow();
   };
 
   const getTitle = (conv: IChatDialogueSchema) => {

@@ -18,6 +18,8 @@ export default defineConfig({
     setupFiles: ['./new-components/dashboard/test-setup.ts'],
     include: [
       './app/i18n.test.ts',
+      './app/funnelmetry-identity.test.ts',
+      './utils/server-time.test.ts',
       './app/module-i18n.test.tsx',
       './client/api/tools/interceptors.i18n.test.ts',
       './new-components/layout/Construct.test.tsx',

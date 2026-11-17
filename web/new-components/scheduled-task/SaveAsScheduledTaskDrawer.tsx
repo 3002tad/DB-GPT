@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { useConnectors } from '@/hooks/use-connector-api';
 import { useScheduledTask } from '@/hooks/use-scheduled-task';
 import { AttachmentMessageGroup, scheduledTaskFiles } from '@/modules/session-files';
@@ -116,7 +117,7 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
           title='定时任务已创建'
           subTitle={
             createdTask.next_run_time
-              ? `下次执行：${dayjs(createdTask.next_run_time).format('YYYY-MM-DD HH:mm:ss')}`
+              ? `下次执行：${dayjs(serverDate(createdTask.next_run_time)).format('YYYY-MM-DD HH:mm:ss')}`
               : '已保存并启用，可在任务详情查看执行状态。'
           }
           extra={

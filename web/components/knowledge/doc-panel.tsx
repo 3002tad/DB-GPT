@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   apiInterceptors,
   delDocument,
@@ -338,7 +339,7 @@ export default function DocPanel(props: IProps) {
                       <div className='col-span-2'>{renderResultTag(document.status, document.result)}</div>
                       {/* Last Sync */}
                       <div className='col-span-2 text-sm text-gray-500 dark:text-gray-400'>
-                        {document.last_sync ? moment(document.last_sync).format('YYYY-MM-DD HH:mm') : '-'}
+                        {document.last_sync ? moment(serverDate(document.last_sync)).format('YYYY-MM-DD HH:mm') : '-'}
                       </div>
                       {/* Actions */}
                       <div className='col-span-1 flex justify-end' onClick={e => e.stopPropagation()}>

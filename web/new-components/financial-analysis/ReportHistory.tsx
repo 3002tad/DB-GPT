@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { Button, List, Space, Typography } from 'antd';
 import React, { useEffect, useState } from 'react';
 import type { FinancialRunHistory, FinancialRunStatus } from './api';
@@ -69,7 +70,7 @@ const ReportHistory: React.FC<{
                 description={financialText('financial.valuevalue_value', {
                   value1: run.fiscal_period ? financialText('financial.value', { value1: run.fiscal_period }) : '',
                   value2: statusText(run),
-                  value3: new Date(run.created_at).toLocaleString(),
+                  value3: serverDate(run.created_at).toLocaleString(),
                 })}
               />
             </List.Item>

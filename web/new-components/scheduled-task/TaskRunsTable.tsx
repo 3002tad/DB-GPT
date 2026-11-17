@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Spin, Tooltip, message } from 'antd';
 import dayjs from 'dayjs';
@@ -11,7 +12,7 @@ import type { RunResponse, ScheduledRunStatus } from '@/types/scheduled-task';
 /** 格式化 ISO 时间字符串，去掉时区后缀，返回友好格式 */
 function fmtTime(iso?: string | null): string | null {
   if (!iso) return null;
-  const d = dayjs(iso);
+  const d = dayjs(serverDate(iso));
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : iso;
 }
 
@@ -144,7 +145,7 @@ const TaskRunsTable: React.FC<TaskRunsTableProps> = ({ taskId, dashboardId }) =>
             : (run.result_summary ?? '').slice(0, 80);
           const duration =
             run.finished_at && run.started_at
-              ? `${Math.round((dayjs(run.finished_at).valueOf() - dayjs(run.started_at).valueOf()) / 1000)}s`
+              ? `${Math.round((dayjs(serverDate(run.finished_at)).valueOf() - dayjs(serverDate(run.started_at)).valueOf()) / 1000)}s`
               : '-';
 
           return (

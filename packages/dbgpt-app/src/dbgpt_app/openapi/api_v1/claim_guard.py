@@ -1,8 +1,9 @@
 """Conservative final-answer guard for unsupported analytical assertions.
 
-Only high-confidence claim families are checked here. The SQL text is evidence
-of what was queried, not proof that the returned data establishes causation or
-an official metric. This guard cannot certify arbitrary natural-language claims.
+Only high-confidence empirical claims are removed. Concepts, proposals and
+hypotheses do not require SQL. Ambiguous claims are retained with a review note.
+SQL text describes query scope, not result correctness, causation or metric
+certification. This presentation-only guard never controls Agent execution.
 """
 
 import json
@@ -99,6 +100,48 @@ _DATASET_SESSION_GRAIN = re.compile(
 )
 _SQL_RELATION = re.compile(r"\b(?:from|join)\s+([\w.]+)", re.IGNORECASE)
 
+_CONCEPTUAL_REQUEST = re.compile(
+    r"\b(?:giải thích|định nghĩa|khái niệm|là gì|explain|define|definition|what is)\b",
+    re.IGNORECASE,
+)
+_ANALYTICAL_REQUEST = re.compile(
+    r"\b(?:phân tích|so sánh|tính toán|thống kê|analy[sz]e|compare|calculate)\b",
+    re.IGNORECASE,
+)
+_GENERAL_EXPLANATION = re.compile(
+    r"\b(?:funnel gồm|thường gồm|thường bao gồm|mỗi giai đoạn|về nguyên tắc|nói chung|"
+    r"được định nghĩa|là khái niệm|là hành trình|là tổng|là số|"
+    r"bài viết mô tả|tài liệu mô tả|khái niệm|"
+    r"generally|typically|by definition|defined as|refers to|"
+    r"each stage|the document describes)\b",
+    re.IGNORECASE,
+)
+_EMPIRICAL_ANCHOR = re.compile(
+    r"\b(?:của shop|của cửa hàng|trong dữ liệu|dữ liệu hiện tại|kết quả truy vấn|"
+    r"ghi nhận|quan sát được|our shop|this shop|this dataset|query results|observed)\b|"
+    r"^(?:grain\s*:)",
+    re.IGNORECASE,
+)
+_MEASURED_VALUE = re.compile(
+    r"\d[\d.,]*\s*(?:%|đơn|phiên|khách|orders?|sessions?|customers?)(?!\w)|"
+    r"(?:tỷ lệ chuyển đổi|conversion rate|tồn kho khả dụng|doanh thu).{0,35}"
+    r"(?:là|đạt|is|was|=|:)\s*\d|"
+    r"(?:có thể bán|available to sell|sellable stock).{0,20}\d",
+    re.IGNORECASE,
+)
+_EMPIRICAL_WORDING = re.compile(
+    r"\b(?:đã thanh toán|đã thu tiền|đã giao hàng|đã hoàn tiền|"
+    r"nhiều người|nhiều khách|cho thấy|chứng tỏ|đây là|tăng|giảm|"
+    r"this is|these are|increased|decreased|shows that|therefore)\b",
+    re.IGNORECASE,
+)
+_PROPOSAL = re.compile(
+    r"\b(?:ví dụ|giả định|giả thuyết|đề xuất|nên kiểm tra|cần kiểm tra|"
+    r"có thể(?!\s+bán\b)|có khả năng|for example|hypothetically|hypothesis|"
+    r"propose|recommend|may|might|could)\b",
+    re.IGNORECASE,
+)
+
 
 def _dataset_session_grain_supported(queries: list[str]) -> bool:
     return any(
@@ -111,28 +154,46 @@ def _dataset_session_grain_supported(queries: list[str]) -> bool:
     )
 
 
-def _remove_unverified_sql_examples(content: str, queries: list[str]) -> tuple[str, bool]:
-    """A proposed SQL block must not present an unqueried relation as usable."""
+def _has_unverified_sql_examples(content: str, queries: list[str]) -> bool:
+    """Flag proposed SQL for review without deleting Agent-authored examples."""
     if not queries:
-        return content, False
+        return False
     verified = {name for sql in queries for name in _SQL_RELATION.findall(sql)}
-    changed = False
-
-    def replace(match: re.Match[str]) -> str:
-        nonlocal changed
+    for match in re.finditer(r"```sql\s*\n([\s\S]*?)\n```", content, flags=re.IGNORECASE):
         relations = _SQL_RELATION.findall(match.group(1))
         if relations and any(name.casefold() not in verified for name in relations):
-            changed = True
-            return "[SQL example omitted: verify the referenced table and columns first.]"
-        return match.group(0)
-
-    result = re.sub(r"```sql\s*\n([\s\S]*?)\n```", replace, content, flags=re.IGNORECASE)
-    return result, changed
+            return True
+    return False
 
 
-def _has_evidence(queries: list[str], *patterns: str) -> bool:
-    """Require one successful query to carry all parts of a claim's lineage."""
+def _has_query_scope(queries: list[str], *patterns: str) -> bool:
+    """Compatible SQL scope only; never a verifier of a claim or result value."""
     return any(all(re.search(pattern, sql) for pattern in patterns) for sql in queries)
+
+
+def _scope_is_opaque(queries: list[str], artifacts: Iterable[Any]) -> bool:
+    """Unrecognized SQL/calculations are not proof of missing capability.
+
+    Avoid deleting valid custom-SQL/Python/document analyses just because this
+    small guard does not understand their source names or computations. Keep
+    them under review instead of treating their mere presence as certification.
+    """
+    for artifact in artifacts:
+        if getattr(artifact, "status", None) != "succeeded":
+            continue
+        if getattr(artifact, "type", None) == "python" and (
+            getattr(artifact, "result", None) is not None or getattr(artifact, "stdout", None)
+        ):
+            return True
+        if getattr(artifact, "type", None) == "reference" and getattr(artifact, "excerpt", None):
+            return True
+    known_references = {"sessions", "orders", "cart_links", "inventory_level", "fulfillment", "payment_actions"}
+    for sql in queries:
+        relations = _SQL_RELATION.findall(sql)
+        if (not relations or any(name.split(".")[-1] not in known_references for name in relations)
+                or re.search(r"\bjoin\b|\bwith\b|\bselect\s+\*", sql)):
+            return True
+    return False
 
 
 def _is_limitation(assertion: str, claim_match: re.Match[str] | None) -> bool:
@@ -142,36 +203,54 @@ def _is_limitation(assertion: str, claim_match: re.Match[str] | None) -> bool:
     if re.match(r"^(?:nếu|giả sử|if|suppose)\b", assertion, re.IGNORECASE):
         return True
     limitation = _LIMITATION.search(assertion)
-    return bool(limitation and (claim_match is None or limitation.start() <= claim_match.start()))
+    proposal = _PROPOSAL.search(assertion)
+    return any(
+        match and (claim_match is None or match.start() <= claim_match.start())
+        for match in (limitation, proposal)
+    )
+
+
+def _claim_scope(assertion: str, request_text: str) -> str:
+    """Conservative presentation hints, not a router or a general NL verifier.
+
+    A conceptual user request cannot excuse an explicit measured shop claim.
+    A mixed answer is classified per sentence, never exempted wholesale.
+    """
+    if _MEASURED_VALUE.search(assertion):
+        return "empirical"
+    if re.search(r"\b(?:được định nghĩa|defined as|refers to)\b", assertion, re.IGNORECASE):
+        return "conceptual"
+    if _EMPIRICAL_ANCHOR.search(assertion):
+        return "empirical"
+    if _GENERAL_EXPLANATION.search(assertion):
+        return "conceptual"
+    if (_CONCEPTUAL_REQUEST.search(request_text)
+            and not _EMPIRICAL_ANCHOR.search(request_text)
+            and not _MEASURED_VALUE.search(request_text)
+            and not _ANALYTICAL_REQUEST.search(request_text)):
+        return "conceptual"
+    if _EMPIRICAL_WORDING.search(assertion):
+        return "empirical"
+    return "uncertain"
 
 
 def guard_final_claims(content: str, steps: Iterable[dict[str, Any]],
                        locale: str = "vi", *,
-                       artifacts: Optional[Iterable[Any]] = None) -> tuple[str, list[str]]:
-    """Remove unsupported high-impact claims from prose lines, preserving data.
+                       artifacts: Optional[Iterable[Any]] = None,
+                       request_text: str = "") -> tuple[str, list[str]]:
+    """Check final presentation without constraining planning, SQL or tools.
 
-    The check is intentionally narrow: ordinary descriptive numbers and
-    explicitly qualified limitations stay visible. Unsupported lines are
-    replaced by a brief limitation; no model call or fabricated value is used.
+    Remove only clearly empirical claims outside captured query scope. Retain
+    ambiguous interpretations/proposals and mark their unverified status. Even
+    compatible SQL is not proof that values or business semantics are correct.
     """
     steps = list(steps)
     artifact_list = list(artifacts) if artifacts is not None else None
     queries = _artifact_sql(artifact_list) if artifact_list is not None else _successful_sql(steps)
-    knowledge_artifact = bool(artifact_list and any(
-        getattr(artifact, "type", None) == "reference"
-        and getattr(artifact, "reference_type", None) == "knowledge"
-        and getattr(artifact, "status", None) == "succeeded"
-        for artifact in artifact_list
-    ))
-    if not queries and (knowledge_artifact or any(
-        step.get("status") == "done" and str(step.get("action", "")).lower()
-        in {"knowledge_retrieve", "kb_cat", "kb_ls"}
-        for step in steps
-    )):
-        # A retrieved document may supply claims outside SQL. This guard has
-        # no document-to-claim verifier and must not erase that source.
-        return content, []
-    content, unverified_sql_example = _remove_unverified_sql_examples(content, queries)
+    opaque_scope = _scope_is_opaque(queries, artifact_list or [])
+    # KB listing/retrieval alone is not an exemption for measured shop claims.
+    # Document explanations remain eligible through sentence-level scoping.
+    unverified_sql_example = _has_unverified_sql_examples(content, queries)
     issues = ["unverified_sql_example"] if unverified_sql_example else []
     output = []
     in_code_fence = False
@@ -194,39 +273,65 @@ def guard_final_claims(content: str, steps: Iterable[dict[str, Any]],
         sentences = re.split(
             r"(?<=[.!?;])(?=\s+\S)|"
             r"(?=,\s*(?:cho thấy|chứng tỏ|suy ra|therefore|which shows|indicating)\b)|"
+            r"(?=,\s*(?:nhưng|tuy nhiên|thực tế|but|however|in fact)\b)|"
             r"(?=\s*(?:→|->)\s*)",
             line, flags=re.IGNORECASE,
         )
         for sentence in sentences:
             before = len(issues)
-            _check_sentence(sentence, queries, output, issues)
+            _check_sentence(sentence, queries, output, issues, request_text, opaque_scope)
             if len(issues) > before and sentence.endswith("\n") and output:
                 if not output[-1].endswith("\n"):
                     output.append("\n")
     if not issues:
         return content, []
-    message = (
-        "Một số diễn giải về hành vi hoặc kết quả đã được lược bỏ vì các truy vấn "
-        "trong lượt này chưa cung cấp bằng chứng phù hợp."
-        if locale.startswith("vi") else
-        "Some behavioral or outcome interpretations were omitted because this "
-        "run did not provide the necessary evidence."
-    )
+    messages = []
+    if any(not issue.startswith("review_required:") and issue != "unverified_sql_example" for issue in issues):
+        messages.append(
+            "Một số diễn giải về hành vi hoặc kết quả đã được lược bỏ vì các truy vấn "
+            "trong lượt này chưa cung cấp bằng chứng phù hợp."
+            if locale.startswith("vi") else
+            "Some behavioral or outcome interpretations were omitted because this "
+            "run did not provide the necessary evidence."
+        )
+    if any(issue.startswith("review_required:") for issue in issues):
+        messages.append(
+            "Một số diễn giải được giữ lại để tham khảo, nhưng chưa được xác minh "
+            "với kết quả và ngữ nghĩa dữ liệu; không xem chúng là kết luận đã chứng nhận."
+            if locale.startswith("vi") else
+            "Some interpretations are retained for review, but their result values "
+            "and business meaning have not been verified; they are not certified findings."
+        )
+    if unverified_sql_example:
+        messages.append(
+            "SQL đề xuất được giữ nguyên; cần kiểm tra các bảng/cột chưa được đối chiếu trước khi dùng."
+            if locale.startswith("vi") else
+            "Proposed SQL is retained; verify unconfirmed tables/columns before using it."
+        )
     remaining = "".join(output).rstrip()
-    return (remaining + "\n\n" if remaining else "") + message, sorted(set(issues))
+    return (remaining + "\n\n" if remaining else "") + "\n".join(messages), sorted(set(issues))
 
 
 def _check_sentence(
-    line: str, queries: list[str], output: list[str], issues: list[str]
+    line: str, queries: list[str], output: list[str], issues: list[str],
+    request_text: str = "",
+    opaque_scope: bool = False,
 ) -> None:
     assertion = re.sub(r"^\s*(?:[-*]|\d+\.)\s*", "", line).strip()
+    assertion = re.sub(r"\*\*|__|`", "", assertion).lstrip("# ")
     if not assertion:
+        output.append(line)
+        return
+    scope = _claim_scope(assertion, request_text)
+    if scope == "conceptual":
         output.append(line)
         return
     if _DATASET_SESSION_GRAIN.search(assertion) and not _is_limitation(assertion, None):
         if not _dataset_session_grain_supported(queries):
-            issues.append("unsupported_grain")
-            return
+            if scope == "empirical" and not opaque_scope:
+                issues.append("unsupported_grain")
+                return
+            issues.append("review_required:unsupported_grain")
     checks = (
         (
             _CART_ABANDONMENT,
@@ -251,12 +356,20 @@ def _check_sentence(
         (_ATTRIBUTION, "attribution_claim", None),
     )
     missing = []
+    review = []
     for pattern, category, required in checks:
         claim = pattern.search(assertion)
         if claim and not _is_limitation(assertion, claim):
-            if required is None or not _has_evidence(queries, *required):
-                missing.append(category)
-    if missing:
+            if required is None or not _has_query_scope(queries, *required):
+                if opaque_scope and required is not None:
+                    review.append("review_required:" + category)
+                else:
+                    missing.append(category)
+            else:
+                # Matching table/column names do not verify a numerical claim.
+                review.append("review_required:" + category)
+    if missing and scope == "empirical":
         issues.extend(missing)
         return
+    issues.extend(review + ["review_required:" + category for category in missing])
     output.append(line)

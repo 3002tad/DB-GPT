@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
+import { FunnelmetryIdentityContext } from '@/app/funnelmetry-identity';
 import { afterEach, expect, it, vi } from 'vitest';
 import '@/app/i18n';
 import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
@@ -33,13 +34,10 @@ it('renders active connector identity without protected tool/config actions in r
   expect(screen.queryAllByRole('button')).toHaveLength(0);
 });
 
-it('uses runtime identity when the bundle has no Pipeline flag or stored role', async () => {
+it('uses shared runtime identity when the bundle has no Pipeline flag or stored role', () => {
   vi.stubEnv('NEXT_PUBLIC_FUNNELMETRY_IDENTITY', '');
-  const readIdentity = vi.fn().mockResolvedValue({ ok: true, status: 200,
-    json: async () => ({ actor: { role: 'analyst' } }),
-  });
-  vi.stubGlobal('fetch', readIdentity);
-  render(<Connectors />);
-  await waitFor(() => expect(readIdentity).toHaveBeenCalled());
+  render(<FunnelmetryIdentityContext.Provider value={{ integrated: true, role: 'analyst' }}>
+    <Connectors />
+  </FunnelmetryIdentityContext.Provider>);
   expect(screen.queryAllByRole('button', { name: /Thêm kết nối/ })).toHaveLength(0);
 });

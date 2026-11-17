@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 /**
  * Conversation-side observability trace panel.
  *
@@ -83,8 +84,8 @@ function flattenSpans(node: SpanNode, acc: SpanNode[] = []): SpanNode[] {
 /** Extract a structured message timeline from a flattened span list. */
 function extractMessages(spans: SpanNode[]): TraceMessage[] {
   const sorted = [...spans].sort((a, b) => {
-    const at = a.start_time ? new Date(a.start_time).getTime() : 0;
-    const bt = b.start_time ? new Date(b.start_time).getTime() : 0;
+    const at = a.start_time ? serverDate(a.start_time).getTime() : 0;
+    const bt = b.start_time ? serverDate(b.start_time).getTime() : 0;
     return at - bt;
   });
 

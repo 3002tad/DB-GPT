@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   dashboardDateLocale,
   dashboardText as dt,
@@ -22,7 +23,7 @@ export default function DashboardDataFreshness({
     >
       <span>
         {dt('查询时间：')}
-        {new Date(snapshot.refreshed_at).toLocaleString(dashboardDateLocale())}
+        {serverDate(snapshot.refreshed_at).toLocaleString(dashboardDateLocale())}
       </span>
       <span title={dt('当前筛选结果中可识别的最新业务日期；不代表整个数据库的更新时间。')}>
         {dt('数据截止（当前结果）：')}

@@ -37,7 +37,8 @@ class ClaimGuardTest(unittest.TestCase):
         result, issues = guard_final_claims(
             answer, [sql_step("SELECT count(*) FROM payment_actions WHERE action='CAPTURED'")]
         )
-        self.assertEqual((result, issues), (answer, []))
+        self.assertIn(answer, result)
+        self.assertEqual(issues, ["review_required:payment_outcome"])
 
     def test_scanning_payment_table_does_not_certify_capture(self):
         result, issues = guard_final_claims(
@@ -101,7 +102,8 @@ class ClaimGuardTest(unittest.TestCase):
         result, issues = guard_final_claims(
             "Đã thanh toán 100 đơn.", [], artifacts=[artifact]
         )
-        self.assertEqual((result, issues), ("Đã thanh toán 100 đơn.", []))
+        self.assertIn("Đã thanh toán 100 đơn.", result)
+        self.assertEqual(issues, ["review_required:payment_outcome"])
 
     def test_failed_sql_artifact_cannot_support_claim(self):
         artifact = SimpleNamespace(
@@ -203,7 +205,7 @@ class TraceRegressionTests(unittest.TestCase):
         )
         self.assertEqual((guarded, issues), (answer, []))
 
-    def test_unverified_sql_example_is_removed_from_analysis(self):
+    def test_unverified_sql_proposal_is_retained_with_review_note(self):
         answer = (
             "Observed ON orders.\n```sql\nSELECT SUM(amount_minor) "
             "FROM funnelmetry_demo.payments WHERE action='CAPTURED';\n```"
@@ -212,8 +214,176 @@ class TraceRegressionTests(unittest.TestCase):
             answer, [sql_step("SELECT COUNT(*) FROM funnelmetry_demo.orders")]
         )
         self.assertIn("unverified_sql_example", issues)
-        self.assertNotIn("FROM funnelmetry_demo.payments", guarded)
+        self.assertIn("FROM funnelmetry_demo.payments", guarded)
+        self.assertIn("SQL đề xuất được giữ nguyên", guarded)
         self.assertIn("Observed ON orders", guarded)
+
+
+class ClaimScopeRegressionTests(unittest.TestCase):
+    def test_bug14_original_conceptual_answer_is_unchanged(self):
+        answer = (
+            "Funnel thương mại điện tử là hành trình khách hàng từ tiếp cận đến mua hàng. "
+            "Mỗi giai đoạn của funnel có tỷ lệ chuyển đổi riêng, giúp doanh nghiệp "
+            "đo lường hiệu quả từng bước, phát hiện điểm nghẽn và tối ưu hóa trải nghiệm."
+        )
+        self.assertEqual(guard_final_claims(
+            answer, [], request_text="Giải thích funnel thương mại điện tử trong 2 câu tiếng Việt.",
+        ), (answer, []))
+
+    def test_definitions_of_all_business_claim_families_need_no_sql(self):
+        for answer in (
+            "Funnel thường gồm xem sản phẩm, thêm vào giỏ và checkout.",
+            "Bỏ giỏ là khái niệm mô tả giỏ hàng không được hoàn tất.",
+            "Doanh thu đã thu là tổng số tiền được capture.",
+            "Tồn kho khả dụng là số lượng có thể bán sau khi xét reservation.",
+            "Tỷ lệ giữ chân được định nghĩa trên nhóm khách quay lại.",
+            "Tỷ lệ chuyển đổi của shop được định nghĩa theo từng bước của funnel.",
+            "Funnel gồm xem sản phẩm, thêm vào giỏ và checkout.",
+            "Conversion rate is defined as the ratio between two stages.",
+            "Cart abandonment typically refers to carts without completed checkout.",
+            "The document describes captured revenue and fulfilled orders.",
+        ):
+            with self.subTest(answer=answer):
+                self.assertEqual(guard_final_claims(answer, []), (answer, []))
+
+    def test_context_allows_explanations_without_relaxing_measured_shop_claims(self):
+        request = "Giải thích funnel và tỷ lệ chuyển đổi là gì."
+        concept = "Tỷ lệ chuyển đổi giúp đánh giá hiệu quả giữa hai bước."
+        self.assertEqual(guard_final_claims(concept, [], request_text=request), (concept, []))
+        guarded, issues = guard_final_claims(
+            concept + " Tỷ lệ chuyển đổi của shop là 12%.", [], request_text=request,
+        )
+        self.assertIn(concept, guarded)
+        self.assertNotIn("của shop là 12%", guarded)
+        self.assertIn("conversion_claim", issues)
+
+    def test_analytical_explanation_request_is_not_a_blanket_exemption(self):
+        answer = "Nhiều khách thêm vào giỏ nhưng không hoàn tất checkout."
+        guarded, issues = guard_final_claims(
+            answer, [], request_text="Phân tích dữ liệu và giải thích funnel của shop.",
+        )
+        self.assertNotIn(answer, guarded)
+        self.assertIn("cart_abandonment", issues)
+
+    def test_knowledge_actions_cannot_whitelist_unrelated_empirical_claim(self):
+        for action in ("kb_ls", "kb_cat", "knowledge_retrieve"):
+            with self.subTest(action=action):
+                guarded, issues = guard_final_claims(
+                    "Bài viết mô tả tỷ lệ chuyển đổi. Tỷ lệ chuyển đổi của shop là 12%.",
+                    [{"action": action, "status": "done"}],
+                )
+                self.assertIn("Bài viết mô tả tỷ lệ chuyển đổi.", guarded)
+                self.assertNotIn("của shop là 12%", guarded)
+                self.assertIn("conversion_claim", issues)
+
+    def test_knowledge_artifact_is_not_blanket_evidence_of_shop_outcomes(self):
+        artifact = SimpleNamespace(type="reference", reference_type="knowledge", status="succeeded")
+        guarded, issues = guard_final_claims(
+            "Đã thanh toán 100 đơn.", [], artifacts=[artifact],
+        )
+        self.assertNotIn("Đã thanh toán 100 đơn", guarded)
+        self.assertIn("payment_outcome", issues)
+
+    def test_hypotheses_examples_and_recommendations_do_not_require_sql(self):
+        for answer in (
+            "Ví dụ: tỷ lệ chuyển đổi đạt 20% nếu 20 trên 100 phiên mua hàng.",
+            "**Giả thuyết:** Thay đổi giá gây ra tăng doanh số.",
+            "Đề xuất kiểm tra tỷ lệ giữ chân và khách quay lại theo cohort.",
+            "Cần kiểm tra liệu Facebook mang lại 30 đơn hay không.",
+            "For example, captured revenue could be 100 in a hypothetical dataset.",
+        ):
+            with self.subTest(answer=answer):
+                self.assertEqual(guard_final_claims(answer, []), (answer, []))
+
+    def test_following_fact_is_not_exempted_by_a_previous_hypothesis(self):
+        answer = "Giả sử tỷ lệ chuyển đổi đạt 20%. Đã thanh toán 100 đơn."
+        guarded, issues = guard_final_claims(answer, [])
+        self.assertIn("Giả sử tỷ lệ chuyển đổi đạt 20%.", guarded)
+        self.assertNotIn("Đã thanh toán 100 đơn", guarded)
+        self.assertIn("payment_outcome", issues)
+
+    def test_fact_after_hypothetical_clause_is_checked_independently(self):
+        answer = "Giả sử tỷ lệ chuyển đổi đạt 20%, nhưng thực tế đã thanh toán 100 đơn."
+        guarded, issues = guard_final_claims(answer, [])
+        self.assertIn("Giả sử tỷ lệ chuyển đổi đạt 20%", guarded)
+        self.assertNotIn("đã thanh toán 100 đơn", guarded)
+        self.assertIn("payment_outcome", issues)
+
+    def test_available_to_sell_is_not_mistaken_for_a_hypothesis(self):
+        answer = "Có thể bán 50 sản phẩm."
+        guarded, issues = guard_final_claims(answer, [])
+        # The Vietnamese phrase is a stock outcome, not speculative 'may'.
+        self.assertIn("sellable_stock_claim", issues)
+        self.assertNotIn(answer, guarded)
+
+    def test_custom_sql_is_not_rejected_for_using_different_source_names(self):
+        answer = "Đã thanh toán 100 đơn."
+        guarded, issues = guard_final_claims(answer, [sql_step(
+            "SELECT confirmed_order_count FROM warehouse.settlement_metrics",
+        )])
+        self.assertIn(answer, guarded)
+        self.assertEqual(issues, ["review_required:payment_outcome"])
+
+    def test_python_result_is_preserved_for_review_without_requiring_sql(self):
+        artifact = SimpleNamespace(type="python", status="succeeded", result={"paid_orders": 100})
+        answer = "Đã thanh toán 100 đơn."
+        guarded, issues = guard_final_claims(answer, [], artifacts=[artifact])
+        self.assertIn(answer, guarded)
+        self.assertEqual(issues, ["review_required:payment_outcome"])
+
+    def test_retrieved_document_content_is_retained_under_review_not_certified(self):
+        artifact = SimpleNamespace(type="reference", status="succeeded", excerpt="Source document excerpt")
+        answer = "Đã thanh toán 100 đơn."
+        guarded, issues = guard_final_claims(answer, [], artifacts=[artifact])
+        self.assertIn(answer, guarded)
+        self.assertEqual(issues, ["review_required:payment_outcome"])
+
+    def test_ambiguous_interpretation_is_retained_and_marked_for_review(self):
+        answer = "Tỷ lệ chuyển đổi phản ánh hiệu quả từng bước."
+        guarded, issues = guard_final_claims(answer, [])
+        self.assertIn(answer, guarded)
+        self.assertIn("review_required:conversion_claim", issues)
+        self.assertIn("được giữ lại để tham khảo", guarded)
+        self.assertNotIn("đã được lược bỏ", guarded)
+
+    def test_sql_keywords_are_not_certification_of_a_numeric_claim(self):
+        # The query scope matches capture, but its text cannot prove a value of 100.
+        answer = "Đã thanh toán 100 đơn."
+        guarded, issues = guard_final_claims(answer, [sql_step(
+            "SELECT count(*) FROM payment_actions WHERE action='CAPTURED'",
+        )])
+        self.assertIn(answer, guarded)
+        self.assertEqual(issues, ["review_required:payment_outcome"])
+        self.assertIn("không xem chúng là kết luận đã chứng nhận", guarded)
+
+    def test_mixed_answer_preserves_concepts_proposals_and_observed_counts(self):
+        answer = (
+            "Funnel thường gồm xem sản phẩm, thêm vào giỏ và checkout.\n"
+            "Có 5.661 phiên có liên kết giỏ hàng.\n"
+            "Đề xuất phân tích thêm tỷ lệ chuyển đổi.\n"
+            "Nhiều khách thêm vào giỏ nhưng không hoàn tất checkout."
+        )
+        guarded, issues = guard_final_claims(answer, [sql_step("SELECT count(*) FROM cart_links")])
+        for retained in answer.splitlines()[:3]:
+            self.assertIn(retained, guarded)
+        self.assertNotIn(answer.splitlines()[3], guarded)
+        self.assertIn("cart_abandonment", issues)
+
+    def test_code_examples_are_preserved_verbatim_and_inputs_are_not_modified(self):
+        steps = [sql_step("SELECT count(*) FROM sessions")]
+        original_steps = json.dumps(steps, sort_keys=True)
+        code = "```sql\nSELECT count(*) FROM proposed_source;\n```"
+        guarded, issues = guard_final_claims("Ví dụ SQL:\n" + code, steps)
+        self.assertIn(code, guarded)
+        self.assertIn("unverified_sql_example", issues)
+        self.assertEqual(json.dumps(steps, sort_keys=True), original_steps)
+
+    def test_review_note_uses_response_language(self):
+        answer = "Conversion rate measures effectiveness."
+        guarded, issues = guard_final_claims(answer, [], "en")
+        self.assertIn(answer, guarded)
+        self.assertIn("retained for review", guarded)
+        self.assertEqual(issues, ["review_required:conversion_claim"])
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import { serverDate } from '@/utils/server-time';
 import {
   getDashboardPermissions,
   listDashboardAudit,
@@ -303,7 +304,7 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
                             <div className='font-medium text-gray-800 dark:text-gray-100'>{member.principal_id}</div>
                             <div className='mt-0.5 text-xs text-gray-400'>
                               {dt('由')} {member.created_by} {dt('添加 ·')}{' '}
-                              {new Date(member.updated_at).toLocaleString()}
+                              {serverDate(member.updated_at).toLocaleString()}
                             </div>
                           </div>
                           {member.role === 'owner' ? (
@@ -359,7 +360,7 @@ export default function DashboardAccessPanel({ dashboardId, open, onClose }: Das
                           <Tag>{item.actor_id}</Tag>
                           {item.target_id ? <span className='text-xs text-gray-400'>{item.target_id}</span> : null}
                         </div>
-                        <div className='mt-1 text-xs text-gray-400'>{new Date(item.created_at).toLocaleString()}</div>
+                        <div className='mt-1 text-xs text-gray-400'>{serverDate(item.created_at).toLocaleString()}</div>
                         {Object.keys(item.details || {}).length ? (
                           <div className='mt-2 rounded bg-gray-50 px-3 py-2 font-mono text-xs text-gray-500 dark:bg-gray-900'>
                             {Object.entries(item.details)

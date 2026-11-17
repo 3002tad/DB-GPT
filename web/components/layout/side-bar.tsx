@@ -1,17 +1,19 @@
+import { serverDate } from '@/utils/server-time';
 import { ChatContext } from '@/app/chat-context';
+import { useFunnelmetryIdentity } from '@/app/funnelmetry-identity';
 import { getHarnessEngines, saveHarnessEngine } from '@/client/api/chat';
 import { delDialogue, getDialogueList } from '@/client/api/request';
 import { apiInterceptors } from '@/client/api/tools/interceptors';
 import { DarkSvg, ModelSvg, PanelLeft, SunnySvg } from '@/components/icons';
 import { useStartNewTask } from '@/modules/new-task';
 import type { IChatDialogueSchema } from '@/types/chat';
-import { STORAGE_LANG_KEY, STORAGE_THEME_KEY, STORAGE_USERINFO_KEY } from '@/utils/constants/index';
+import { STORAGE_LANG_KEY, STORAGE_THEME_KEY } from '@/utils/constants/index';
 import { dashboardUserDisplayText } from '@/utils/dashboard-user-message';
 import Icon, {
   ApiOutlined,
   AppstoreOutlined,
-  ApartmentOutlined,
   BlockOutlined,
+  BuildOutlined,
   BookOutlined,
   CheckOutlined,
   ClockCircleOutlined,
@@ -74,13 +76,9 @@ function SideBar() {
   } = useContext(ChatContext);
   const router = useRouter();
   const { pathname } = router;
-  const integrated = process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY === '1';
+  const { integrated, role } = useFunnelmetryIdentity();
   const [embedded, setEmbedded] = useState(false);
   useEffect(() => { setEmbedded(integrated && window.self !== window.top); }, [integrated]);
-  let role = '';
-  try {
-    if (typeof window !== 'undefined') role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || '';
-  } catch { role = ''; }
   const canAnalyze = !integrated || role === 'analyst' || role === 'super_admin';
   const canManage = !integrated || role === 'super_admin';
   const isSettingsActive =
@@ -148,7 +146,8 @@ function SideBar() {
 
   const formatRelativeTime = useCallback((dateStr?: string) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    const date = serverDate(dateStr);
+    if (!Number.isFinite(date.getTime())) return '';
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -300,13 +299,6 @@ function SideBar() {
       },
     ];
     const tail: RouteItem[] = [
-      {
-        key: 'workflow',
-        name: t('sidebar_workflow'),
-        isActive: pathname.startsWith('/construct/taskflow') || pathname.startsWith('/construct/flow') || pathname.startsWith('/taskflow/editor'),
-        IconComponent: ApartmentOutlined,
-        path: '/construct/taskflow',
-      },
       {
         key: 'scheduled-tasks',
         name: t('scheduled_tasks'),
@@ -554,19 +546,20 @@ function SideBar() {
       </button>}
 
       {/* Extensions cluster (AntWork-style labeled group) */}
-      <div className='mt-2 flex flex-col gap-1'>
+      <div role='group' aria-label={t('sidebar_extensions')} className='mt-2 flex flex-col gap-1'>
         <div className='flex items-center h-12 px-3 text-[15px] font-medium text-[#1c1c1a] dark:text-[#e6e4df]'>
           <div className='mr-3 w-6 flex justify-center text-[17px] text-[#3f3f3a] dark:text-[#a8a59e]'>
-            <AppstoreOutlined />
+            <BuildOutlined />
           </div>
           <span>{t('sidebar_extensions')}</span>
         </div>
-        <div className='ml-[27px] pl-2 border-l border-[#e3e3dd] dark:border-white/[.10] flex flex-col gap-0.5'>
+        <div className='ml-[27px] pl-2 border-l-2 border-[#d6d8df] dark:border-white/[.15] flex flex-col gap-0.5'>
           {nav.extensions.map(item => (
             <Link
               href={item.path}
+              aria-current={item.isActive ? 'page' : undefined}
               className={cls(
-                'flex items-center w-full h-10 px-3 rounded-[8px] cursor-pointer text-[14px] font-medium',
+                'flex items-center gap-2 w-full h-10 px-3 rounded-[8px] cursor-pointer text-[14px] font-medium',
                 'text-[#3f3f3a] dark:text-[#d4d2cc] hover:bg-[#efefeb] dark:hover:bg-white/[.06] transition-colors',
                 {
                   'bg-[#ececea] text-[#1c1c1a] dark:bg-white/[.10] dark:text-[#e6e4df]': item.isActive,
@@ -574,6 +567,9 @@ function SideBar() {
               )}
               key={item.key}
             >
+              <span aria-hidden='true' className='flex w-4 shrink-0 justify-center text-[15px]'>
+                <item.IconComponent />
+              </span>
               <span className='truncate'>{item.name}</span>
             </Link>
           ))}
