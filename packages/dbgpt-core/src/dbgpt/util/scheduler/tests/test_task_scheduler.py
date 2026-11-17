@@ -10,6 +10,13 @@ import pytest_asyncio
 from dbgpt.util.scheduler.task_scheduler import TaskScheduler
 
 
+@pytest.mark.parametrize("expression", ["0 9 * * *", "0 0 9 * * *"])
+def test_cron_timezone_is_explicit_utc(expression):
+    trigger = TaskScheduler._build_trigger(expression)
+    assert str(trigger.timezone) == "UTC"
+    assert trigger.get_next_fire_time(None, datetime.fromisoformat("2026-11-17T12:00:00+00:00")).hour == 9
+
+
 @pytest.fixture
 def in_memory_db_url():
     """In-memory SQLite URL for testing."""

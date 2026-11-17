@@ -10,6 +10,9 @@ import { useEffect, useRef, useState } from 'react';
 
 export type CollaborationStatus = 'connecting' | 'online' | 'offline' | 'conflict';
 
+export const retryCollaboration = (error: any): boolean =>
+  ![400, 401, 403, 404].includes(error?.response?.status ?? error?.status);
+
 export const resolveDashboardWebSocketUrl = (
   websocketPath: string,
   ticket: string,
@@ -137,17 +140,19 @@ export const useDashboardCollaboration = ({
             remoteHandlerRef.current(responsePayload.dashboard);
           }
         };
-        socket.onclose = () => {
+        socket.onclose = event => {
           if (heartbeat) clearInterval(heartbeat);
           if (cancelled) return;
           setStatus('offline');
+          if ([1008, 4401, 4403, 4404].includes(event.code)) return;
           reconnectTimer = setTimeout(connect, retryDelay);
           retryDelay = Math.min(retryDelay * 2, 5000);
         };
         socket.onerror = () => socket?.close();
-      } catch {
+      } catch (error) {
         if (cancelled) return;
         setStatus('offline');
+        if (!retryCollaboration(error)) return;
         reconnectTimer = setTimeout(connect, retryDelay);
         retryDelay = Math.min(retryDelay * 2, 5000);
       }
@@ -162,12 +167,11 @@ export const useDashboardCollaboration = ({
   }, [dashboardId]);
 
   const save = async (schema: DashboardSchemaV1, expectedRevision: number, promoteToAsset = true) => {
-    if (!clientId) throw new Error('协作连接尚未初始化，请稍后重试。');
+    if (!clientId) throw new Error('Collaboration is initializing. Please try again shortly.');
     const response = await applyDashboardOperation(
       dashboardId,
       makeDashboardSaveOperation(schema, expectedRevision, clientId, promoteToAsset),
     );
-    setStatus('online');
     setPendingRemote(null);
     return response.data.data.dashboard;
   };

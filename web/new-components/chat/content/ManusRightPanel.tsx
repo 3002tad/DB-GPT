@@ -186,6 +186,7 @@ export interface ManusRightPanelProps {
   onRerun?: () => void;
   onShare?: () => void;
   onSchedule?: () => void;
+  onBackToProducts?: () => void;
   terminalTitle?: string;
   isCollapsed?: boolean;
   artifacts?: ArtifactItem[];
@@ -2455,6 +2456,7 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
   onRerun,
   onShare,
   onSchedule,
+  onBackToProducts,
   terminalTitle,
   artifacts,
   inputFiles,
@@ -2620,6 +2622,9 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
         </div>
 
         <div className='flex items-center gap-1'>
+          {onBackToProducts && <Button type='text' size='small' onClick={onBackToProducts}>
+            {tr('返回会话产物', 'Back to session products')}
+          </Button>}
           {((panelView === 'report' && reportId && reportRunId) ||
             (panelView === 'html-preview' &&
               previewArtifact &&
@@ -3028,13 +3033,9 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
           </div>
         ) : panelView === 'summary' && summaryContent ? (
           <div className='prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200 leading-relaxed'>
-            {isSummaryStreaming ? (
-              <span className='whitespace-pre-wrap break-words'>{summaryContent}</span>
-            ) : (
-              <MarkDownContext onFinancialCitationClick={onFinancialCitationClick}>
-                {fixSquishedTables(summaryContent)}
-              </MarkDownContext>
-            )}
+            <MarkDownContext onFinancialCitationClick={onFinancialCitationClick}>
+              {isSummaryStreaming ? summaryContent : fixSquishedTables(summaryContent)}
+            </MarkDownContext>
             {isSummaryStreaming && (
               <span className='inline-block w-1.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom' />
             )}
@@ -3066,7 +3067,7 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
                         : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300',
                     )}
                   >
-                    {tab.label}
+                    {tr(tab.label, { all: 'All', input: 'Uploaded material', document: 'Documents', image: 'Images', code: 'Code files' }[tab.key])}
                     {count > 0 && <span className='ml-1 text-[10px] tabular-nums text-gray-400'>{count}</span>}
                   </button>
                 );
@@ -3135,7 +3136,9 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
               {visibleInputFiles.length === 0 && filteredArtifacts.length === 0 && (
                 <div className='flex flex-col items-center justify-center py-16 text-gray-400'>
                   <FolderOpenOutlined className='text-3xl mb-4' />
-                  <span className='text-sm'>{getTaskFileEmptyLabel(fileFilter)}</span>
+                  <span className='text-sm'>{tr(getTaskFileEmptyLabel(fileFilter), {
+                    all: 'No task files yet', input: 'No uploaded material yet', document: 'No generated documents yet', image: 'No generated images yet', code: 'No generated code files yet',
+                  }[fileFilter])}</span>
                 </div>
               )}
             </div>

@@ -102,6 +102,8 @@ import type { ITaskflowRef } from '@/types/taskflow';
 import { buildActionDisplayText } from '@/utils/action-display';
 import axios from '@/utils/ctx-axios';
 import { executionStatus } from '@/utils/execution-status';
+import { scheduledChatInput } from '@/utils/scheduled-chat-input';
+import { skillDraft } from '@/utils/skill-draft';
 import { createSummaryPresentation, type SummaryPresentation } from '@/utils/final-presentation';
 import { downloadQueryCsv } from '@/utils/query-export';
 import { decodeFinalEvent, decodeHistoryAnswer, type AgentCitation } from '@/utils/react-agent-final';
@@ -4756,15 +4758,17 @@ const Playground: NextPage = () => {
     // the real execution context (file_path / file_ids / database / knowledge /
     // skill / connectors) and is immune to UI state changed after sending.
     if (lastSentPayloadRef.current) {
-      return lastSentPayloadRef.current;
+      return {
+        ...lastSentPayloadRef.current,
+        user_input: scheduledChatInput(lastSentPayloadRef.current.user_input, messages),
+      };
     }
     // Fallback (e.g. conversation restored from history, where no send
-    // happened this session): reconstruct from the first question + current
-    // selections. Keeps the old behavior so this path never regresses.
-    const firstUserMsg = messages.find(m => m.role === 'human');
+    // happened this session): freeze the latest request with visible context.
+    const latestUserMsg = [...messages].reverse().find(m => m.role === 'human');
     return {
       version: 1,
-      user_input: firstUserMsg?.context ?? '',
+      user_input: scheduledChatInput(latestUserMsg?.context ?? '', messages),
       chat_mode: 'chat_react_agent',
       model_name: model,
       select_param: '',
@@ -4950,7 +4954,7 @@ const Playground: NextPage = () => {
       onClick: () => {
         setSelectedSkill(skill);
         setSelectedSuiteCommand(null);
-        setQuery(`/${skill.name} `);
+        setQuery(current => skillDraft(current, skill.name, true));
       },
     })),
     onViewSkills: () => setIsSkillPanelOpen(true),
@@ -5365,7 +5369,7 @@ const Playground: NextPage = () => {
                       >
                         {streamStatus.running ? (
                           <LoadingOutlined spin className='text-blue-500' />
-                        ) : streamStatus.status === 'done' ? (
+                        ) : ['done', 'recovered'].includes(streamStatus.status) ? (
                           <CheckCircleFilled className='text-emerald-500' />
                         ) : streamStatus.status === 'incomplete' ? (
                           <PauseCircleOutlined className='text-slate-400' />
@@ -5568,10 +5572,10 @@ const Playground: NextPage = () => {
                                             onClick={() => {
                                               if (selectedSkill?.id === skill.id) {
                                                 setSelectedSkill(null);
-                                                setQuery('');
+                                                setQuery(current => skillDraft(current, skill.name, false));
                                               } else {
                                                 setSelectedSkill(skill);
-                                                setQuery(`/${skill.name} `);
+                                                setQuery(current => skillDraft(current, skill.name, true));
                                               }
                                               setIsSkillPanelOpen(false);
                                               setSkillSearchQuery('');
@@ -5651,6 +5655,8 @@ const Playground: NextPage = () => {
                                     type='text'
                                     shape='circle'
                                     size='small'
+                                    aria-pressed={Boolean(selectedSkill)}
+                                    style={selectedSkill ? { background: 'linear-gradient(135deg, #a78bfa, #7c3aed)', color: '#fff' } : undefined}
                                     className={`relative flex items-center justify-center flex-shrink-0 transition-all ${
                                       selectedSkill
                                         ? 'bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] text-white border border-transparent shadow-[0_2px_4px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-[0.5px] hover:shadow-[0_4px_8px_rgba(139,92,246,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]'
@@ -5802,6 +5808,8 @@ const Playground: NextPage = () => {
                                     type='text'
                                     shape='circle'
                                     size='small'
+                                    aria-pressed={Boolean(selectedConnectors.length > 0)}
+                                    style={selectedConnectors.length > 0 ? { background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff' } : undefined}
                                     className={`relative flex items-center justify-center flex-shrink-0 transition-all ${
                                       selectedConnectors.length > 0
                                         ? 'bg-gradient-to-br from-[#8b5cf6] to-[#6366f1] text-white border border-transparent shadow-[0_2px_4px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-[0.5px] hover:shadow-[0_4px_8px_rgba(139,92,246,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]'
@@ -6140,6 +6148,14 @@ const Playground: NextPage = () => {
                         }}
                         subAgentContext={activeSub || null}
                         onExitSubAgentView={() => setActiveSubAgent(null)}
+                        onBackToProducts={() => {
+                          panelNavigationVersion.current += 1;
+                          cancelSummaryPresentation();
+                          setRailDebug(false);
+                          setPreviewArtifact(null);
+                          setActiveSubAgent(null);
+                          setRightPanelCollapsed(false);
+                        }}
                       />
                     ) : (
                       <ArtifactRail
@@ -6334,10 +6350,10 @@ const Playground: NextPage = () => {
                                         onClick={() => {
                                           if (selectedSkill?.id === skill.id) {
                                             setSelectedSkill(null);
-                                            setQuery('');
+                                            setQuery(current => skillDraft(current, skill.name, false));
                                           } else {
                                             setSelectedSkill(skill);
-                                            setQuery(`/${skill.name} `);
+                                            setQuery(current => skillDraft(current, skill.name, true));
                                           }
                                           setIsSkillPanelOpen(false);
                                           setSkillSearchQuery('');
@@ -6415,6 +6431,8 @@ const Playground: NextPage = () => {
                                 type='text'
                                 shape='circle'
                                 size='small'
+                                aria-pressed={Boolean(selectedSkill)}
+                                style={selectedSkill ? { background: 'linear-gradient(135deg, #a78bfa, #7c3aed)', color: '#fff' } : undefined}
                                 className={`relative flex items-center justify-center flex-shrink-0 transition-all ${
                                   selectedSkill
                                     ? 'bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] text-white border border-transparent shadow-[0_2px_4px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-[0.5px] hover:shadow-[0_4px_8px_rgba(139,92,246,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]'
@@ -6560,6 +6578,8 @@ const Playground: NextPage = () => {
                                 type='text'
                                 shape='circle'
                                 size='small'
+                                aria-pressed={Boolean(selectedConnectors.length > 0)}
+                                style={selectedConnectors.length > 0 ? { background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff' } : undefined}
                                 className={`relative flex items-center justify-center flex-shrink-0 transition-all ${
                                   selectedConnectors.length > 0
                                     ? 'bg-gradient-to-br from-[#8b5cf6] to-[#6366f1] text-white border border-transparent shadow-[0_2px_4px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-[0.5px] hover:shadow-[0_4px_8px_rgba(139,92,246,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]'
@@ -6688,6 +6708,8 @@ const Playground: NextPage = () => {
                                 type='text'
                                 shape='circle'
                                 size='small'
+                                aria-pressed={Boolean(selectedDb)}
+                                style={selectedDb ? { background: 'linear-gradient(135deg, #60a5fa, #2563eb)', color: '#fff' } : undefined}
                                 className={`relative flex items-center justify-center flex-shrink-0 transition-all ${
                                   selectedDb
                                     ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white border border-transparent shadow-[0_2px_4px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-[0.5px] hover:shadow-[0_4px_8px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]'
@@ -6823,6 +6845,8 @@ const Playground: NextPage = () => {
                                 type='text'
                                 shape='circle'
                                 size='small'
+                                aria-pressed={Boolean(selectedKnowledge)}
+                                style={selectedKnowledge ? { background: 'linear-gradient(135deg, #fb923c, #ea580c)', color: '#fff' } : undefined}
                                 className={`relative flex items-center justify-center flex-shrink-0 transition-all ${
                                   selectedKnowledge
                                     ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white border border-transparent shadow-[0_2px_4px_rgba(249,115,22,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-[0.5px] hover:shadow-[0_4px_8px_rgba(249,115,22,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]'

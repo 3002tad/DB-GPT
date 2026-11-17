@@ -781,3 +781,30 @@ and a fake provider overflow. Four ContextUsageBar component tests and full
 candidate-web TypeScript checking pass. No LLM request, active source hot patch,
 production rebuild or deployment was performed. Multi-turn browser acceptance
 and real high-context recovery remain pending deployment.
+
+## Follow-up integration behavior (source candidate)
+
+Dashboard collaboration uses the Pipeline browser session, same AI origin and
+one-time, actor-bound tickets. The shared ticket route is available to trusted
+Admin/Analyst; object EDIT authorization still runs in the Dashboard service.
+The middleware permits only this authenticated Dashboard WebSocket, not arbitrary
+API sockets. Permanent HTTP permission failures and terminal socket auth failures
+do not trigger endless reconnects. REST saving does not prove a live socket.
+
+Scheduled chat input freezes prior visible questions/answers as reference context
+along with the latest request. The drawer allows editing a self-contained task;
+old answers must be recomputed, not reused as new evidence. Source credentials,
+DB/KB/skill and attachment bindings retain their existing ownership checks.
+New/rescheduled cron triggers use explicit UTC, independent of the host timezone;
+the UI labels UTC and renders next-run timestamps in browser local time. Existing
+serialized triggers are not migrated merely by a source update.
+
+A successful terminal turn with later successful SQL/chart retries may display
+recovered status while retaining failed attempts. Unresolved failed stages and
+cancelled turns do not become success. Trace selection prefers LLM messages;
+metadata-only spans have a separate empty state.
+
+These source changes do not certify the deployed image or model narrative
+accuracy. Deterministic query/calculation output remains numeric authority;
+Agent prompt/skill guidance does not impose a new execution gate or restrict
+native tools. Runtime browser/model acceptance is required after deployment.

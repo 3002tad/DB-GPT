@@ -33,7 +33,7 @@ describe('save current dashboard as an official scheduled task', () => {
       { wrapper: App },
     );
     fireEvent.click(screen.getByText('scheduled.save.submit'));
-    await screen.findByText('定时任务已创建');
+    await screen.findByText('Scheduled task created');
     expect(events).toEqual(['save', 'create']);
     expect(mocks.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -44,7 +44,7 @@ describe('save current dashboard as an official scheduled task', () => {
       }),
     );
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText('查看任务及执行记录'));
+    fireEvent.click(screen.getByText('View task and execution history'));
     expect(mocks.push).toHaveBeenCalledWith('/construct/scheduled-tasks/task-1/');
   });
   it('does not schedule stale data when saving the dashboard fails', async () => {
@@ -63,7 +63,7 @@ describe('save current dashboard as an official scheduled task', () => {
     fireEvent.click(screen.getByText('scheduled.save.submit'));
     await screen.findByText('Revision conflict');
     expect(mocks.createTask).not.toHaveBeenCalled();
-    expect(screen.queryByText('定时任务已创建')).toBeNull();
+    expect(screen.queryByText('Scheduled task created')).toBeNull();
   });
   it('keeps chat snapshot creation working', async () => {
     const onClose = vi.fn();
@@ -75,5 +75,17 @@ describe('save current dashboard as an official scheduled task', () => {
     expect(mocks.createTask).toHaveBeenCalledWith(
       expect.objectContaining({ task_type: 'chat_replay', payload: snapshot }),
     );
+  });
+  it('saves an edited standalone question while retaining datasource context', async () => {
+    const onClose = vi.fn();
+    const snapshot = { user_input: 'Compare that month', ext_info: { database_name: 'demo' } };
+    mocks.createTask.mockResolvedValue({ task_id: 'chat-2' });
+    render(<SaveAsScheduledTaskDrawer open onClose={onClose} snapshot={snapshot} />, { wrapper: App });
+    fireEvent.change(screen.getByLabelText('Scheduled analysis request'), { target: { value: 'Compare December with November for facebook' } });
+    fireEvent.click(screen.getByText('scheduled.save.submit'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      payload: { ...snapshot, user_input: 'Compare December with November for facebook' },
+    }));
   });
 });

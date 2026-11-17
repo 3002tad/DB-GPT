@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from http.cookies import CookieError, SimpleCookie
 import json
 import logging
+import re
 from typing import Optional
 from urllib.parse import parse_qs, urlsplit
 
@@ -122,7 +123,7 @@ class PipelineIdentityMiddleware:
         path = scope.get("path", "").lower()
         protected = path == "/api" or path.startswith("/api/")
         if scope["type"] == "websocket" and protected:
-            return await send({"type": "websocket.close", "code": 1008})
+            return await self._dashboard_socket(scope, receive, send)
         # User-generated images are served outside /api and have no owner
         # check. Keep them inaccessible until an authenticated route exists.
         if scope["type"] == "http" and (path == "/images" or path.startswith("/images/")):
@@ -206,6 +207,35 @@ class PipelineIdentityMiddleware:
                 actor.id, actor.role, scope.get("method"),
             )
             raise
+
+    async def _dashboard_socket(self, scope, receive, send):
+        # Only this endpoint has a one-time ticket and object-level edit check.
+        path = scope.get("path", "")
+        headers = scope.get("headers", [])
+        origins = [v for k, v in headers if k.lower() == b"origin"]
+        if (not re.fullmatch(r"/api/v1/dashboards/[A-Za-z0-9_-]{1,128}/collaborate", path)
+                or not self.ai_origin or origins != [self.ai_origin.encode("ascii")]):
+            return await send({"type": "websocket.close", "code": 1008})
+        cookies = [v for k, v in headers if k.lower() == b"cookie"]
+        try:
+            if len(cookies) != 1:
+                raise ValueError("Missing session")
+            parsed = SimpleCookie()
+            parsed.load(cookies[0].decode("ascii"))
+            token = parsed.get("__Host-funnelmetry-ai")
+            if token is None:
+                raise ValueError("Missing session")
+            actor = await self.verifier.verify("Bearer " + token.value)
+            # Apply the same shared-module capability as ticket issuance.
+            policy_scope = dict(scope, type="http", method="POST", path=path.rsplit("/", 1)[0] + "/collaboration-ticket")
+            if self.policy is None or not self.policy(actor, policy_scope):
+                raise ValueError("Access denied")
+        except (ValueError, UnicodeDecodeError, CookieError, PipelineIdentityError):
+            return await send({"type": "websocket.close", "code": 1008})
+        trusted = dict(scope)
+        trusted["state"] = dict(scope.get("state") or {}, pipeline_actor=actor)
+        trusted["headers"] = [(k, v) for k, v in headers if k.lower() not in (b"user-id", b"x-user-id", b"x-user-role")] + [(b"user-id", actor.id.encode("ascii"))]
+        return await self.app(trusted, receive, send)
 
     async def _session(self, scope, headers, origins, receive, send):
         if not self.ui_origin or len(origins) != 1 or origins[0] != self.ui_origin.encode("ascii"):

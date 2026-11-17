@@ -223,9 +223,10 @@ class TaskScheduler(BaseComponent):
                     day=dom,
                     month=mon,
                     day_of_week=dow,
+                    timezone="UTC",
                 )
             elif len(parts) == 5:
-                return CronTrigger.from_crontab(cron_expression)
+                return CronTrigger.from_crontab(cron_expression, timezone="UTC")
             else:
                 raise ValueError(f"Invalid cron expression: {cron_expression}")
         except ValueError:

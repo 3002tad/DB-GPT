@@ -449,6 +449,7 @@ export const ChatEn = {
   parallel_tasks_dispatch_summary_fallback: 'Dispatch independent sub-tasks in parallel',
   subagent_status_running: 'Running',
   subagent_status_done: 'Completed',
+  "agent_status_recovered": "Completed after recovery · {{rounds}} rounds · {{calls}} tool calls{{dur}}",
   subagent_status_failed: 'Failed',
   subagent_status_timeout: 'Timed out',
   subagent_status_partial: 'Partially completed',

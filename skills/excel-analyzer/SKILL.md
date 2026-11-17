@@ -1,11 +1,8 @@
 ---
 name: excel-analyzer
 description: >
-  Comprehensive Excel/CSV data analysis skill. Provides statistical summaries,
-  missing value detection, outlier analysis, correlation matrices, and data visualization
-  (bar, line, scatter, pie, box charts). Use when: analyzing data files (.csv, .xlsx, .xls),
-  generating descriptive statistics, identifying data quality issues, creating charts,
-  or producing data analysis reports with HTML output.
+  Phân tích tệp Excel và CSV: thống kê, kiểm tra giá trị thiếu, ngoại lệ,
+  tương quan và tạo biểu đồ hoặc báo cáo HTML từ kết quả đã kiểm chứng.
 ---
 
 # Excel Analyzer

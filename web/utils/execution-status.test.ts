@@ -26,4 +26,14 @@ describe('execution completion status', () => {
     expect(executionStatus([{ status: 'running' }])).toBe('running');
     expect(executionStatus([done], false, [{ status: 'completed' }])).toBe('done');
   });
+
+  it('reports a recovered tool without hiding unrelated failed stages', () => {
+    const sqlError = { action: 'sql_query', status: 'failed' };
+    const sqlSuccess = { action: 'sql_query', status: 'done' };
+    expect(executionStatus([sqlError, sqlSuccess], false, [], 'completed')).toBe('recovered');
+    expect(executionStatus([sqlSuccess, sqlError], false, [], 'completed')).toBe('partial');
+    expect(executionStatus([failed, sqlSuccess], false, [], 'completed')).toBe('partial');
+    expect(executionStatus([sqlError, sqlSuccess], false, [{ status: 'error' }], 'completed')).toBe('partial');
+    expect(executionStatus([sqlError, sqlSuccess], false, [], 'failed')).toBe('failed');
+  });
 });

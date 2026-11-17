@@ -368,6 +368,10 @@ def make_sql_query(
                 else f"{code}: SQL execution failed: {e}"
             )
             recovery_hint = (
+                "PostgreSQL UNION ORDER BY accepts output column names only. "
+                "Wrap the UNION in a subquery/CTE, then sort by the expression, "
+                "or project a sort_key in every branch and ORDER BY sort_key."
+                if "invalid union/intersect/except order by" in error_text else
                 "PostgreSQL does not require FROM dual. Remove it and select the expression directly."
                 if code == "SQL_UNDEFINED_TABLE" and re.search(r"\bfrom\s+dual\b", sql_stripped, re.IGNORECASE) else
                 "Inspect information_schema.tables/views and use a schema-qualified name, "

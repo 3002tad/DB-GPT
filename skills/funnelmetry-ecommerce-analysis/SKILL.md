@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.9
+version: 1.0.10
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -44,6 +44,12 @@ là nguồn định nghĩa và số liệu có thẩm quyền; KB là bản dẫ
 Trước khi kết luận, đối chiếu từng số và mẫu số với kết quả tool cùng phạm vi;
 nếu có kết quả mâu thuẫn, kiểm tra lại điều kiện truy vấn hoặc nêu rõ chưa
 xác định, không tự chọn hay tính nhẩm. Tính tỷ lệ bằng SQL hoặc công cụ tính.
+Mỗi tỷ lệ cần kèm tử số, mẫu số và cùng dataset/khoảng thời gian. Tính xong
+bằng tool rồi mới đưa số vào câu trả lời hoặc nội dung tiến độ; trước đó chỉ
+nêu truy vấn dự kiến, không ghi “đã chạy”. Nếu truy vấn lỗi, sửa và đối chiếu
+artifact thành công; không dùng SQL lỗi hoặc kết quả tự đoán để dẫn chứng.
+Không giải thích mùa thấp bằng ranh giới fixture hay chiến dịch khi chưa có
+bằng chứng tương ứng; ghi rõ giả thuyết nếu cần đề xuất cách kiểm tra.
 Chỉ giải thích trạng thái theo định nghĩa đã truy hồi; không tự mở rộng tên viết
 tắt hoặc suy diễn chất lượng từ trạng thái. Giữ kết quả tool gọn, chỉ lấy các
 cột và dòng cần thiết; mở rộng truy vấn khi câu hỏi cần thêm bằng chứng.

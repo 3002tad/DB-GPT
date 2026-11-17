@@ -121,3 +121,16 @@ def test_failed_query_emits_attempt_record_without_successful_result():
     assert payload["execution"]["status"] == "failed"
     assert "missing_table" in payload["execution"]["error"]
     assert payload["rows"] == []
+
+
+def test_postgres_union_failure_has_actionable_recovery_without_false_result():
+    class UnionErrorConnector:
+        def run(self, sql):
+            raise RuntimeError("invalid UNION/INTERSECT/EXCEPT ORDER BY clause")
+
+    query = make_sql_query({}, UnionErrorConnector())
+    result = json.loads(query(sql="SELECT 1 AS n UNION ALL SELECT 2 ORDER BY n + 1"))
+    assert result["success"] is False
+    assert "subquery/CTE" in result["recovery_hint"]
+    assert "sort_key" in result["recovery_hint"]
+    assert result["chunks"][1]["content"]["rows"] == []

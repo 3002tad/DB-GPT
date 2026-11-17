@@ -12,7 +12,7 @@ describe('official frequency selector', () => {
       const { rerender } = render(<CronInput value={expression} onChange={onChange} />);
       expect(onChange).not.toHaveBeenCalled();
       rerender(<CronInput value='30 7 * * *' onChange={onChange} />);
-      expect((screen.getByLabelText('执行时间') as HTMLInputElement).value).toBe('07:30');
+      expect((screen.getByLabelText('scheduled.save.freqLabel') as HTMLInputElement).value).toBe('07:30');
       expect(onChange).not.toHaveBeenCalled();
     },
   );
@@ -31,12 +31,12 @@ describe('official frequency selector', () => {
       );
     }
     render(<Controlled />);
-    expect((screen.getByLabelText('执行时间') as HTMLInputElement).value).toBe('09:00');
+    expect((screen.getByLabelText('scheduled.save.freqLabel') as HTMLInputElement).value).toBe('09:00');
     fireEvent.click(screen.getByText('scheduled.cron.weekly'));
     expect(onChange).toHaveBeenLastCalledWith('0 9 * * mon');
     fireEvent.click(screen.getByText('scheduled.cron.custom'));
-    fireEvent.change(screen.getByLabelText('Cron 表达式'), { target: { value: '* * * * *' } });
-    expect((screen.getByLabelText('Cron 表达式') as HTMLInputElement).value).toBe('* * * * *');
+    fireEvent.change(screen.getByLabelText('Cron'), { target: { value: '* * * * *' } });
+    expect((screen.getByLabelText('Cron') as HTMLInputElement).value).toBe('* * * * *');
     expect(onChange).toHaveBeenLastCalledWith('* * * * *');
   });
 });

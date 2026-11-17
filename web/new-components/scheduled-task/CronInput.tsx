@@ -135,7 +135,7 @@ const CronInput: React.FC<CronInputProps> = ({ value = '0 9 * * *', onChange }) 
         <Space>
           {preset === 'weekly' && (
             <Select
-              aria-label='执行星期'
+              aria-label={t('scheduled.cron.weekly')}
               value={weekday}
               style={{ width: 100 }}
               options={weekdayOptions}
@@ -162,7 +162,7 @@ const CronInput: React.FC<CronInputProps> = ({ value = '0 9 * * *', onChange }) 
             />
           ) : (
             <TimePicker
-              aria-label='执行时间'
+              aria-label={t('scheduled.save.freqLabel')}
               value={time}
               format='HH:mm'
               onChange={v => v && change({ time: v })}
@@ -175,7 +175,7 @@ const CronInput: React.FC<CronInputProps> = ({ value = '0 9 * * *', onChange }) 
       {preset === 'custom' && (
         <Input
           value={custom}
-          aria-label='Cron 表达式'
+          aria-label='Cron'
           onChange={e => change({ custom: e.target.value })}
           placeholder={t('scheduled.cron.customPlaceholder')}
           status={previewError ? 'error' : undefined}
@@ -187,6 +187,8 @@ const CronInput: React.FC<CronInputProps> = ({ value = '0 9 * * *', onChange }) 
       ) : (
         <Text type='secondary'>{t('scheduled.cron.preview', { cron: displayCron })}</Text>
       )}
+
+      <Text type='secondary'>{t('scheduled.cron.timezoneNote')}</Text>
     </div>
   );
 };

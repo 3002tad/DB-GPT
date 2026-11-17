@@ -196,6 +196,45 @@ def test_middleware_rejects_duplicate_auth_and_websocket_api():
     assert asyncio.run(run({"type": "http", "path": "/images/user-file.png", "headers": []}))[0]["status"] == 403
 
 
+def test_dashboard_socket_requires_origin_session_and_ticket_capability():
+    calls = []
+
+    class Verifier:
+        async def verify(self, authorization):
+            assert authorization == "Bearer session"
+            return PipelineActor(id="verified", role="analyst")
+
+    async def app(scope, receive, send):
+        calls.append(scope)
+
+    middleware = PipelineIdentityMiddleware(
+        app, verifier=Verifier(), policy=authorize_pipeline_request,
+        ai_origin="https://ai.example",
+    )
+
+    async def request(headers, path="/api/v1/dashboards/board-1/collaborate"):
+        sent = []
+        async def send(message):
+            sent.append(message)
+        await middleware({"type": "websocket", "path": path, "headers": headers}, None, send)
+        return sent
+
+    headers = [(b"origin", b"https://ai.example"), (b"cookie", b"__Host-funnelmetry-ai=session"), (b"user-id", b"forged")]
+    assert asyncio.run(request(headers)) == []
+    assert calls[-1]["state"]["pipeline_actor"].id == "verified"
+    assert (b"user-id", b"forged") not in calls[-1]["headers"]
+    for invalid in [headers[1:], headers[:1], [(b"origin", b"https://evil.example"), headers[1]]]:
+        assert asyncio.run(request(invalid))[0]["code"] == 1008
+    assert asyncio.run(request(headers, "/api/v1/admin/socket"))[0]["code"] == 1008
+
+
+@pytest.mark.parametrize("role", ["analyst", "super_admin"])
+def test_collaboration_ticket_is_a_shared_dashboard_route(role):
+    actor = PipelineActor(id="owner", role=role)
+    assert authorize_pipeline_request(actor, {"method": "POST", "path": "/api/v1/dashboards/board-1/collaboration-ticket"})
+    assert not authorize_pipeline_request(actor, {"method": "DELETE", "path": "/api/v1/dashboards/board-1/collaboration-ticket"})
+
+
 def test_internal_model_calls_require_loopback_and_no_forwarded_identity():
     calls = []
     async def app(scope, receive, send):

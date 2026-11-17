@@ -1,6 +1,6 @@
 import { DashboardSchemaV1 } from '@/types/dashboard';
 import { describe, expect, it } from 'vitest';
-import { makeDashboardSaveOperation, resolveDashboardWebSocketUrl } from './dashboard-collaboration';
+import { makeDashboardSaveOperation, resolveDashboardWebSocketUrl, retryCollaboration } from './dashboard-collaboration';
 import { makeUnconfiguredVisualizationWidget } from './dashboard-editor-model';
 
 const schema = {
@@ -19,6 +19,12 @@ const schema = {
   layouts: { columns: 12, desktop: [], mobile_strategy: 'stack' },
   metadata: { agent: { generated: false }, compatibility: {} },
 } satisfies DashboardSchemaV1;
+
+it('does not retry permanent permission errors but permits transient recovery', () => {
+  for (const status of [400, 401, 403, 404]) expect(retryCollaboration({ response: { status } })).toBe(false);
+  expect(retryCollaboration({ response: { status: 503 } })).toBe(true);
+  expect(retryCollaboration(new Error('offline'))).toBe(true);
+});
 
 describe('dashboard collaboration save operation', () => {
   it('only emits editable schema paths with the current revision', () => {

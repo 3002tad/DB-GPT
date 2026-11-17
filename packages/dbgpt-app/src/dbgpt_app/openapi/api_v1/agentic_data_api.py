@@ -2917,6 +2917,7 @@ async def _react_agent_stream_impl(
         ),
         "_report_original_request": user_input,
         "_report_language": report_language,
+        "_ui_locale": requested_locale,
         "skills_loaded": True,  # Skills are pre-loaded now
         "matched": None,
         "skill_prompt": None,
@@ -3904,7 +3905,7 @@ async def _react_agent_stream_impl(
         history_checkpoint.bind(
             storage_conv,
             lambda status: _build_react_history_payload(
-                final_content="任务执行已中断，可继续任务。"
+                final_content=execution_copy(requested_locale)["interrupted_notice"]
                 if status == "interrupted"
                 else "",
                 steps=[],
@@ -4591,6 +4592,15 @@ or ON states do not prove captured payment, delivery or net revenue. Source UTM
 associations do not prove campaign causality. For any such conclusion, identify
 the specific executed evidence and its scope before stating it as a fact.
 Avoid introducing event names or lifecycle claims without relevant evidence.
+Before publishing quantitative conclusions (including progress text), compute
+derived percentages, deltas and shares with SQL or a calculation tool. Carry the
+numerator, denominator, dataset scope and time window together; do not estimate
+a percentage from memory or silently change its population. Until the tool
+succeeds, describe the calculation you intend to run, not an invented result or
+SQL claimed as executed. After a failed query, cite only its successful repair.
+Check final numbers against the latest successful artifact and explicitly correct
+any earlier conflicting claim. A plausible fixture boundary, campaign or seasonal
+explanation is a hypothesis unless queried evidence establishes that cause.
 """
     # --- Suite binder (T3): resolve the scenario-suite pin and prepend SOP ---
     try:
@@ -4935,7 +4945,7 @@ or substitute a textual summary for a requested report.
                     step["status"] = "failed"
             for task in task_plan:
                 if task.get("status") == "in_progress":
-                    task.update(status="cancelled", detail="执行已中断，可继续任务。")
+                    task.update(status="cancelled", detail=execution_copy(requested_locale)["interrupted_notice"])
             fail_running_subagent_history(snapshot_agents)
         financial_report = None
         report = react_state.get("financial_report_context")
@@ -4945,7 +4955,7 @@ or substitute a textual summary for a requested report.
             financial_report = _artifact(report, conv_id)["content"]
         return _build_react_history_payload(
             final_content=(
-                "任务执行已中断，已保存的进度和结果已保留，可继续任务。"
+                execution_copy(requested_locale)["interrupted_notice"]
                 if status == "interrupted"
                 else ""
             ),

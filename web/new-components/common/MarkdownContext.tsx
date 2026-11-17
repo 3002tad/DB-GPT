@@ -3,14 +3,18 @@ import FinancialCitationLink from '@/new-components/financial-analysis/Financial
 import { cleanFinancialAnswerText, type FinancialCitation } from '@/new-components/financial-analysis/report-citations';
 import { GPTVis } from '@antv/gpt-vis';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { chatSystemNotice } from '@/utils/chat-system-notice';
 
 const MarkDownContext: React.FC<{
   children: string;
   components?: Parameters<typeof GPTVis>[0]['components'];
   onFinancialCitationClick?: (citation: FinancialCitation) => void;
 }> = ({ children, components, onFinancialCitationClick }) => {
+  const { i18n } = useTranslation();
   const DefaultLink = (components?.a || markdownComponents?.a) as React.ElementType | undefined;
-  const content = children.includes('#financial-report/') ? cleanFinancialAnswerText(children) : children;
+  const localized = chatSystemNotice(children, i18n?.resolvedLanguage || i18n?.language);
+  const content = localized.includes('#financial-report/') ? cleanFinancialAnswerText(localized) : localized;
   return (
     <GPTVis
       components={{

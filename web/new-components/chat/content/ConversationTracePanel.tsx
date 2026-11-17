@@ -298,7 +298,11 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
       const [, data] = await apiInterceptors(searchObservabilityTraces({ conversation_id: conversationId, limit: 50 }));
       const list = data || [];
       setTraces(list);
-      setActiveTraceId(prev => prev ?? list[0]?.trace_id ?? null);
+      setActiveTraceId(prev =>
+        list.some(item => item.trace_id === prev) ? prev :
+          (list.find(item => item.root_operation_name?.includes('llm_client')) ||
+            list.find(item => item.root_operation_name !== 'knowledge.prefetch') || list[0])?.trace_id ?? null,
+      );
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -424,7 +428,9 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
 
       {messages.length === 0 ? (
         <div className='flex h-full items-center justify-center p-5'>
-          <Empty description={t('observability_no_trace') || 'No trace yet'} />
+          <Empty description={tree?.root
+            ? (i18n.language?.startsWith('vi') ? 'Span này có metadata nhưng không có hội thoại model. Chọn dấu vết Agent để xem các lượt gọi.' : 'This span contains metadata, not model messages. Select an Agent trace to view calls.')
+            : t('observability_no_trace') || 'No trace yet'} />
         </div>
       ) : (
         <div className='space-y-2'>

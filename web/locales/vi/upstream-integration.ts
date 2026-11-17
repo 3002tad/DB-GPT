@@ -460,6 +460,7 @@ const upstreamVi = {
   "timeline_command_less": "Thu gọn nội dung",
   "agent_status_running": "Đang chạy · vòng {{rounds}} · {{calls}} lời gọi công cụ{{dur}}",
   "agent_status_done": "Đã hoàn tất · {{rounds}} vòng · {{calls}} lời gọi công cụ{{dur}}",
+  "agent_status_recovered": "Đã hoàn tất sau khi phục hồi lỗi · {{rounds}} vòng · {{calls}} lời gọi công cụ{{dur}}",
   "agent_status_partial": "Kết thúc có bước lỗi · {{rounds}} vòng · {{calls}} lời gọi công cụ{{dur}}",
   "agent_status_failed": "Thất bại · {{rounds}} vòng · {{calls}} lời gọi công cụ{{dur}}",
   "agent_status_incomplete": "Đã kết thúc, tác vụ chưa hoàn tất · {{rounds}} vòng · {{calls}} lời gọi công cụ{{dur}}",

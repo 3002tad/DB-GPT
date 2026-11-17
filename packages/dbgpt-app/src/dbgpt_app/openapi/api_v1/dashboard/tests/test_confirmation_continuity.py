@@ -93,13 +93,14 @@ def bound_agent(state, pack):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("language", ["zh", "en"])
+@pytest.mark.parametrize("language", ["zh", "en", "vi"])
 @pytest.mark.parametrize("native", [False, True])
 async def test_saved_plan_finishes_without_another_model_call(
     environment, monkeypatch, language, native
 ):
     state, pack = environment[0]("Build a dashboard")
     state["_report_language"] = language
+    state["_ui_locale"] = language
     agent = bound_agent(state, pack)
     if native:
         agent.bind(pack)
@@ -170,7 +171,7 @@ async def test_saved_plan_finishes_without_another_model_call(
     reply, model_name = await agent.thinking([], agent)
     assert model_name == "offline"
     summary = extract_terminate_output(reply)
-    assert ("规划已保存" if language == "zh" else "Plan") in summary
+    assert ("规划已保存" if language == "zh" else "Đã lưu kế hoạch" if language == "vi" else "Plan") in summary
     finished = await agent.act(
         AgentMessage(content=reply),
         agent,

@@ -4,6 +4,22 @@ import { dashboardHelpVi } from './dashboard-help';
 
 /** Translations for built-in dashboard copy not yet migrated to i18next keys. */
 export const viUiText: Record<string, string> = {
+  'Scheduled task created': 'Đã tạo tác vụ theo lịch',
+  'Saved and enabled. View execution status in task details.': 'Đã lưu và bật. Xem trạng thái thực thi trong chi tiết tác vụ.',
+  'View task and execution history': 'Xem tác vụ và lịch sử thực thi',
+  'Manage this task from Scheduled Tasks in the sidebar.': 'Quản lý tác vụ trong mục Tác vụ theo lịch ở thanh bên.',
+  'Scheduled analysis request': 'Yêu cầu phân tích theo lịch',
+  'Review the saved context and make the request self-contained. Historical answers must be recalculated, not reused as current evidence.': 'Kiểm tra ngữ cảnh đã lưu và viết câu hỏi đủ nghĩa. Phải tính lại số liệu; câu trả lời cũ không phải bằng chứng hiện tại.',
+  'These attachments will be frozen independently of the conversation:': 'Các tệp sau sẽ được lưu độc lập với hội thoại:',
+  'Back to session products': 'Về sản phẩm của phiên',
+  'Documents': 'Tài liệu',
+  'Images': 'Hình ảnh',
+  'Code files': 'Tệp mã nguồn',
+  'No task files yet': 'Chưa có tệp của tác vụ',
+  'No uploaded material yet': 'Chưa có tài liệu tải lên',
+  'No generated documents yet': 'Chưa có tài liệu được tạo',
+  'No generated images yet': 'Chưa có hình ảnh được tạo',
+  'No generated code files yet': 'Chưa có tệp mã nguồn được tạo',
   ...moduleUiVi,
   ...dashboardControlsVi,
   ...dashboardHelpVi,

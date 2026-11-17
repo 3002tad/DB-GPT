@@ -604,7 +604,13 @@ function SideBar() {
               <Link
                 key={conv.conv_uid}
                 href={`/?id=${conv.conv_uid}`}
-                className='flex items-start gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer text-sm transition-colors group hover:bg-[#efefeb] dark:hover:bg-white/[.06]'
+                aria-current={pathname === '/' && router.query.id === conv.conv_uid ? 'page' : undefined}
+                className={cls(
+                  'flex items-start gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer text-sm transition-colors group',
+                  pathname === '/' && router.query.id === conv.conv_uid
+                    ? 'bg-blue-100/80 dark:bg-blue-500/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-500/40'
+                    : 'hover:bg-[#efefeb] dark:hover:bg-white/[.06]',
+                )}
               >
                 {runningConvIds.includes(conv.conv_uid) ? (
                   <span className='w-5 h-5 rounded-md bg-[#f0f0ec] dark:bg-white/10 border border-[#e6e6e2] dark:border-white/10 flex items-center justify-center flex-shrink-0 mt-0.5'>
@@ -629,7 +635,7 @@ function SideBar() {
                 <UnviewedResultDot
                   visible={!!unviewedResults[conv.conv_uid] && !runningConvIds.includes(conv.conv_uid)}
                 />
-                <Tooltip title='删除'>
+                <Tooltip title={t('ui_delete')}>
                   <DeleteOutlined
                     onClick={e => handleDeleteDialogue(e, conv.conv_uid)}
                     className='text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1'

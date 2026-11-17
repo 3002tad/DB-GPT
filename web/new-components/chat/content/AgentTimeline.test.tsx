@@ -7,8 +7,14 @@ import { isTerminalTool, terminalCommand } from './TerminalToolRow';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@/new-components/common/MarkdownContext', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  default: ({ children }: { children: React.ReactNode }) => <div data-testid='markdown-renderer'>{children}</div>,
 }));
+
+it('renders assistant progress Markdown through the shared code/block renderer', () => {
+  const content = '## Result\n\n```sql\nSELECT 42;\n```';
+  render(<AgentTimeline blocks={[{ id: 'narrative', kind: 'text', content }]} />);
+  expect(screen.getByTestId('markdown-renderer').textContent).toBe(content);
+});
 
 const query = (sql: string, value: number) => ({
   sql,

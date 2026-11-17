@@ -10,6 +10,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CronInput from './CronInput';
 import DashboardTaskContext from './DashboardTaskContext';
+import { useUiText } from '@/hooks/use-ui-text';
 
 const { Title, Text } = Typography;
 
@@ -47,6 +48,7 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
+  const tr = useUiText();
   const [form] = Form.useForm();
   const [cron, setCron] = useState('0 9 * * *');
   const [submitting, setSubmitting] = useState(false);
@@ -80,7 +82,7 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
               publish_after_refresh: false,
             },
           }
-        : { task_type: 'chat_replay' as const, payload: snapshot! };
+        : { task_type: 'chat_replay' as const, payload: { ...snapshot!, user_input: values.user_input } };
       const resp = await createTask({
         task_name: values.task_name,
         description: values.description,
@@ -111,14 +113,14 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
 
   if (createdTask) {
     return (
-      <Drawer title='定时任务' aria-label='定时任务已创建' open={open} onClose={onClose} width={460} zIndex={1600}>
+      <Drawer title={t('scheduled.save.title')} aria-label={tr('定时任务已创建', 'Scheduled task created')} open={open} onClose={onClose} width={460} zIndex={1600}>
         <Result
           status='success'
-          title='定时任务已创建'
+          title={tr('定时任务已创建', 'Scheduled task created')}
           subTitle={
             createdTask.next_run_time
-              ? `下次执行：${dayjs(serverDate(createdTask.next_run_time)).format('YYYY-MM-DD HH:mm:ss')}`
-              : '已保存并启用，可在任务详情查看执行状态。'
+              ? `${tr('下次执行', 'Next run')}: ${dayjs(serverDate(createdTask.next_run_time)).format('YYYY-MM-DD HH:mm:ss')}`
+              : tr('已保存并启用', 'Saved and enabled. View execution status in task details.')
           }
           extra={
             <Space direction='vertical'>
@@ -129,13 +131,13 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
                   void router.push(`/construct/scheduled-tasks/${createdTask.task_id}/`);
                 }}
               >
-                查看任务及执行记录
+                {tr('查看任务及执行记录', 'View task and execution history')}
               </Button>
-              <Button onClick={onClose}>完成</Button>
+              <Button onClick={onClose}>{tr('完成', 'Done')}</Button>
             </Space>
           }
         />
-        <p className='text-center text-sm text-gray-500'>也可从左侧「定时任务」统一管理。</p>
+        <p className='text-center text-sm text-gray-500'>{tr('也可从左侧定时任务统一管理', 'Manage this task from Scheduled Tasks in the sidebar.')}</p>
       </Drawer>
     );
   }
@@ -170,6 +172,7 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
         initialValues={{
           task_name: defaultName ?? snapshot?.user_input?.slice(0, 30) ?? '',
           description: '',
+          user_input: snapshot?.user_input ?? '',
         }}
       >
         <Form.Item
@@ -186,6 +189,13 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
         <Form.Item label={t('scheduled.save.descLabel')} name='description'>
           <Input.TextArea rows={2} placeholder={t('scheduled.save.descPlaceholder')} />
         </Form.Item>
+
+        {!dashboard && <Form.Item
+          label={tr('执行问题', 'Scheduled analysis request')}
+          name='user_input'
+          rules={[{ required: true, whitespace: true, message: t('scheduled.save.nameRequired') }]}
+          extra={tr('请检查上下文并使用独立问题', 'Review the saved context and make the request self-contained. Historical answers must be recalculated, not reused as current evidence.')}
+        ><Input.TextArea rows={6} /></Form.Item>}
 
         <Form.Item label={t('scheduled.save.freqLabel')} required>
           <CronInput value={cron} onChange={setCron} />
@@ -210,7 +220,7 @@ const SaveAsScheduledTaskDrawer: React.FC<SaveAsScheduledTaskDrawerProps> = ({
             </div>
             {freezingFiles.length > 0 && (
               <div className='mt-2'>
-                <div className='mb-1 text-xs text-gray-400'>将冻结以下附件（创建后与当前会话解耦）:</div>
+                <div className='mb-1 text-xs text-gray-400'>{tr('将冻结以下附件', 'These attachments will be frozen independently of the conversation:')}</div>
                 <AttachmentMessageGroup files={freezingFiles} />
               </div>
             )}

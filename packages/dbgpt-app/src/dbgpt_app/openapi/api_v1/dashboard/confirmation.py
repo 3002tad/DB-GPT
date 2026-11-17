@@ -250,6 +250,7 @@ class DashboardConfirmationAgent(ToolCallingReActAgent):
             return None
         state = self._dashboard_state
         english = state.get("_report_language", "en") == "en"
+        vietnamese = state.get("_ui_locale", "").startswith("vi")
         if output.action == "plan_dashboard":
             try:
                 payload = json.loads(output.content or "{}")
@@ -267,6 +268,9 @@ class DashboardConfirmationAgent(ToolCallingReActAgent):
             plan = reference["plan"]
             title = plan["title"]
             widgets, filters = len(plan["widgets"]), len(plan.get("filters") or [])
+            if vietnamese:
+                return (f'Đã lưu kế hoạch "{title}": {widgets} biểu đồ và {filters} bộ lọc. '
+                        "Xem kế hoạch rồi xác nhận tạo hoặc yêu cầu chỉnh sửa.")
             return (
                 f'Plan "{title}" saved: {widgets} widgets and {filters} filters. '
                 "Review the plan card, then confirm generation or request changes."
@@ -279,6 +283,9 @@ class DashboardConfirmationAgent(ToolCallingReActAgent):
             generation.get("status") == "completed"
         ):
             count = len(generation["saved_widget_ids"])
+            if vietnamese:
+                return (f"Đã lưu bảng điều khiển. Cả {count} biểu đồ đã qua kiểm tra truy vấn. "
+                        "Mở bảng điều khiển để xem kết quả.")
             return (
                 f"Dashboard saved. All {count} widgets passed query validation. "
                 "Open the dashboard to review the results."

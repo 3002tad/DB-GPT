@@ -451,6 +451,7 @@ export const ChatZh: Resources['translation'] = {
   parallel_tasks_dispatch_summary_fallback: '并行派发独立子任务',
   subagent_status_running: '执行中',
   subagent_status_done: '已完成',
+  "agent_status_recovered": "完成并已恢复工具重试 · {{rounds}} 轮 · {{calls}} 次工具调用{{dur}}",
   subagent_status_failed: '失败',
   subagent_status_timeout: '超时',
   subagent_status_partial: '部分完成',

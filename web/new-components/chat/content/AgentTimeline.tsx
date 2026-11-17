@@ -453,8 +453,8 @@ function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }
 
 function TextBlock({ block }: { block: TimelineBlock }) {
   return (
-    <div className='text-sm leading-7 text-[#1c1c1a] dark:text-[#e6e4df] whitespace-pre-wrap mb-2'>
-      {block.content}
+    <div className='min-w-0 text-sm leading-7 text-[#1c1c1a] dark:text-[#e6e4df] mb-3 prose prose-sm dark:prose-invert max-w-none [&_pre]:max-w-full [&_pre]:overflow-x-auto'>
+      <MarkdownContext>{block.content || ''}</MarkdownContext>
       {block.streaming && <span className='inline-block w-2 h-4 bg-blue-500 align-[-2px] ml-0.5 animate-pulse' />}
     </div>
   );

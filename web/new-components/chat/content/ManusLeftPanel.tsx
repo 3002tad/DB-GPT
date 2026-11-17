@@ -12,6 +12,7 @@ import type { QuerySource, SemanticReadGap, SemanticSource } from '@/utils/seman
 import { extractFlowArtifacts, parseTaskflowStream, stripFlowNarration, stripVisBlocks } from '@/utils/taskflow';
 import { envelopeReadableText } from '@/utils/tool-envelope';
 import { userMessageCopyText } from '@/utils/user-message-copy';
+import { chatSystemNotice } from '@/utils/chat-system-notice';
 import {
   ApartmentOutlined,
   ApiOutlined,
@@ -1124,7 +1125,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
   onReportClick,
 }) => {
   useFinancialLocale();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tr = useUiText();
   const displayUserQuery = dashboardUserDisplayText(userQuery || '', {
     confirm: t('dashboard_chat_confirm'),
@@ -1239,7 +1240,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
   // step card). Visual-only sections (charts) are skipped when picking the
   // final text.
   const displayAssistantText = useMemo(() => {
-    if (!isFlowRun) return assistantText;
+    if (!isFlowRun) return chatSystemNotice(assistantText || '', i18n?.resolvedLanguage || i18n?.language);
     // While the DAG runs, the live frames carry the agent's emoji trace
     // narration as section content — the node cards already show that trace
     // structurally, so the answer area stays empty until the run settles.
@@ -1253,7 +1254,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
       if (text) return salvage(text);
     }
     return salvage(stripFlowNarration(stripVisBlocks(flowParsed?.cleanText ?? '')));
-  }, [isFlowRun, flowRunning, flowParsed, assistantText]);
+  }, [isFlowRun, flowRunning, flowParsed, assistantText, i18n?.resolvedLanguage, i18n?.language]);
 
   const copyAnswer = useCallback(
     async (asMarkdown: boolean) => {

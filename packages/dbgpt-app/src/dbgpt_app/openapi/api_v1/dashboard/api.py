@@ -983,6 +983,10 @@ async def collaborate_dashboard(websocket: WebSocket, dashboard_id: str):
     ticket = websocket.query_params.get("ticket", "")
     try:
         claim = ticket_store.consume(ticket, dashboard_id)
+        actor = getattr(websocket.state, "pipeline_actor", None)
+        if actor is not None and actor.id != claim.actor_id:
+            await websocket.close(code=4403, reason="Collaboration identity mismatch")
+            return
     except DashboardCollaborationUnavailable:
         await websocket.close(code=1013, reason="Collaboration unavailable")
         return

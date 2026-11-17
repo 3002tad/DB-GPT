@@ -18,6 +18,7 @@ _COPY = {
         "thinking": "Đang suy luận", "skill_phase": "Nạp kỹ năng",
         "tool_unfinished": "Quá trình kết thúc trước khi công cụ trả về kết quả",
         "main_interrupted": "Luồng chính bị gián đoạn",
+        "interrupted_notice": "Tác vụ đã bị gián đoạn. Tiến độ và kết quả đã lưu được giữ lại; bạn có thể tiếp tục tác vụ.",
         "statuses": {"timeout": "hết thời gian", "step_limit": "đạt giới hạn bước thực thi", "failed": "thực thi thất bại", "report_failed": "kết xuất báo cáo thất bại", "incomplete": "tác vụ chưa hoàn thành"},
     },
     "en": {
@@ -32,6 +33,7 @@ _COPY = {
         "thinking": "Thinking", "skill_phase": "Loading skill",
         "tool_unfinished": "Execution ended before the tool reported a result",
         "main_interrupted": "The main flow was interrupted",
+        "interrupted_notice": "Execution was interrupted. Saved progress and results were retained; you can continue the task.",
         "statuses": {"timeout": "timed out", "step_limit": "reached the step limit", "failed": "execution failed", "report_failed": "report rendering failed", "incomplete": "task incomplete"},
     },
     "zh": {
@@ -46,6 +48,7 @@ _COPY = {
         "thinking": "思考中", "skill_phase": "加载技能",
         "tool_unfinished": "执行提前结束，未收到工具完成结果",
         "main_interrupted": "主流程执行中断",
+        "interrupted_notice": "任务执行已中断，已保存的进度和结果已保留，可继续任务。",
         "statuses": {"timeout": "运行超时", "step_limit": "达到执行步数上限", "failed": "执行失败", "report_failed": "报告渲染失败", "incomplete": "任务未完成"},
     },
 }

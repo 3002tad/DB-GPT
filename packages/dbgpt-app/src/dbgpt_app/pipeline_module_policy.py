@@ -63,7 +63,7 @@ SHARED_MODULE_ROUTES = {
     "dashboard": {
         "GET": [rf"{_DASH}/(?:versions(?:/{_ID})?|revisions|operations|annotations|audit|cover)",
                 rf"/api/v1/dashboard-catalog/{_ID}/(?:features|source)"],
-        "POST": [rf"{_DASH}/(?:assistant-task|resolve-target|operations|query-logic|annotation-intents|annotations(?:/apply-batch|/{_ID}/(?:generate|apply|reject))?|versions/{_ID}/restore|revisions/{_ID}/restore)",
+        "POST": [rf"{_DASH}/(?:assistant-task|resolve-target|operations|collaboration-ticket|query-logic|annotation-intents|annotations(?:/apply-batch|/{_ID}/(?:generate|apply|reject))?|versions/{_ID}/restore|revisions/{_ID}/restore)",
                  rf"/api/v1/dashboard-catalog/{_ID}/(?:preview|generate|adapt)"],
         "PUT": [rf"{_DASH}/cover"],
     },
