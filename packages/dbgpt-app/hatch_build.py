@@ -33,7 +33,6 @@ _SKILLS_MAP = {
         "csv-data-analysis",
         "skill-creator",
         "financial-report-analyzer",
-        "walmart-sales-analyzer",
         "agent-browser",
         # Includes internal dashboard skills and their reference resources.
         "dashboard-builder",

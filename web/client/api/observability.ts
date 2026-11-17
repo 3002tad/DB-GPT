@@ -113,7 +113,12 @@ export const getObservabilityTrace = (traceId: string, conversationId?: string) 
 
 export interface ConversationUsage {
   source: 'provider';
-  models: { model: string | null; calls: number; complete: boolean; prompt_tokens: number | null; completion_tokens: number | null; total_tokens: number | null }[];
+  models: {
+    model: string | null; calls: number; complete: boolean;
+    prompt_tokens: number | null; completion_tokens: number | null; total_tokens: number | null;
+    reported_calls?: number; missing_usage_calls?: number;
+    known_prompt_tokens?: number; known_completion_tokens?: number; known_total_tokens?: number;
+  }[];
 }
 export const getConversationUsage = (conversationId: string) =>
   GET<{ conversation_id: string }, ConversationUsage>(`${BASE}/usage`, { conversation_id: conversationId });

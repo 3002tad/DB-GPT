@@ -79,7 +79,6 @@ exclude = [
 "../../skills/csv-data-analysis" = "skills/csv-data-analysis"
 "../../skills/skill-creator" = "skills/skill-creator"
 "../../skills/financial-report-analyzer" = "skills/financial-report-analyzer"
-"../../skills/walmart-sales-analyzer" = "skills/walmart-sales-analyzer"
 "../../skills/agent-browser" = "skills/agent-browser"
 # Includes internal dashboard skills and their reference resources.
 "../../skills/dashboard-builder" = "skills/dashboard-builder"

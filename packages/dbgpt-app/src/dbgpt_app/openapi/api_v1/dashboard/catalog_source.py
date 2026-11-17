@@ -177,34 +177,12 @@ def inspect_source(service, source, actor, template_id, *, allow_any_dialect=Fal
                 "据表。"
             )
         )
-    tables = []
-    for table in connector.get_table_names():
-        try:
-            fields = connector.get_fields(table, source)
-        except TypeError:
-            fields = connector.get_fields(table)
-        tables.append(
-            {
-                "name": str(table),
-                "columns": [
-                    {
-                        "name": (
-                            str(f.get("name", ""))
-                            if isinstance(f, dict)
-                            else service.query_executor._column_name(f)
-                        ),
-                        "type": str(
-                            f.get("type", "")
-                            if isinstance(f, dict)
-                            else f[1]
-                            if len(f) > 1
-                            else ""
-                        ),
-                    }
-                    for f in fields
-                ],
-            }
-        )
+    from .source_metadata import readable_source_tables
+
+    tables = [
+        {"name": item["name"], "columns": item["columns"]}
+        for item in readable_source_tables(connector, source)
+    ]
     names = {t["name"].lower() for t in tables}
     recipe = get_recipe(template_id)
     source_template = recipe["base"] if recipe and recipe["base"] else template_id

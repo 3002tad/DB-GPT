@@ -626,8 +626,10 @@ def make_dispatch_tool(
 
         if database_connector is not None and not shared_database_context:
             try:
+                from ..dashboard.source_metadata import source_table_context
+
                 schema = await asyncio.to_thread(
-                    database_connector.get_table_info_no_throw
+                    source_table_context, database_connector
                 )
                 shared_database_context = str(schema)
             except Exception as error:

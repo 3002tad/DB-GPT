@@ -12,7 +12,6 @@ skills/
 ├── csv-data-analysis/
 ├── financial-report-analyzer/
 ├── skill-creator/
-└── walmart-sales-analyzer/
 ```
 
 ## Built-in skills 提供什么能力
@@ -32,7 +31,6 @@ Built-in skill 会把可重复工作流打包成可复用单元。
 | `csv-data-analysis` | CSV / Excel / TSV 数据分析 | `scripts/csv_analyzer.py`、`templates/report_template.html`、`references/reference.md` |
 | `financial-report-analyzer` | 财报提取、分析与报告生成 | 提取、比率分析、图表脚本，以及财务参考资料与模板 |
 | `skill-creator` | 创建并打包新的 skill | `init_skill.py`、`package_skill.py`、设计参考资料 |
-| `walmart-sales-analyzer` | Walmart 销售趋势分析与报告 | 报告生成脚本与 `templates/report_template.html` |
 
 ## 如何阅读这一节
 

@@ -2423,6 +2423,17 @@ async def _react_agent_stream_impl(
                 exc_info=True,
             )
 
+    from .context_binding import context_selection_message, missing_context_selections
+
+    if missing_context_selections(user_input, database_name, knowledge_space):
+        yield _sse_event(
+            AgentFinalAnswer(
+                content=context_selection_message((dialogue.ext_info or {}).get("locale"))
+            ).to_sse_payload()
+        )
+        yield _sse_event({"type": "done"})
+        return
+
     if (
         not database_name
         and not dashboard_continuation_turn
@@ -2786,14 +2797,30 @@ async def _react_agent_stream_impl(
             database_connector = await asyncio.to_thread(
                 local_db_manager.get_connector, database_name
             )
-            table_names = list(
-                await asyncio.to_thread(database_connector.get_table_names)
+            from .dashboard.source_metadata import (
+                is_postgresql,
+                readable_source_tables,
+                source_table_context,
             )
-            table_info = await asyncio.to_thread(
-                database_connector.get_table_info_no_throw
-            )
+
+            if is_postgresql(database_connector):
+                relation_metadata = await asyncio.to_thread(
+                    readable_source_tables, database_connector
+                )
+                table_names = [item["name"] for item in relation_metadata]
+                table_info = source_table_context(database_connector, relation_metadata)
+            else:
+                table_names = list(
+                    await asyncio.to_thread(database_connector.get_table_names)
+                )
+                table_info = await asyncio.to_thread(
+                    source_table_context, database_connector
+                )
             index_info = []
             for table_name in table_names:
+                if is_postgresql(database_connector):
+                    # Native index lookup assumes the connector's single schema.
+                    continue
                 try:
                     indexes = await asyncio.to_thread(
                         database_connector.get_indexes, table_name
@@ -4665,7 +4692,11 @@ or substitute a textual summary for a requested report.
         initial_names = set(BASE_TOOLS)
         if database_connector is not None:
             initial_names.add("sql_query")
-            initial_names.update(resource.name for resource in semantic_tool_list)
+            # @tool factories return decorated callables, not BaseTool objects.
+            # Normalize through the same ToolPack adapter as the full catalog.
+            initial_names.update(
+                resource.name for resource in ToolPack(semantic_tool_list).sub_resources
+            )
         if knowledge_space:
             initial_names.update(
                 resource.name for resource in ToolPack(kb_tool_list).sub_resources

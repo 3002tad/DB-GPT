@@ -187,6 +187,7 @@ import { useRouter } from 'next/router';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { skillDisplayDescription, skillMatchesSearch } from '@/new-components/skills/official-skill-descriptions';
+import { missingContextSelections } from '@/utils/chat-context-binding';
 import { financialText, useFinancialLocale } from '../new-components/financial-analysis/i18n';
 import { financialTopicRetryPrompt } from '../new-components/financial-analysis/topic-retry';
 
@@ -2963,6 +2964,15 @@ const Playground: NextPage = () => {
     const effectiveSkill = suiteCreationMode ? null : overrideSkill !== undefined ? overrideSkill : selectedSkill;
     const effectiveDb = overrideDb !== undefined ? overrideDb : selectedDb;
     const effectiveKnowledge = overrideKnowledge !== undefined ? overrideKnowledge : selectedKnowledge;
+    const missingBindings = missingContextSelections(
+      inputQuery,
+      effectiveDb?.db_name || overrideExtInfo?.database_name,
+      effectiveKnowledge?.name || overrideExtInfo?.knowledge_space || overrideExtInfo?.knowledge_space_name || overrideExtInfo?.knowledge_space_id,
+    );
+    if (missingBindings.length) {
+      message.warning(t('chat_context_selection_required'));
+      return;
+    }
     const effectiveDashboardTemplate =
       overrideDashboardTemplate !== undefined ? overrideDashboardTemplate : selectedDashboardTemplate;
     const dashboardContinuation = /^\[\[(?:confirm-dashboard|revise-dashboard-plan):/.test(inputQuery.trim());
@@ -3031,6 +3041,8 @@ const Playground: NextPage = () => {
 
     const taskEpoch = taskEpochRef.current;
 
+    // The previous request's ratio is not a measurement of this request.
+    setContextStatus(null);
     cancelSummaryPresentation();
 
     let finalQuery = inputQuery;
@@ -5837,7 +5849,7 @@ const Playground: NextPage = () => {
                             </div>
 
                             <div className='flex items-center gap-2.5'>
-                              {contextStatus && (!contextStatus.model || contextStatus.model === model) && (
+                              {contextStatus && (!contextStatus.model || contextStatus.model === model) ? (
                                 <ContextUsageBar
                                   used={contextStatus.used_tokens}
                                   budget={contextStatus.max_tokens}
@@ -5850,6 +5862,8 @@ const Playground: NextPage = () => {
                                   variant='compact'
                                   className='mr-0.5'
                                 />
+                              ) : (
+                                <ContextUsageBar used={0} budget={0} ratio={0} state='OK' known={false} variant='compact' />
                               )}
 
                               {/* Voice Button */}

@@ -178,14 +178,22 @@ class DefaultObservabilityProvider(ObservabilityProvider):
         with self._session as session:
             rows = (session.query(e.model_name, func.count(e.span_id),
                     func.count(e.prompt_tokens), func.count(e.completion_tokens), func.count(e.total_tokens),
-                    func.sum(e.prompt_tokens), func.sum(e.completion_tokens), func.sum(e.total_tokens))
+                    func.sum(e.prompt_tokens), func.sum(e.completion_tokens), func.sum(e.total_tokens),
+                    func.sum(case(((e.prompt_tokens.is_not(None)
+                                    & e.completion_tokens.is_not(None)
+                                    & e.total_tokens.is_not(None)), 1), else_=0)))
                     .filter(e.conversation_id == conversation_id,
                             e.operation_name == "Agent.llm_client.no_streaming_call")
                     .group_by(e.model_name).all())
         result = []
-        for name, calls, nprompt, ncompletion, ntotal, prompt, completion, total in rows:
+        for name, calls, nprompt, ncompletion, ntotal, prompt, completion, total, reported in rows:
             complete = calls == nprompt == ncompletion == ntotal
             result.append({"model": name, "calls": calls, "complete": complete,
+                           "reported_calls": int(reported or 0),
+                           "missing_usage_calls": calls - int(reported or 0),
+                           "known_prompt_tokens": int(prompt or 0),
+                           "known_completion_tokens": int(completion or 0),
+                           "known_total_tokens": int(total or 0),
                            "prompt_tokens": int(prompt) if complete else None,
                            "completion_tokens": int(completion) if complete else None,
                            "total_tokens": int(total) if complete else None})

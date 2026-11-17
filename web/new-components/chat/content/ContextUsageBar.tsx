@@ -22,6 +22,7 @@ export interface ContextUsageBarProps {
   contextWindow?: number;
   reservedTokens?: number;
   windowSource?: string;
+  known?: boolean;
 }
 
 const STATE_COLORS: Record<string, { bar: string; bg: string; text: string; ring: string; label: string }> = {
@@ -72,16 +73,25 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
   contextWindow,
   reservedTokens,
   windowSource,
+  known = true,
 }) => {
   const { i18n } = useTranslation();
   const zh = i18n.language?.startsWith('zh');
+  const vi = i18n.language?.startsWith('vi');
+  if (!known) {
+    return <span
+      role='status'
+      className='rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 dark:border-slate-600 dark:text-slate-300'
+      title={vi ? 'Chưa có số đo cho lượt hiện tại. Sẽ cập nhật khi Agent chuẩn bị gọi model; tải lại lịch sử không khôi phục số đo cũ.' : zh ? '当前尚无上下文测量；模型调用前更新，历史记录不会恢复旧测量。' : 'No measurement for this run yet. Updates before model calls; reloading history does not restore old measurements.'}
+    >{vi ? 'Ngữ cảnh · chờ đo' : zh ? '上下文 · 待测量' : 'Context · awaiting measurement'}</span>;
+  }
   const sources: Record<string, string> = {
-    deployment_config: zh ? '模型部署配置' : 'Model deployment',
-    model_config: zh ? '模型配置 / tokenizer' : 'Model config / tokenizer',
-    adapter_metadata: zh ? '适配器内置值' : 'Adapter metadata',
-    model_metadata: zh ? '模型元数据' : 'Model metadata',
-    agent_config: zh ? 'Agent 配置上限' : 'Agent configured cap',
-    fallback: zh ? '兜底预算，模型上限未知' : 'Fallback; model limit unknown',
+    deployment_config: vi ? 'Cấu hình triển khai model' : zh ? '模型部署配置' : 'Model deployment',
+    model_config: vi ? 'Cấu hình model / tokenizer' : zh ? '模型配置 / tokenizer' : 'Model config / tokenizer',
+    adapter_metadata: vi ? 'Metadata adapter' : zh ? '适配器内置值' : 'Adapter metadata',
+    model_metadata: vi ? 'Metadata model' : zh ? '模型元数据' : 'Model metadata',
+    agent_config: vi ? 'Giới hạn cấu hình Agent' : zh ? 'Agent 配置上限' : 'Agent configured cap',
+    fallback: vi ? 'Ngân sách dự phòng; chưa rõ giới hạn model' : zh ? '兜底预算，模型上限未知' : 'Fallback; model limit unknown',
   };
   const colors = STATE_COLORS[state] || STATE_COLORS.OK;
   const safeRatio = Number.isFinite(ratio) ? ratio : 0;
@@ -95,8 +105,8 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
       <div className={`group relative inline-flex items-center justify-center ${className}`}>
         <button
           type='button'
-          aria-label={zh ? `上下文输入预算已用 ${Math.round(pct)}%` : `Context input budget ${Math.round(pct)}% full`}
-          className='relative flex h-8 w-8 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-[#202124]/90 dark:text-slate-300'
+          aria-label={vi ? `Ngân sách ngữ cảnh đầu vào đã dùng khoảng ${Math.round(pct)}%` : zh ? `上下文输入预算已用 ${Math.round(pct)}%` : `Context input budget ${Math.round(pct)}% full`}
+          className='relative flex h-8 items-center gap-1 px-2 justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-[#202124]/90 dark:text-slate-300'
         >
           <svg width='22' height='22' viewBox='0 0 22 22' className='-rotate-90'>
             <circle
@@ -121,16 +131,17 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
               className='transition-[stroke-dashoffset] duration-500'
             />
           </svg>
+          <span className='text-xs whitespace-nowrap'>{vi ? 'Ngữ cảnh' : zh ? '上下文' : 'Context'} ~{Math.round(pct)}%</span>
         </button>
         <div
           role='tooltip'
           className='pointer-events-none absolute bottom-full right-0 z-30 mb-2 w-[250px] translate-y-1 rounded-2xl border border-white/10 bg-[#2f2f2f] px-4 py-3 text-center text-white opacity-0 shadow-[0_18px_50px_rgba(15,23,42,0.22)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 dark:bg-[#2b2b2b]'
         >
           <div className='text-[13px] font-medium leading-5 text-white/55'>
-            {zh ? '上下文输入预算' : 'Context input budget'}
+            {vi ? 'Ngân sách ngữ cảnh đầu vào (ước lượng)' : zh ? '上下文输入预算' : 'Context input budget (estimated)'}
           </div>
           <div className='mt-1 text-[17px] leading-6 text-white/70'>
-            {zh ? `已用 ${Math.round(pct)}%` : `${Math.round(pct)}% full`}
+            {vi ? `Đã dùng khoảng ${Math.round(pct)}%` : zh ? `已用 ${Math.round(pct)}%` : `${Math.round(pct)}% full`}
           </div>
           <div className='mt-2 text-[15px] font-medium leading-5 tabular-nums text-white'>
             {zh ? '约 ' : '~ '}
@@ -138,7 +149,7 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
           </div>
           {contextWindow != null && (
             <div className='mt-2 text-xs text-white/60'>
-              {zh ? '窗口' : 'Window'} {formatTokens(contextWindow)} · {zh ? '输出预留' : 'Output reserve'}{' '}
+              {vi ? 'Cửa sổ' : zh ? '窗口' : 'Window'} {formatTokens(contextWindow)} · {vi ? 'Dự phòng đầu ra' : zh ? '输出预留' : 'Output reserve'}{' '}
               {formatTokens(reservedTokens || 0)}
             </div>
           )}
@@ -147,7 +158,7 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
           </div>
           {compactLayer && (
             <div className='mt-1 text-[11px] text-white/60'>
-              {zh ? '已压缩：' : 'Compacted: '}
+              {vi ? 'Đã nén: ' : zh ? '已压缩：' : 'Compacted: '}
               {compactLayer}
             </div>
           )}
@@ -160,7 +171,7 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
     <div
       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${colors.bg} text-xs font-mono transition-colors duration-300`}
     >
-      <span className={`${colors.text} whitespace-nowrap font-medium`}>{zh ? '上下文' : 'Context'}</span>
+      <span className={`${colors.text} whitespace-nowrap font-medium`}>{vi ? 'Ngữ cảnh' : zh ? '上下文' : 'Context'}</span>
       <div className='relative flex-1 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden min-w-[80px] max-w-[160px]'>
         <div
           className={`absolute inset-y-0 left-0 ${colors.bar} rounded-full transition-all duration-500 ease-out`}

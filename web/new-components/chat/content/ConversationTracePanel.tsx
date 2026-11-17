@@ -284,6 +284,7 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
   const [tree, setTree] = useState<TraceTree | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
   const [usage, setUsage] = useState<ConversationUsage | null>(null);
+  const [usageError, setUsageError] = useState(false);
 
   // Load the list of traces linked to this conversation.
   // NOTE: use functional setActiveTraceId to avoid depending on `activeTraceId`
@@ -311,11 +312,20 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
     setTraces([]);
     setTree(null);
     setUsage(null);
+    setUsageError(false);
     void loadTraces();
     let cancelled = false;
     const refreshUsage = () => apiInterceptors(getConversationUsage(conversationId)).then(([, data]) => {
-      if (!cancelled) setUsage(data || null);
-    }).catch(() => { if (!cancelled) setUsage(null); });
+      if (!cancelled) {
+        setUsage(data || null);
+        setUsageError(!data);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setUsage(null);
+        setUsageError(true);
+      }
+    });
     void refreshUsage();
     const timer = window.setInterval(() => void refreshUsage(), 10000);
     return () => { cancelled = true; window.clearInterval(timer); };
@@ -373,6 +383,11 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
 
   return (
     <div className='flex h-full flex-col overflow-y-auto p-4 space-y-3'>
+      {usageError && <div className='rounded border border-amber-300 p-2 text-xs' role='status'>
+        {i18n.language?.startsWith('vi')
+          ? 'Không tải được usage. Chưa thể xác nhận tổng token; hệ thống sẽ thử tải lại.'
+          : 'Usage could not be loaded. Token totals are unverified; the panel will retry.'}
+      </div>}
       {usage && <div className='rounded border border-gray-200 p-2 text-xs dark:border-gray-700'>
         <strong>{i18n.language?.startsWith('vi') ? 'Token theo provider · hội thoại' : 'Provider token usage · conversation'}</strong>
         {usage.models.length === 0 && <div>{i18n.language?.startsWith('vi') ? 'Chưa có dữ liệu usage' : 'No usage data yet'}</div>}
@@ -380,6 +395,13 @@ const ConversationTracePanel: React.FC<ConversationTracePanelProps> = ({ convers
           {item.model || 'Unknown model'} · {item.calls} {i18n.language?.startsWith('vi') ? 'lượt' : 'calls'} · {item.complete
             ? `Input ${item.prompt_tokens} · Output ${item.completion_tokens} · Total ${item.total_tokens}`
             : (i18n.language?.startsWith('vi') ? 'Chưa đủ usage từ provider' : 'Provider usage incomplete')}
+          {!item.complete && item.known_total_tokens !== undefined && (
+            <div>
+              {i18n.language?.startsWith('vi')
+                ? `Đã ghi nhận ${item.known_total_tokens} token · ${item.reported_calls}/${item.calls} lượt đủ usage · thiếu ${item.missing_usage_calls} lượt. Đây chưa phải tổng đầy đủ.`
+                : `Recorded ${item.known_total_tokens} tokens · ${item.reported_calls}/${item.calls} calls with complete usage · ${item.missing_usage_calls} missing. This is not a complete total.`}
+            </div>
+          )}
         </div>)}
       </div>}
       {/* Trace selector */}

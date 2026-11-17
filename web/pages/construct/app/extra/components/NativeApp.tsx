@@ -3,6 +3,7 @@ import { apiInterceptors, getAppStrategyValues, getNativeAppScenes, getPromptLis
 import AppDefaultIcon from '@/new-components/common/AppDefaultIcon';
 import { ParamNeed } from '@/types/app';
 import { useRequest } from 'ahooks';
+import type { FormInstance } from 'antd';
 import { Form, InputNumber, Select, Tooltip } from 'antd';
 import cls from 'classnames';
 import React, { useEffect, useMemo } from 'react';
@@ -31,9 +32,14 @@ const NativeApp: React.FC<{
   updateData: (data: [boolean, [TeamContext, ParamNeed[]]]) => void;
   classNames?: string;
   initValue?: InitValueProps;
-}> = ({ classNames, initValue, updateData }) => {
+  onFormReady?: (form: FormInstance | null) => void;
+}> = ({ classNames, initValue, updateData, onFormReady }) => {
   const { t } = useTranslation();
   const [form] = Form.useForm<FormProps>();
+  useEffect(() => {
+    onFormReady?.(form);
+    return () => onFormReady?.(null);
+  }, [form, onFormReady]);
   const chatScene = Form.useWatch('chat_scene', form);
   const bindValue = Form.useWatch('bind_value', form);
   const model = Form.useWatch('model', form);
@@ -106,7 +112,9 @@ const NativeApp: React.FC<{
           label: (
             <div className='flex items-center gap-1'>
               <AppDefaultIcon width={4} height={4} scene={type.chat_scene} />
-              <Tooltip title={`资源类型${type.param_need.find((param: any) => param.type === 'resource')?.value}`}>
+              <Tooltip
+                title={`${t('resource_type')}: ${type.param_need?.find((param: any) => param.type === 'resource')?.value || '—'}`}
+              >
                 <span className='text-[#525964] dark:text-[rgba(255,255,255,0.65)]  ml-1'>{type.scene_name}</span>
               </Tooltip>
             </div>
@@ -115,7 +123,7 @@ const NativeApp: React.FC<{
         };
       }) || []
     );
-  }, [data]);
+  }, [data, t]);
 
   // 将数据实时返回给消费组件
   useEffect(() => {
@@ -171,7 +179,11 @@ const NativeApp: React.FC<{
         labelCol={{ span: 3 }}
         wrapperCol={{ span: 21 }}
       >
-        <Form.Item label={t('native_type')} tooltip name='chat_scene'>
+        <Form.Item
+          label={t('native_type')}
+          name='chat_scene'
+          rules={[{ required: true, message: t('app_type_select') }]}
+        >
           <Select
             className='w-1/2'
             options={appTypeOptions}

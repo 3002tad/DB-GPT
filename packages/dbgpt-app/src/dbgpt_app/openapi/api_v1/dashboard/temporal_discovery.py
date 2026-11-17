@@ -14,6 +14,8 @@ from typing import Any, Dict, Iterable
 
 from sqlalchemy import column, func, select, table
 
+from .source_metadata import is_postgresql, readable_source_tables
+
 # Only dialects whose existing query_ex enforces a database-side timeout.
 _TIMED_DIALECTS = {"sqlite", "mysql", "postgresql", "oceanbase"}
 _FORMATS = (
@@ -137,18 +139,30 @@ def collect_temporal_evidence(
         _, rows = connector.query_ex(sql, timeout=min(2.0, remaining))
         return rows or []
 
-    for table_name in sorted(connector.get_table_names()):
+    postgres = is_postgresql(connector)
+    relations = (
+        {item["name"]: item for item in readable_source_tables(connector)}
+        if postgres else {}
+    )
+    names = sorted(relations) if postgres else sorted(connector.get_table_names())
+    for table_name in names:
         try:
-            fields = connector.get_columns(table_name)
+            fields = (
+                relations[table_name]["columns"]
+                if postgres else connector.get_columns(table_name)
+            )
         except Exception as exc:
             evidence.setdefault("uninspected_tables", []).append(
                 {"table": table_name, "reason": type(exc).__name__}
             )
             continue
         source = table(
-            table_name,
+            relations[table_name]["table"] if postgres else table_name,
             *(column(field["name"]) for field in fields),
-            schema=getattr(connector, "_schema", None),
+            schema=(
+                relations[table_name]["schema"]
+                if postgres else getattr(connector, "_schema", None)
+            ),
         )
         candidates = {
             field["name"]: field

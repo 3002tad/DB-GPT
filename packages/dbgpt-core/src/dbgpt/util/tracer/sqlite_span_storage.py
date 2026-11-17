@@ -16,6 +16,9 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
+from sqlalchemy import or_
+from sqlalchemy.dialects.sqlite import insert
+
 from dbgpt.observability.span_store import (
     ObservabilitySpanEntity,
     get_observability_store,
@@ -152,13 +155,16 @@ class SqliteSpanStorage(SpanStorage):
             metadata_json=_json_dumps(meta),
             **extra,
         )
-        existing = (
-            session.query(ObservabilitySpanEntity)
-            .filter(ObservabilitySpanEntity.span_id == span.span_id)
-            .first()
+        # Create/end notifications may overlap across writers or repeat within
+        # one batch. SELECT-then-INSERT races and rolls back unrelated spans.
+        # A delayed create must also never erase a completed span's usage.
+        statement = insert(ObservabilitySpanEntity).values(**values)
+        statement = statement.on_conflict_do_update(
+            index_elements=["span_id"],
+            set_={key: getattr(statement.excluded, key) for key in values},
+            where=or_(
+                ObservabilitySpanEntity.end_time.is_(None),
+                statement.excluded.end_time.is_not(None),
+            ),
         )
-        if existing is not None:
-            for key, value in values.items():
-                setattr(existing, key, value)
-        else:
-            session.add(ObservabilitySpanEntity(**values))
+        session.execute(statement)

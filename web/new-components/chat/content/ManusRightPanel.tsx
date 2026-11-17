@@ -1146,7 +1146,7 @@ const parseLoadSkillDetail = (
         }
       }
     }
-    // Fallback: extract skill name from step title like "Load Skill: walmart-sales-analyzer"
+    // Fallback: extract skill name from step title like "Load Skill: csv-data-analysis"
     if (!skillName && title) {
       const titleMatch = title.match(/Load\s+Skill:\s*(.+)/i);
       if (titleMatch) skillName = titleMatch[1].trim();

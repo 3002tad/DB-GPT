@@ -1,13 +1,15 @@
 import { apiInterceptors, updateApp } from '@/client/api';
 import AppDefaultIcon from '@/new-components/common/AppDefaultIcon';
 import { CreateAppParams } from '@/types/app';
+import { applicationConfigurationError } from '@/utils/application-configuration';
 import { EditOutlined, LeftOutlined } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
+import type { FormInstance } from 'antd';
 import { App, Button, Space, Spin } from 'antd';
 import classNames from 'classnames';
 import _ from 'lodash';
 import { useRouter } from 'next/router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CreateAppModal from '../components/create-app-modal';
 import AwelLayout from './components/AwelLayout';
@@ -18,7 +20,8 @@ import styles from './styles.module.css';
 
 const ExtraAppInfo: React.FC = () => {
   // 获取当前应用信息
-  const curApp = JSON.parse(localStorage.getItem('new_app_info') || '{}');
+  const storedApp = localStorage.getItem('new_app_info') || '{}';
+  const curApp = useMemo(() => JSON.parse(storedApp), [storedApp]);
   const { t } = useTranslation();
   const { message } = App.useApp();
   const router = useRouter();
@@ -28,6 +31,10 @@ const ExtraAppInfo: React.FC = () => {
   const [dataReady, setDataReady] = useState<boolean>(false);
   const appParams = useRef<CreateAppParams>({});
   const initialParams = useRef<CreateAppParams>({});
+  const configurationForm = useRef<FormInstance | null>(null);
+  const onFormReady = useCallback((form: FormInstance | null) => {
+    configurationForm.current = form;
+  }, []);
 
   // 初始化参数，保留原有资源
   useEffect(() => {
@@ -114,6 +121,7 @@ const ExtraAppInfo: React.FC = () => {
     }
 
     try {
+      await configurationForm.current?.validateFields();
       // 确保必要的字段存在
       const finalParams: CreateAppParams = {};
 
@@ -141,8 +149,17 @@ const ExtraAppInfo: React.FC = () => {
       finalParams.recommend_questions =
         appParams.current.recommend_questions || initialParams.current.recommend_questions;
 
+      const configurationError = applicationConfigurationError(finalParams);
+      if (configurationError) {
+        message.warning(t(configurationError));
+        return;
+      }
       await update(finalParams);
-    } catch (_) {
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        configurationForm.current?.scrollToField((error as any).errorFields?.[0]?.name);
+        return;
+      }
       message.error(t('update_failed'));
     }
   };
@@ -202,12 +219,11 @@ const ExtraAppInfo: React.FC = () => {
             {/* awel_layout模式 */}
             {curApp?.team_mode === 'awel_layout' && (
               <AwelLayout
+                onFormReady={onFormReady}
                 initValue={curApp?.team_context}
                 updateData={data => {
                   setLoading(data?.[0]);
-                  if (data?.[1]) {
-                    updateComponentData('team_context', data[1]);
-                  }
+                  updateComponentData('team_context', data?.[1] || {});
                 }}
                 classNames='px-6'
               />
@@ -215,6 +231,7 @@ const ExtraAppInfo: React.FC = () => {
             {/* native_app模式 */}
             {curApp?.team_mode === 'native_app' && (
               <NativeApp
+                onFormReady={onFormReady}
                 initValue={{
                   team_context: curApp?.team_context,
                   param_need: curApp?.param_need,

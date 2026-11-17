@@ -1,12 +1,6 @@
 ---
 name: sql-data-analysis
-description: |
-  Comprehensive SQL data analysis skill for executing queries, analyzing results, 
-  and generating visualizations. Use when Claude needs to: (1) Execute SQL queries against 
-  databases, (2) Analyze query results and generate insights, (3) Create data visualizations 
-  (charts, graphs) from query results, (4) Perform data aggregation and reporting, 
-  (5) Work with database connections and query optimization. Supports MySQL, PostgreSQL, 
-  SQLite, and other SQL databases.
+description: Explore authorized SQL sources, execute analytical queries, validate aggregation grain and explain results with query evidence. Use for database questions, comparisons, trends, visualization and query optimization across supported SQL dialects.
 ---
 
 # SQL Data Analysis

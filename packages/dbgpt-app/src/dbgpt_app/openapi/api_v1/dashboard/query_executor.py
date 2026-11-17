@@ -22,6 +22,7 @@ from .schemas import (
     collect_schema_issues,
     model_validate_compat,
 )
+from .source_metadata import is_postgresql, readable_source_tables
 from .sql_security import (
     DashboardSQLSecurityError,
     DashboardUnsupportedDialectError,
@@ -117,6 +118,12 @@ class DashboardQueryExecutor:
     def _allowlists(
         self, connector: Any, data_source_id: str
     ) -> Tuple[List[str], List[str]]:
+        if is_postgresql(connector):
+            relations = readable_source_tables(connector, data_source_id)
+            return (
+                [name for item in relations for name in [item["name"], *item["aliases"]]],
+                [field["name"] for item in relations for field in item["columns"]],
+            )
         tables = [str(name) for name in connector.get_table_names()]
         columns: List[str] = []
         for table in tables:

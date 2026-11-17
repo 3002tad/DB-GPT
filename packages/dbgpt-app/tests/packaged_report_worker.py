@@ -42,7 +42,6 @@ async def main():
         "csv-data-analysis",
         "skill-creator",
         "financial-report-analyzer",
-        "walmart-sales-analyzer",
         "agent-browser",
     }
     assert expected.issubset({p.name for p in skills.iterdir()})

@@ -24,7 +24,6 @@ SKILLS = (
     "csv-data-analysis",
     "skill-creator",
     "financial-report-analyzer",
-    "walmart-sales-analyzer",
     "agent-browser",
     "dashboard-builder",
 )

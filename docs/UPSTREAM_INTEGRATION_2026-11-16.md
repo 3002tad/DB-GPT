@@ -578,3 +578,206 @@ footer controls do not shrink. Collapsed navigation also scrolls independently
 instead of pushing its footer beyond a short viewport. Routes and Agent task
 behavior remain unchanged. Targeted Construct/connector tests pass (12 cases).
 The follow-up has not been rebuilt/deployed or browser-accepted yet.
+
+## E2E-01: normalize semantic callables during native discovery
+
+`make_semantic_tools` returns decorated callable functions whose registered
+resource lives at `._tool`. Native discovery read `.name` directly from those
+functions whenever a datasource was loaded, crashing before the first model
+turn. Full-catalog construction and KB discovery already used ToolPack.
+
+Semantic initial-name collection now also uses `ToolPack(...).sub_resources`.
+All four semantic tools remain initially available; names, schemas, executable
+bindings, connector permissions, prompts and discovery catalog are unchanged.
+Connector extras are already flattened BaseTool resources by their selector;
+they do not require the same fix.
+
+Regression tests execute the actual initial-name production AST with real
+ToolPack and semantic factories, without importing the full API or booting
+models/databases. Four focused factory/discovery tests pass in the deployed
+container dependencies using candidate source under `/tmp` (pytest absent,
+test functions invoked directly). The same regression reproduces the exact
+AttributeError against deployed baseline source. Four tool-availability and
+five skill-prompt tests pass locally. No LLM call, source hot patch or runtime
+deployment was performed; model/UI acceptance remains pending deployment.
+
+## E2E-02: align PostgreSQL discovery and Dashboard query scope
+
+The saved `funnelmetry_handoff` connector introspects `funnelmetry_ai` only
+(seven views), while its analytical role can SELECT 42 relations across
+`funnelmetry_ai` (7), `funnelmetry_demo` (24) and `funnelmetry_explore` (11).
+Its search path is `funnelmetry_ai, pg_catalog`. Model schema queries could
+therefore discover demo relations that Dashboard's native table-name allowlist
+rejected. Changing SQL to `public.sessions` did not fix that mismatch.
+
+A shared PostgreSQL inventory now derives qualified relations and columns from
+the connection's existing SELECT/USAGE grants. Planning context, subagent schema
+fallback, Dashboard validation/execution, generated filters, source inspection,
+annotation metadata and temporal profiling use this inventory. Unqualified
+aliases are included only when PostgreSQL reports the relation visible on its
+search path. Explicit include/ignore restrictions remain schema-specific;
+metadata failures do not silently fall back to the seven-view catalog. Other
+dialects retain native discovery. This changes neither database grants nor
+datasource authorization, SQL read-only validation or metric/quality semantics.
+
+Nine regression tests pass against candidate modules loaded from `/tmp` in the
+runtime dependency environment. They cover qualified/quoted names and CTEs,
+wrong-schema rejection, search-path visibility, explicit include/ignore lists,
+empty/failing discovery, SQLite compatibility and qualified temporal probes.
+Read-only verification using the real PostgreSQL connector reproduces the native
+seven-table inventory and finds all 42 readable relations with the candidate.
+The requested monthly facebook/tiktok/zalo session query validates and executes
+(39 rows, 13 months, 3 sources); `public.sessions` remains rejected. The demo
+session count was 101,750 at verification time. No database writes, grant changes,
+LLM calls, active source hot patch or runtime deployment were performed. UI chart
+generation, publication and repair/revision continuity remain pending acceptance
+after deployment; these SQL checks do not certify the full Dashboard workflow.
+
+## E2E-03: validate application configuration before saving
+
+The extra-configuration page previously sent an empty native `team_context`
+without validating the scene form, producing Pydantic union errors for string,
+AWEL DAG and native scene fields. It also parsed stored app JSON on every render,
+re-running parameter initialization and potentially overwriting current edits.
+Clearing an AWEL selection left the previous context in the pending payload.
+
+The page now keeps stable initialization data, invokes the active form's real
+validation before updating, and shows localized field errors. Native apps must
+have their selected scene and loaded scene name; AWEL apps must have a valid
+DAG ID. Clearing a workflow explicitly clears its pending context. Missing
+scene metadata or a workflow without a DAG produces an actionable localized
+message without sending an invalid update. Native resource tooltips use the
+existing translated label. Draft creation, agent/model/resource choices,
+single-agent/auto-plan execution and backend permissions/contracts are unchanged.
+
+Seven tests pass: four component scenarios exercise real AntD Form validation
+with mocked API calls (missing native scene, new scene persistence, cleared
+workflow and valid existing workflow), plus three mode/payload contract tests.
+The component harness adapts Select's popup to a native select because jsdom
+cannot parse an AntD popup CSS selector; it does not certify dropdown rendering.
+Full candidate-web TypeScript checking passes with `tsc --noEmit --incremental
+false`. Tests and checks ran in the `/tmp` UI workspace with existing dependencies,
+without application writes, LLM calls, production rebuild or deployment.
+Real-browser/API acceptance remains pending deployment.
+
+## E2E-04: retire the Walmart skill and complete catalog metadata
+
+Removed `skills/walmart-sales-analyzer` (instructions, scripts and template),
+its sdist/wheel inclusion, UI presentation/description entries and built-in
+skill documentation. Packaged report/dashboard expectations no longer require
+it. Startup provisioning removes the exact legacy built-in directory and skips
+re-seeding it from an older bundle; a symlink is unlinked without traversing its
+target. Personal skills under `user/` and other built-ins are preserved.
+
+The recursive skill loader used to interpret arbitrary JSON/YAML reference
+assets as unnamed skills with the fallback name `Unknown`. Structured skill
+definitions now require explicitly named metadata; valid named custom skills
+and Markdown workflows remain supported. CSV/Excel scaffold SKILL.md files are
+replaced with executable-workflow guidance, including actual helper availability,
+sample/full-file scope and evidence limitations. SQL's summary is concise, and
+CSV/Excel/SQL have Vietnamese/English display summaries. Personal descriptions
+are never overwritten by official display translations. The skill-creator
+template's TODO placeholder remains intentional; it is not an installed skill's
+description.
+
+Six Python retirement/loader tests and two UI-description tests pass; full
+candidate-web TypeScript checking passes. Source/package-map retirement and
+documentation JSON checks pass. Verification used candidates and temporary
+fixtures, with no LLM calls, production skill-directory mutation or deployment.
+The startup cleanup will take effect on deployment; current VPS/UI acceptance
+is pending. This case retires the skill, not every upstream Walmart dataset,
+example datasource or gallery fixture elsewhere in the repository.
+
+## E2E-05: recover from typed context labels without source bindings
+
+The UI's `[Database: …] [Knowledge: …]` display prefix is not the actual
+datasource/KB binding: execution uses `ext_info`. Manually typing this prefix
+without selecting the controls previously sent an unbound request into native
+discovery, causing repetitive tool searches. A narrow preflight now detects
+missing selections for leading context labels. It preserves the input and
+explains how to select the datasource/KB. Explicit context overrides remain
+supported. The API independently returns a localized final response and done
+before model execution for the same missing-binding case, after resolving
+owned uploaded-dataset or Dashboard continuation bindings where available.
+
+No datasource or KB is selected from prompt text. Ordinary chat, file-analysis
+questions without these leading labels, hypothetical SQL and discussion of
+label syntax remain available without selecting sources. Existing bound
+requests still cross their normal access checks; a label is not permission.
+This addresses the observed mismatch, not every possible missing-context intent
+or multi-turn binding restoration.
+
+Four Python checks and three context-preflight UI utility tests pass. The seven
+E2E-03 tests also pass in the candidate UI workspace. TypeScript checking passes;
+no LLM invocation or runtime deployment was performed. Browser acceptance and
+the original Q1/multi-turn test remain pending deployment, including E2E-01.
+
+## E2E-06: preserve provider usage and expose incomplete totals
+
+Read-only runtime reconciliation found 15 unique constraint errors on
+`observability_span.span_id`. The SELECT-then-INSERT writer races when create/end
+notifications overlap; a failed batch could roll back other telemetry rows.
+SQLite persistence now uses atomic ON CONFLICT updates. A late create cannot
+erase a completed span. Agent streaming retains the last nonempty provider usage
+object when later chunks omit usage; cumulative usage snapshots are not summed.
+
+Conversation usage keeps full totals null when a recorded call lacks usage, and
+adds known subtotals plus counts of fully reported/missing calls. Partial fields
+from different calls never count as a complete call. The UI labels subtotals as
+incomplete evidence and shows a retry notice for API failures. Reported zero is
+distinct from unavailable data. No tokenizer, pricing assumptions or synthetic
+usage backfill was introduced.
+
+The existing Qwen3.8 conversation has 13 recorded Agent call spans, 12 with full
+usage: known input 149,197, output 4,101, total 153,298 tokens. One call is missing
+usage; this is not a certified total or provider billing statement. The Qwen3.6
+conversation has no recorded Agent call span, consistent with E2E-01 failing
+before analysis, but missing telemetry cannot prove zero billed tokens. Lost
+historical rows cannot be reconstructed; exhaustive retry, embedding and other
+model-path coverage is not certified. A stream log with usage=None alone does
+not establish that all provider calls had missing usage.
+
+Six tests pass using temporary SQLite, concurrent writers, duplicate batches,
+delayed creates, fake streams, missing/zero usage and conversation scoping.
+Existing runtime aggregates were read with the candidate provider without live
+store writes. No paid model call or runtime deployment was performed. New-run
+UI/provider acceptance remains pending.
+
+Candidate-web TypeScript checking (`tsc --noEmit --incremental false`) also passes.
+
+## Context stability: native protocol, compaction and visible budget state
+
+Investigation confirmed the manager is wired before native model calls and
+runtime status events exist. The compact composer indicator only appeared after
+a context.status event; reload/model changes cleared it. It now always shows an
+explicit awaiting-measurement state until this request produces a measurement,
+then a readable estimated percentage with Vietnamese labels, window, output
+reserve and metadata source in the tooltip. Starting a new request clears the
+previous request's ratio. No fabricated zero or stale historical ratio is shown;
+persisted context snapshots are not introduced. Context estimates remain distinct
+from provider-reported token usage.
+
+More importantly, AgentMessage conversion discarded native tool_calls and
+tool_call_id on the path through context budgeting. These fields and the tool
+name now survive conversions/copies. Parallel tool calls/results form one atomic
+compaction group, including out-of-order results; incomplete groups are not split.
+Legacy Observation-based groups remain supported. Native observation age uses
+actual groups, rather than the old textual Observation count. Micro-compaction
+copies shortened messages so working-request changes do not mutate memory objects.
+Dropping/summarizing old native groups keeps the latest user instruction, system
+messages and complete recent tool groups. Summaries include tool-call identity
+and arguments rather than empty assistant tool-call messages.
+
+Native provider context overflow now invokes emergency compaction before retry.
+Only a strictly smaller request is retried; unchanged overflow is propagated to
+existing failure handling. This does not reduce available tools, alter model
+selection or lower the configured context window. Existing thresholds and
+reservation policy remain unchanged. Durable conversation storage is unchanged;
+there is no automatic reconstruction of previously malformed tool history.
+
+Nine native regression tests and eleven legacy compaction tests pass against
+candidate modules in the runtime dependency environment, using fake summaries
+and a fake provider overflow. Four ContextUsageBar component tests and full
+candidate-web TypeScript checking pass. No LLM request, active source hot patch,
+production rebuild or deployment was performed. Multi-turn browser acceptance
+and real high-context recovery remain pending deployment.

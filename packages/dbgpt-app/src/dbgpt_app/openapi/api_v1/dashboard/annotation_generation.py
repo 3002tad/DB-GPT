@@ -24,6 +24,7 @@ from .schemas import (
     StrictModel,
 )
 from .service import DashboardSchemaValidationError
+from .source_metadata import readable_source_tables
 
 
 class AnnotationGenerationRequest(StrictModel):
@@ -45,8 +46,8 @@ def annotation_source_context(service, schema, actor):
         return sqlglot.exp.to_identifier(str(name), quoted=True).sql(dialect=dialect)
 
     tables = []
-    names = list(connector.get_table_names())
-    if len(names) > 80:
+    relations = readable_source_tables(connector, source)
+    if len(relations) > 80:
         raise ValueError("当前数据源超过 80 张表，请连接要分析的表或视图后重试。")
 
     def read_rows(sql, columns, limit):
@@ -85,22 +86,9 @@ def annotation_source_context(service, schema, actor):
             "truncated": result.truncated,
         }
 
-    for index, table in enumerate(names):
-        try:
-            fields = connector.get_fields(table, source)
-        except TypeError:
-            fields = connector.get_fields(table)
-        columns = [
-            {
-                "name": str(f.get("name", ""))
-                if isinstance(f, dict)
-                else service.query_executor._column_name(f),
-                "type": str(f.get("type", ""))
-                if isinstance(f, dict)
-                else str(f[1] if len(f) > 1 else ""),
-            }
-            for f in fields
-        ]
+    for index, relation in enumerate(relations):
+        table = relation["name"]
+        columns = relation["columns"]
         entry = {"name": str(table), "columns": columns}
         # Keep dialect-specific metadata for every table; sampling is deliberately
         # limited to the installed SQLite sources rather than guessing other syntax.

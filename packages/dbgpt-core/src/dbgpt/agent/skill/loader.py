@@ -242,9 +242,18 @@ class SkillLoader:
             Skill instance.
         """
         try:
-            metadata_data = data.get("metadata", {})
+            # The recursive scan also encounters JSON/YAML reference data and
+            # schemas. They are not skill definitions without named metadata.
+            if not isinstance(data, dict):
+                return None
+            metadata_data = data.get("metadata")
+            if not isinstance(metadata_data, dict):
+                return None
+            name = metadata_data.get("name")
+            if not isinstance(name, str) or not name.strip():
+                return None
             metadata = SkillMetadata(
-                name=metadata_data.get("name", "Unknown"),
+                name=name,
                 description=metadata_data.get("description", ""),
                 version=metadata_data.get("version", "1.0.0"),
                 author=metadata_data.get("author"),

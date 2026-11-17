@@ -275,10 +275,6 @@
     "message": "skill-creator",
     "description": "The label for the doc item skill-creator in sidebar docsSidebar, linking to the doc dbgpts/built-in-skills/skill-creator"
   },
-  "sidebar.docsSidebar.doc.walmart-sales-analyzer": {
-    "message": "walmart-sales-analyzer",
-    "description": "The label for the doc item walmart-sales-analyzer in sidebar docsSidebar, linking to the doc dbgpts/built-in-skills/walmart-sales-analyzer"
-  },
   "sidebar.docsSidebar.doc.How to Use Skill": {
     "message": "如何使用技能",
     "description": "The label for the doc item How to Use Skill in sidebar docsSidebar, linking to the doc dbgpts/how-to-use-skill"

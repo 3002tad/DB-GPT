@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -309,6 +310,9 @@ class AgentMessage:
     role: Optional[str] = None
     success: bool = True
     resource_info: Optional[ResourceReferType] = None
+    # Native function-calling protocol must survive context budgeting and copies.
+    tool_calls: Optional[List[Dict[str, Any]]] = None
+    tool_call_id: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Return a dictionary representation of the AgentMessage."""
@@ -322,11 +326,18 @@ class AgentMessage:
 
     def to_llm_message(self) -> Dict[str, Any]:
         """Return a dictionary representation of the AgentMessage."""
-        return {
+        result = {
             "content": self.content,
             "context": self.context,
             "role": self.role,
         }
+        if self.tool_calls is not None:
+            result["tool_calls"] = self.tool_calls
+        if self.tool_call_id is not None:
+            result["tool_call_id"] = self.tool_call_id
+        if self.name is not None:
+            result["name"] = self.name
+        return result
 
     @classmethod
     def from_llm_message(cls, message: Dict[str, Any]) -> AgentMessage:
@@ -336,6 +347,9 @@ class AgentMessage:
             context=message.get("context"),
             role=message.get("role"),
             rounds=message.get("rounds", 0),
+            name=message.get("name"),
+            tool_calls=message.get("tool_calls"),
+            tool_call_id=message.get("tool_call_id"),
         )
 
     @classmethod
@@ -370,6 +384,8 @@ class AgentMessage:
             current_goal=self.current_goal,
             model_name=self.model_name,
             role=self.role,
+            tool_calls=copy.deepcopy(self.tool_calls),
+            tool_call_id=self.tool_call_id,
             success=self.success,
             resource_info=self.resource_info,
         )

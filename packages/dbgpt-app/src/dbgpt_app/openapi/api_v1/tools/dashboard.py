@@ -518,6 +518,15 @@ def _normalize_filter_parameters(
 def _connector_field_names(connector: Any, database_name: str) -> set[str]:
     """Best-effort physical field allowlist used for generated filter plans."""
 
+    from ..dashboard.source_metadata import is_postgresql, readable_source_tables
+
+    if is_postgresql(connector):
+        return {
+            field["name"].casefold()
+            for item in readable_source_tables(connector, database_name)
+            for field in item["columns"]
+        }
+
     names: set[str] = set()
     try:
         tables = connector.get_table_names()

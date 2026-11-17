@@ -2,13 +2,25 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ContextUsageBar from './ContextUsageBar';
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ i18n: { language: 'zh' } }),
-}));
+const locale = vi.hoisted(() => ({ language: 'zh' }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: locale }) }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); locale.language = 'zh'; });
 
 describe('ContextUsageBar', () => {
+  it('shows an explicit unknown state instead of a fabricated zero', () => {
+    locale.language = 'vi';
+    render(<ContextUsageBar used={0} budget={0} ratio={0} state='OK' known={false} variant='compact' />);
+    expect(screen.getByRole('status').textContent).toContain('Ngữ cảnh · chờ đo');
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('shows a readable Vietnamese label and estimated usage', () => {
+    locale.language = 'vi';
+    render(<ContextUsageBar used={2000} budget={10000} ratio={0.2} state='OK' variant='compact' />);
+    expect(screen.getByRole('button').textContent).toContain('Ngữ cảnh ~20%');
+    expect(screen.getByRole('tooltip').textContent).toContain('ước lượng');
+  });
   it('separates estimated input usage, total window and output reservation', () => {
     render(
       <ContextUsageBar

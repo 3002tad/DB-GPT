@@ -2,6 +2,7 @@ import { apiInterceptors, getFlows } from '@/client/api';
 import PreviewFlow from '@/components/flow/preview-flow';
 import { IFlowResponse } from '@/types/flow';
 import { useRequest } from 'ahooks';
+import type { FormInstance } from 'antd';
 import { Form, Select } from 'antd';
 import cls from 'classnames';
 import React, { useEffect, useMemo } from 'react';
@@ -11,9 +12,14 @@ const AwelLayout: React.FC<{
   initValue: any;
   updateData: (data: any) => void;
   classNames?: string;
-}> = ({ initValue, updateData, classNames }) => {
+  onFormReady?: (form: FormInstance | null) => void;
+}> = ({ initValue, updateData, classNames, onFormReady }) => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
+  useEffect(() => {
+    onFormReady?.(form);
+    return () => onFormReady?.(null);
+  }, [form, onFormReady]);
   const flow = Form.useWatch('flow', form);
 
   const { data, loading } = useRequest(async () => {
@@ -47,7 +53,11 @@ const AwelLayout: React.FC<{
   return (
     <div className={cls(classNames, 'mb-6')}>
       <Form form={form} style={{ width: '100%' }}>
-        <Form.Item label={t('select_workflow')} name='flow'>
+        <Form.Item
+          label={t('select_workflow')}
+          name='flow'
+          rules={[{ required: true, message: t('please_select_workflow') }]}
+        >
           <Select className='w-1/4' placeholder={t('please_select_workflow')} options={flowOptions} allowClear />
         </Form.Item>
         {flowData && (

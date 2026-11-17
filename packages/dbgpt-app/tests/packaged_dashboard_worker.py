@@ -52,7 +52,6 @@ async def main():
         "skill-creator",
         "agent-browser",
         "financial-report-analyzer",
-        "walmart-sales-analyzer",
         "dashboard-builder",
     }
     assert {p.name for p in skills.iterdir() if p.name != "user"} == expected

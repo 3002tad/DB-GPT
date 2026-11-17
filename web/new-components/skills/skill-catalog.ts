@@ -145,14 +145,6 @@ const existing: Record<string, Partial<SkillPresentation>> = {
     description: '把重复使用的方法整理成技能，明确适用场景、执行步骤与验证方式。',
     outcomes: ['场景定义', '工作流程', '技能文件'],
   },
-  'walmart-sales-analyzer': {
-    title: '零售销售分析',
-    category: '数据',
-    variant: 'growth',
-    subtitle: '门店、趋势与影响因素',
-    description: '结合 Walmart 销售数据比较门店、观察时间趋势并生成分析报告。',
-    outcomes: ['门店比较', '趋势分析', '可视化报告'],
-  },
 };
 export function getSkillPresentation(skill: {
   name: string;

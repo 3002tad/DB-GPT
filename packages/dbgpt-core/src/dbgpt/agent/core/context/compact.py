@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import json
 import logging
 from typing import TYPE_CHECKING, List, Optional
 
@@ -39,11 +41,12 @@ variable names.
 
 
 def _is_observation_message(msg: "AgentMessage") -> bool:
-    """Check if a message is an Observation (tool output) in ReAct format."""
+    """Recognize native tool results and legacy ReAct observations."""
     content = getattr(msg, "content", "") or ""
     role = getattr(msg, "role", None)
-    return role == ModelMessageRoleType.HUMAN and content.lstrip().startswith(
-        "Observation:"
+    return role == ModelMessageRoleType.TOOL or (
+        role == ModelMessageRoleType.HUMAN
+        and content.lstrip().startswith("Observation:")
     )
 
 
@@ -53,22 +56,53 @@ def _is_system_message(msg: "AgentMessage") -> bool:
 
 
 def _detect_round_boundaries(messages: List["AgentMessage"]) -> List[List[int]]:
-    """Detect ReAct triplet (Thought/Action/Observation) round boundaries.
+    """Group legacy triplets and native tool exchanges into atomic rounds.
 
     Returns a list of rounds, where each round is a list of message indices
-    belonging to that round. System messages are excluded.
+    belonging to that round. Parallel native calls stay with all corresponding
+    results regardless of arrival order. System messages are excluded.
     """
     rounds: List[List[int]] = []
     current_round: List[int] = []
+    pending_calls = set()
+    native = any(
+        getattr(m, "tool_calls", None) or getattr(m, "tool_call_id", None)
+        for m in messages
+    )
 
     for idx, msg in enumerate(messages):
         if _is_system_message(msg):
             continue
 
+        role = getattr(msg, "role", None)
+        if (
+            native and role == ModelMessageRoleType.HUMAN
+            and not _is_observation_message(msg) and current_round
+            and not pending_calls
+        ):
+            rounds.append(current_round)
+            current_round = []
         current_round.append(idx)
+        calls = getattr(msg, "tool_calls", None) or []
+        if calls:
+            ids = {
+                call.get("id") for call in calls
+                if isinstance(call, dict) and call.get("id")
+            }
+            # Unknown/malformed IDs stay in the same group; never split away
+            # their potentially related tool results during compaction.
+            pending_calls.update(
+                ids if len(ids) == len(calls) else ids | {"<unresolved-call>"}
+            )
+        if role == ModelMessageRoleType.TOOL:
+            pending_calls.discard(getattr(msg, "tool_call_id", None))
+            if not pending_calls:
+                rounds.append(current_round)
+                current_round = []
+            continue
 
         # An Observation message marks the end of a ReAct triplet
-        if _is_observation_message(msg):
+        if _is_observation_message(msg) and not pending_calls:
             rounds.append(current_round)
             current_round = []
 
@@ -77,6 +111,23 @@ def _detect_round_boundaries(messages: List["AgentMessage"]) -> List[List[int]]:
         rounds.append(current_round)
 
     return rounds
+
+
+def _retain_objective(original, compacted):
+    """Keep the current user's actual instruction when dropping tool history."""
+    if not any(
+        getattr(m, "tool_calls", None) or getattr(m, "tool_call_id", None)
+        for m in original
+    ):
+        return compacted
+    objective = next((m for m in reversed(original)
+                      if getattr(m, "role", None) == ModelMessageRoleType.HUMAN
+                      and not _is_observation_message(m)), None)
+    if objective is not None and not any(m is objective for m in compacted):
+        position = next((i for i, m in enumerate(compacted)
+                         if not _is_system_message(m)), len(compacted))
+        compacted = compacted[:position] + [objective] + compacted[position:]
+    return compacted
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +149,16 @@ class ObservationMicroCompact:
         tracker: ContextBudgetTracker,
     ) -> List["AgentMessage"]:
         cfg = tracker.config
-        cutoff_round = current_round - cfg.max_observation_age_rounds
+        native = any(
+            getattr(m, "tool_calls", None) or getattr(m, "tool_call_id", None)
+            for m in messages
+        )
+        round_count = len(_detect_round_boundaries(messages)) if native else current_round
+        cutoff_round = round_count - cfg.max_observation_age_rounds
         max_chars = cfg.truncated_observation_max_chars
 
         rounds = _detect_round_boundaries(messages)
+        messages = list(messages)
         truncated = 0
 
         for round_idx, indices in enumerate(rounds):
@@ -126,7 +183,9 @@ class ObservationMicroCompact:
                             if snapshot_path
                             else "... [truncated]"
                         )
+                        msg = copy.copy(msg)
                         msg.content = content[:max_chars] + suffix
+                        messages[msg_idx] = msg
                         truncated += 1
 
         if truncated:
@@ -204,7 +263,7 @@ class SessionMemoryCompact:
                 len(rounds) - keep_from,
             )
 
-        return system_msgs + kept_conv
+        return _retain_objective(messages, system_msgs + kept_conv)
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +313,10 @@ class FullContextCompression:
         for msg in old_msgs:
             role = getattr(msg, "role", "unknown")
             content = (getattr(msg, "content", "") or "")[:3000]
+            if getattr(msg, "tool_calls", None):
+                content += "\nTool calls: " + json.dumps(msg.tool_calls, ensure_ascii=False)[:3000]
+            if getattr(msg, "tool_call_id", None):
+                content = f"Tool result {msg.tool_call_id}: " + content
             conv_lines.append(f"[{role}]: {content}")
         conversation_text = "\n".join(conv_lines)
 
@@ -296,7 +359,7 @@ class FullContextCompression:
             len(recent_msgs),
         )
 
-        return system_msgs + [summary_msg] + recent_msgs
+        return _retain_objective(messages, system_msgs + [summary_msg] + recent_msgs)
 
 
 # ---------------------------------------------------------------------------
@@ -343,4 +406,4 @@ class ReactiveCompact:
             keep_rounds,
         )
 
-        return system_msgs + kept
+        return _retain_objective(messages, system_msgs + kept)

@@ -12,7 +12,6 @@ skills/
 ├── csv-data-analysis/
 ├── financial-report-analyzer/
 ├── skill-creator/
-└── walmart-sales-analyzer/
 ```
 
 ## What built-in skills provide
@@ -32,7 +31,6 @@ Built-in skills package repeatable workflows into reusable units.
 | `csv-data-analysis` | CSV / Excel / TSV analysis | `scripts/csv_analyzer.py`, `templates/report_template.html`, `references/reference.md` |
 | `financial-report-analyzer` | Financial report extraction and reporting | extraction, ratio, and chart scripts plus financial references and templates |
 | `skill-creator` | Creating and packaging new skills | `init_skill.py`, `package_skill.py`, design references |
-| `walmart-sales-analyzer` | Walmart sales trend analysis and reporting | report-generation scripts and `templates/report_template.html` |
 
 ## How to read this section
 

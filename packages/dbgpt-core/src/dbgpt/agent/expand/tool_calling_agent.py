@@ -1015,6 +1015,20 @@ class ToolCallingReActAgent(ReActAgent):
                 retry_count += 1
                 last_model = llm_model
                 last_err = str(e)
+                manager = getattr(self, "_context_manager", None)
+                if manager and any(marker in last_err.lower() for marker in (
+                    "context_too_long", "context_length_exceeded", "maximum context length",
+                )):
+                    context_messages = [
+                        AgentMessage.from_llm_message(item) for item in llm_messages
+                    ]
+                    compacted = await manager.reactive_compact(context_messages)
+                    if manager.tracker.count_messages(compacted) >= manager.tracker.count_messages(context_messages):
+                        # Retrying an unchanged overflowing request wastes model
+                        # calls. Let the existing outer recovery report failure.
+                        raise
+                    llm_messages = [item.to_llm_message() for item in compacted]
+                    continue
                 await asyncio.sleep(10)
 
         if last_err:

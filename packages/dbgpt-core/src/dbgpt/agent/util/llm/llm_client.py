@@ -276,6 +276,7 @@ class AIWrapper:
         if params.get("context") is not None:
             payload["context"] = ModelRequestContext(extra=params["context"])
         model_output: Optional[ModelOutput] = None
+        provider_usage: Dict[str, Any] = {}
         try:
             model_request = _build_model_request(payload)
             str_prompt = model_request.messages_to_string()
@@ -303,6 +304,10 @@ class AIWrapper:
 
             async for output in self._llm_client.generate_stream(model_request.copy()):
                 model_output = output
+                if output.usage:
+                    # Usage is cumulative per provider call, not a stream delta.
+                    # Preserve it if a later chunk omits usage or is cancelled.
+                    provider_usage = output.usage
                 if output.error_code:
                     raise ValueError(
                         f"LLM_PROVIDER_ERROR: code={output.error_code}; "
@@ -406,7 +411,7 @@ class AIWrapper:
             end_meta: Dict[str, Any] = dict(span.metadata)
             end_meta["status"] = "OK"
             if model_output is not None:
-                usage = model_output.usage or {}
+                usage = provider_usage
                 if usage:
                     end_meta["usage"] = usage
                 end_meta["usage_source"] = "provider" if usage else "unavailable"
