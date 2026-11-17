@@ -100,9 +100,9 @@ const Knowledge = () => {
       title: t('Tips'),
       icon: <WarningOutlined />,
       content: `${t('Del_Knowledge_Tips')}?`,
-      okText: 'Yes',
+      okText: t('Yes'),
       okType: 'danger',
-      cancelText: 'No',
+      cancelText: t('No'),
       async onOk() {
         await apiInterceptors(delSpace({ name: space?.name }));
         getSpaces();
@@ -196,7 +196,7 @@ const Knowledge = () => {
                       </span>
                     </Tag>
                     <Tag>
-                      <span className='flex items-center gap-1'>{space.domain_type || 'Normal'}</span>
+                      <span className='flex items-center gap-1'>{!space.domain_type || space.domain_type === 'Normal' ? t('ui_knowledge_general') : space.domain_type === 'FinancialReport' ? t('ui_knowledge_financial') : space.domain_type}</span>
                     </Tag>
                     {space.vector_type ? (
                       <Tag color='blue'>

@@ -1,5 +1,6 @@
 import { addApp, apiInterceptors, getAppList, getTeamMode, updateApp } from '@/client/api';
 import { CreateAppParams, TeamMode } from '@/types/app';
+import { applicationLanguage, applicationModeText } from '@/utils/application-presentation';
 import { useRequest } from 'ahooks';
 import { App, ConfigProvider, Divider, Form, Input, Modal, Spin } from 'antd';
 import classNames from 'classnames';
@@ -36,7 +37,6 @@ const WorkModeSelect: React.FC<WorkModeSelectProps> = ({ disable = false, option
         : 'border-[#d9d9d9]'
     } `;
   };
-  const language = !i18n.language.startsWith('zh');
 
   return (
     <div className='grid grid-cols-2 gap-4'>
@@ -55,10 +55,10 @@ const WorkModeSelect: React.FC<WorkModeSelectProps> = ({ disable = false, option
           <Image src={`/icons/app/${item.value}.png`} width={48} height={48} alt={item.value} />
           <div className='flex flex-col ml-3'>
             <span className='text-xs font-medium text-[rgba(0,0,0,0.85)] dark:text-[rgba(255,255,255,0.85)] first-line:leading-6'>
-              {language ? item.name_en : item.name_cn}
+              {applicationModeText(item, i18n.language)}
             </span>
             <span className='text-xs text-[rgba(0,0,0,0.45)] dark:text-[rgba(255,255,255,0.85)]'>
-              {language ? item.description_en : item.description}
+              {applicationModeText(item, i18n.language, 'description')}
             </span>
           </div>
           {item.value === selected?.value && (
@@ -88,7 +88,6 @@ const CreateAppModal: React.FC<{
   const teamMode = Form.useWatch('team_mode', form);
 
   const router = useRouter();
-  const language = !i18n.language.startsWith('zh');
 
   // 获取工作模式列表
   const { data, loading } = useRequest(async () => {
@@ -103,14 +102,14 @@ const CreateAppModal: React.FC<{
         return await apiInterceptors(
           updateApp({
             app_code: appInfo?.app_code,
-            language: 'zh',
+            language: appInfo?.language || applicationLanguage(i18n.language),
             ...params,
           }),
         );
       } else {
         return await apiInterceptors(
           addApp({
-            language: 'zh',
+            language: applicationLanguage(i18n.language),
             ...params,
           }),
         );
@@ -232,12 +231,12 @@ const CreateAppModal: React.FC<{
             <Divider type='vertical' className='h-auto mx-6 bg-[rgba(0,0,0,0.06)] dark:bg-[rgba(255,255,255,0.5)] ' />
             <div className='flex flex-col w-2/5 pl-6 pt-8 '>
               <span className='text-base text-[rgba(0,0,0,0.85)] font-medium mb-6 dark:text-[rgba(255,255,255,0.85)]'>
-                {language ? teamMode?.name_en : teamMode?.name_cn}
+                {applicationModeText(teamMode, i18n.language)}
               </span>
               <div className='flex items-start'>
                 <span className='flex flex-shrink-0 w-1 h-1 rounded-full bg-[rgba(0,0,0,0.45)] mt-2 mr-1 dark:bg-[rgba(255,255,255,0.65)]' />
                 <span className='text-xs leading-5 text-[rgba(0,0,0,0.45)] dark:text-[rgba(255,255,255,0.65)]'>
-                  {language ? teamMode?.remark_en : teamMode?.remark}
+                  {applicationModeText(teamMode, i18n.language, 'remark')}
                 </span>
               </div>
             </div>

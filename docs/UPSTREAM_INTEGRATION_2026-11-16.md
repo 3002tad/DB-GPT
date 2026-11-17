@@ -267,3 +267,178 @@ with a Vietnamese answer. Provider payloads use auto, with no thinking-mode
 InvalidParameter in this turn. The evidence postprocessor unnecessarily
 removed part of the conceptual answer; this is tracked separately as BUG-14.
 No full analytical/Dashboard/financial retest was performed in this change.
+
+## BUG-03: additive Semantic Center schema bootstrap
+
+MySQL skips generic automatic metadata DDL migration. The imported semantic
+models therefore did not create their tables on the existing deployment.
+Added an explicit semantic-only bootstrap called during metadata initialization:
+creates missing module tables with checkfirst, without ALTER/DROP or data reset.
+A SQLite regression verifies partial-schema creation, repeatability and existing
+row preservation. Runtime MySQL startup succeeds and Analyst GET
+/api/v1/semantic/spaces now returns 200 via Playwright (previously 400).
+
+Deployed worktree image: funnelmetry-db-gpt:67f78553-bug03-schema. The Semantic
+Center page still renders only its shell/tabs; that UI problem and SQL error
+presentation (BUG-04) remain open. No semantic sync/publication was tested.
+
+## Semantic Center page rendering
+
+ConstructLayout renders page children only inside a tab matching the route.
+The semantic route was absent from the item list, causing a blank content area
+even after the API schema repair. Added a shared Semantic Center tab. Existing
+role filters remain unchanged; Workflow/Plugin routing is outside this fix.
+
+Regression render tests for Analyst/Admin plus i18n pass 13/13. Production
+build (including TypeScript/static export) passes. Worktree image
+funnelmetry-db-gpt:67f78553-semantic-ui was deployed with the earlier trace
+label translations. Analyst Playwright now shows the semantic title, counters,
+registration button, search and an empty table (zero registered spaces). GET
+/api/v1/semantic/spaces returns 200. No source registration/sync/publication
+was performed. Admin tab visibility in the deployed build remains BUG-11.
+
+## BUG-04: Semantic API error presentation
+
+Added a route-level SemanticRoute boundary: unexpected failures return HTTP
+500 with SEMANTIC_REQUEST_FAILED and a generated reference ID, without raw SQL,
+parameters, driver messages or internal connector URLs. HTTP >=500 retains its
+status with the same safe envelope. Validation and business HTTP <500 remain
+unchanged. Logs retain reference ID, exception class and stack locations,
+without raw exception messages/SQL parameter dumps. Other SQL/Agent routes
+retain their existing error handling for tool recovery.
+
+Three isolated ASGI tests pass (SQL failure, connector failure, success/404).
+Deployed worktree image: funnelmetry-db-gpt:67f78553-bug04-errors. No deliberate
+live database failure was induced to test this boundary.
+
+## BUG-05: connector catalog and Analyst UI
+
+Allowed only GET /api/v2/serve/connectors/types for Analyst: static catalog and
+field schemas contain no saved credentials. Create/update/delete, connection
+configuration, test/tools and pending confirmations remain Admin operations.
+The connector page now renders read-only cards for Analyst and hides management
+forms/actions. With no stored role, the page discovers the backend actor via
+/api/auth/funnelmetry/me (the existing bundle has no identity build flag and
+uses a native mock user). This local fallback does not fix global BUG-11.
+
+Two policy tests and four UI tests pass, as do TypeScript/static export.
+Deployed worktree image: funnelmetry-db-gpt:67f78553-bug05-role-ui. Analyst
+Playwright sees catalog entries with identity/types HTTP 200 and no add/activate
+buttons. Admin browser creation and actual MCP invocation were not tested.
+
+## BUG-06: Workflow list and editor dependencies
+
+The legacy `/construct/flow` route redirects to `/construct/taskflow`, but
+ConstructLayout still selected a `flow` tab. As children are rendered inside
+the selected tab, the current route showed an empty content area. The tab and
+sidebar now target `taskflow`; the legacy redirect remains compatible.
+
+Added explicit shared Analyst/Admin policy entries for node kinds, agent
+options, template detail and generation-session operations. No wildcard AWEL
+permission was added. Generation sessions now derive their owner from the
+verified Pipeline actor when integrated; standalone API-key ownership is
+unchanged. Existing session-store owner checks and publishing validation remain.
+
+Four policy/identity tests and four ConstructLayout render tests pass.
+Production build including TypeScript/static export passes. Deployed worktree
+image: `funnelmetry-db-gpt:67f78553-bug06-workflow`.
+
+Analyst Playwright acceptance: list renders with three built-in templates;
+new editor initializes; save draft succeeds; reopening restores the saved name
+and canvas; template copy opens in editor. Test draft
+`aa65f56d-675a-4443-8488-213a9e92e6b0` was deleted through UI with HTTP 200,
+and the list returned to empty. Node kinds, agent options, session creation,
+draft updates, save and reopen all return 200. No model execution or publishing
+was attempted. Admin browser testing and existing BUG-09/10/11 remain separate.
+
+## BUG-07: Plugin page content
+
+`/construct/suites` already fetched its registry successfully, but had no
+matching ConstructLayout tab. Added a shared Plugin tab using the existing
+`suites` translation and Appstore icon. No API policy or Plugin execution
+behavior changed.
+
+All six ConstructLayout render tests pass (Plugin, Workflow, Semantic Center;
+Analyst and Admin). Production build including TypeScript/static export passes.
+Deployed worktree image: `funnelmetry-db-gpt:67f78553-bug07-plugin`.
+
+Analyst Playwright shows seven plugins, opens `db-query` details and its commands,
+then selects `/nl2sql`: chat receives the correct suite/command selection
+without submitting to the model. Registry/detail requests return 200. Package
+installation/import/removal, enable/disable, configuration, actual model
+execution and Admin browser testing were not performed. Chinese manifest/README
+content remains tracked separately under BUG-09.
+
+## BUG-08: Application deletion confirmation
+
+Application removal used static `Modal.confirm`, while the dropdown action
+was attached only to the label span instead of the menu item. Replaced it with
+the existing AntD App context modal and a menu-item click handler. Confirmation
+names the selected application and uses existing localized labels.
+
+The delete hook calls only the selected app code, disables duplicate submissions
+and closes/refreshes only on a successful response. Network and business errors
+keep confirmation open for retry and show a localized error, without unhandled
+promise rejections. Backend authorization and deletion semantics are unchanged.
+
+Four tests cover cancellation, successful selected-app deletion and retry after
+business/network failures; no unhandled rejections remain. Production build,
+TypeScript and static export pass. Deployed worktree image:
+`funnelmetry-db-gpt:67f78553-bug08-app-delete`.
+
+Analyst Playwright confirms the modal names `UI audit temporary 20261116`;
+Cancel leaves it intact without a removal request. Reopening and confirming
+deletes only app `6958747a-e1d9-11f1-9586-02420a000316` via
+`POST /api/v1/app/remove` (200). Refreshed list and full browser reload both
+show the six pre-existing native applications, without the test draft. No
+console errors were observed. Failure/retry are covered by isolated UI tests,
+not by deliberately breaking the live API. Admin browser testing, publishing
+and execution are outside this acceptance.
+
+## BUG-09: Vietnamese module localization after upstream integration
+
+The audit covered both localization keys and direct UI copy before packaging:
+all 2,573 general English keys have Vietnamese entries; all 1,436 Dashboard
+namespace keys now resolve through the Vietnamese presentation dictionary
+without English fallback. A shared module dictionary covers datasource forms,
+workflow editor labels, manifest fields, runtime phases and placeholders.
+
+Fixed several independent language-selection paths: datasource copy previously
+treated vi as en; Plugin presentation treated vi as zh; workflow conversation
+and manifest labels had their own bilingual switches. The Dashboard namespace
+is now registered for vi, including long help, validation, sharing, schedules,
+annotation controls, template descriptions and built-in example prompts.
+
+Bundled Plugin names and 35 skill summaries have Vietnamese presentation.
+Translated command labels/descriptions do not change IDs, skill bindings,
+datasource scope or source objects. Available English package translations
+are used as fallback for untranslated source examples; original Chinese README
+content remains available under an explicit collapsed source-document section.
+Custom packages, user content, SQL, results and arbitrary Agent messages are
+not machine-translated or rewritten. Only known workflow phase enums are mapped.
+
+Application modes and descriptions use localized presentation. New native apps
+no longer unconditionally receive zh: a Vietnamese UI selects the supported en
+prompt fallback; existing app language remains unchanged when edited. Native
+app prompt configuration still supports en/zh; this change does not claim a
+new vi prompt catalog. Added localized labels for permission management,
+document upload/sync, knowledge-space absence, result limits and API notices.
+Raw source-error details retain their original content.
+
+Targeted locale/Dashboard/navigation/delete tests pass (56 cases), as do the
+35 Plugin command/presentation tests and two API notification locale tests.
+Final follow-up locale suite passes 25 tests (12 module cases, 11 general locale
+cases, two API notice cases). TypeScript preflight and production/static export
+of 70 pages pass. Deployed worktree image:
+`funnelmetry-db-gpt:67f78553-bug09-vi-final` (uncommitted worktree changes).
+
+Analyst Playwright acceptance covers Dashboard gallery/create and vi/en/vi
+switching with draft text retained, datasource list and dynamic counts,
+Workflow list/editor, Plugin details/commands/skill summaries, application
+creation modes and Knowledge Base creation form. Final follow-up confirms
+`1 kết nối dữ liệu nghiệp vụ.`, `Tổng quát` and `Kho mã Git`. Forms were cancelled,
+no new application/knowledge objects or model runs were submitted. No console
+errors were observed on the final image. Admin-specific workflows and arbitrary
+model text were not validated. Brand names, identifiers, text in illustration
+assets and original package documentation may remain English/Chinese; these
+are not claimed as translated user-interface controls.

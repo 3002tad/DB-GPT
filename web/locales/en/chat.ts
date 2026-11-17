@@ -542,6 +542,8 @@ export const ChatEn = {
   timeline_thinking_dots: 'Thinking…',
   timeline_thinking_running: 'Thinking',
   timeline_thinking: 'Thinking',
+  timeline_status_failed: 'Failed',
+  rail_groups_count: '{{count}} groups',
   timeline_read_skill: 'Read skill',
   timeline_read_skill_resource: 'Read skill reference',
   timeline_phase_running: 'Running {{count}} steps',

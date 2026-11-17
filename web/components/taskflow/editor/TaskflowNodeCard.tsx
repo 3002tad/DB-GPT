@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import type { ITaskflowNode, ITaskflowNodeKind } from '@/types/taskflow';
 import { groupColor, missingRequiredFields } from '@/utils/taskflow';
 import { DeleteOutlined, MoreOutlined, WarningFilled } from '@ant-design/icons';
@@ -22,13 +23,13 @@ const TaskflowNodeCard: React.FC<{
   data: TaskflowNodeCardData;
   selected?: boolean;
 }> = ({ data, selected }) => {
-  const { t, i18n } = useTranslation();
-  const isZh = i18n.language?.startsWith('zh');
+  const { t } = useTranslation();
+  const tr = useUiText();
   const { node, spec, index, summary, onDelete } = data;
   const { color, bg } = groupColor(spec?.group ?? 'boundary');
   const missing = missingRequiredFields(node, spec);
   const isBoundary = node.kind === 'start' || node.kind === 'output';
-  const label = node.label || (isZh ? spec?.label : spec?.label_en) || node.kind;
+  const label = node.label || (tr(spec?.label || '', spec?.label_en || '')) || node.kind;
 
   return (
     <div
@@ -56,12 +57,12 @@ const TaskflowNodeCard: React.FC<{
           )}
           {isBoundary && (
             <span className='text-[9px] px-1 rounded bg-green-50 text-green-600 font-medium flex-none'>
-              {isZh ? '边界' : 'BOUNDARY'}
+              {tr('边界', 'BOUNDARY')}
             </span>
           )}
           {node.config?.parallel_group && (
             <span className='text-[10px] px-1 rounded bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 flex-none'>
-              {isZh ? '并行' : 'Parallel'}
+              {tr('并行', 'Parallel')}
             </span>
           )}
         </div>

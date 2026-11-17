@@ -353,7 +353,7 @@ function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }
             {formatDuration(block.durationMs)}
           </span>
         )}
-        {block.status === 'failed' && <span className='flex-none text-xs text-red-500'>失败</span>}
+        {block.status === 'failed' && <span className='flex-none text-xs text-red-500'>{t('timeline_status_failed')}</span>}
         {hasBody && (
           <span
             className={cls('flex-none text-[10px] text-[#8b8b84] dark:text-[#7c7972] transition-transform', {

@@ -37,7 +37,7 @@ interface TemplateCardProps {
   onActivate: (template: ConnectorCatalogEntry) => void;
 }
 
-type ConnectorCardProps = InstanceCardProps | TemplateCardProps;
+type ConnectorCardProps = (InstanceCardProps | TemplateCardProps) & { readOnly?: boolean };
 
 /* ------------------------------------------------------------------ */
 /* Brand tokens — each connector type gets a unique gradient + emoji  */
@@ -215,7 +215,7 @@ const ConnectorCard: React.FC<ConnectorCardProps> = props => {
   // the same unified MCP path as custom_mcp, so there's no longer a reason to
   // gate click-to-inspect on connector_type. Template cards stay non-clickable
   // since they have no tools yet.
-  const isClickableForTools = !isTemplate;
+  const isClickableForTools = !isTemplate && !props.readOnly;
 
   return (
     <>
@@ -333,7 +333,7 @@ const ConnectorCard: React.FC<ConnectorCardProps> = props => {
           </div>
 
           {/* Right: actions. Template → single CTA. Instance → icon button cluster */}
-          <div className='flex items-center gap-1 flex-shrink-0'>
+          {!props.readOnly && <div className='flex items-center gap-1 flex-shrink-0'>
             {isTemplate ? (
               <Button
                 type='primary'
@@ -408,10 +408,10 @@ const ConnectorCard: React.FC<ConnectorCardProps> = props => {
                 </span>
               </>
             )}
-          </div>
+          </div>}
         </div>
       </div>
-      {!isTemplate && (
+      {!isTemplate && !props.readOnly && (
         <ConnectorToolsModal
           open={toolsModalOpen}
           instance={props.connector}

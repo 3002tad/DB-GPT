@@ -564,7 +564,7 @@ export default function SearchToolsPanel(props: IProps) {
         )}
         {cfg.showLimit && (
           <div className='flex flex-col'>
-            <span className='text-xs text-gray-500 dark:text-gray-400 mb-1'>Limit</span>
+            <span className='text-xs text-gray-500 dark:text-gray-400 mb-1'>{tt('ui_result_limit')}</span>
             <InputNumber className='w-[100px]' min={1} max={500} value={limit} onChange={v => setLimit(v || 20)} />
           </div>
         )}

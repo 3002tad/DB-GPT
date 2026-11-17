@@ -58,7 +58,7 @@ export default function Segmentation(props: IProps) {
           if (status === 'FINISHED') {
             clearInterval(intervalId);
             setSyncStatus('FINISHED');
-            message.success('Congratulation, All files sync successfully.');
+            message.success(t('ui_documents_synced'));
             handleStepChange({
               label: 'finish',
             });

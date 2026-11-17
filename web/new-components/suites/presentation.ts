@@ -17,6 +17,8 @@ const builtins: Record<string, { title: string; description: string; category: S
     category: 'metadata',
   },
   'sql-optimization-expert': { title: 'plugins_name_sql', description: 'plugins_desc_sql', category: 'ops' },
+  'legal-expert-suite': { title: 'plugins_name_legal', description: 'plugins_desc_legal', category: 'other' },
+  'mysql-ops-expert': { title: 'plugins_name_mysql', description: 'plugins_desc_mysql', category: 'ops' },
 };
 
 export function getBuiltinPresentation(suite: SuiteItem) {

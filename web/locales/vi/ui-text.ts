@@ -1,5 +1,12 @@
+import { moduleUiVi } from './module-ui';
+import { dashboardControlsVi } from './dashboard-controls';
+import { dashboardHelpVi } from './dashboard-help';
+
 /** Translations for built-in dashboard copy not yet migrated to i18next keys. */
 export const viUiText: Record<string, string> = {
+  ...moduleUiVi,
+  ...dashboardControlsVi,
+  ...dashboardHelpVi,
   'AI voice interaction · Synthetic demo data': 'Tương tác giọng nói AI · Dữ liệu mẫu tổng hợp',
   'Running...': 'Đang thực thi...',
   'Please wait. Results will appear shortly.': 'Vui lòng đợi, kết quả sẽ sớm hiển thị.',
@@ -822,6 +829,10 @@ export const viUiText: Record<string, string> = {
 
 // Only match complete built-in phrases; captured user labels are preserved verbatim.
 const dynamicPhrases: Array<[RegExp, string]> = [
+  [/^(\d+) connections for your business data\.$/, '$1 kết nối dữ liệu nghiệp vụ.'],
+  [/^(\d+) types available$/, '$1 loại khả dụng'],
+  [/^(\d+) connections$/, '$1 kết nối'],
+  [/^Advanced settings · (\d+)$/, 'Thiết lập nâng cao · $1'],
   [/^This draft was saved locally at (.+)\. After restoring it, select Save to write it to the server\.$/, 'Bản nháp được lưu cục bộ lúc $1. Sau khi khôi phục, chọn Lưu để ghi lên máy chủ.'],
   [/^Color (\d+): (.+)$/, 'Màu $1: $2'],
   [/^Edit color (\d+)$/, 'Chỉnh sửa màu $1'],

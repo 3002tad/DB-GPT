@@ -12,6 +12,20 @@ _DASH = rf"/api/v1/dashboards/{_ID}"
 _KB = rf"/api/v2/serve/knowledge/{_SPACE}"
 
 SHARED_MODULE_ROUTES = {
+    "taskflow_editor": {
+        "GET": [
+            r"/api/v2/serve/awel/taskflow/(?:node-kinds|agent-options)",
+            rf"/api/v2/serve/awel/flow/templates/{_ID}",
+            rf"/api/v2/serve/awel/taskflow/generation-sessions/{_ID}",
+        ],
+        "PUT": [rf"/api/v2/serve/awel/taskflow/generation-sessions/{_ID}/draft"],
+        "POST": [
+            r"/api/v2/serve/awel/taskflow/generation-sessions",
+            rf"/api/v2/serve/awel/taskflow/generation-sessions/{_ID}/(?:messages|undo|debug|save)",
+            rf"/api/v2/serve/awel/taskflow/generation-sessions/{_ID}/requests/{_ID}/cancel",
+            rf"/api/v2/serve/awel/taskflow/generation-sessions/{_ID}/candidates/{_ID}/(?:apply|discard)",
+        ],
+    },
     "awel_chat": {"GET": [r"/api/v2/serve/awel/chat/flows"]},
     "agent": {
         "POST": [r"/api/v1/chat/(?:completions|prepare)",

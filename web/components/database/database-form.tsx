@@ -30,7 +30,7 @@ function DatabaseForm({
   description = '',
 }: DatabaseFormProps) {
   const { i18n } = useTranslation();
-  const { zh, copy } = useDatabaseCopy(i18n.language);
+  const { copy } = useDatabaseCopy(i18n.language);
   const [form] = Form.useForm();
   const [selectedType, setSelectedType] = useState(choiceDBType);
   const [busy, setBusy] = useState<'test' | 'save'>();
@@ -164,7 +164,7 @@ function DatabaseForm({
   const renderFields = (fields: ConfigurableParams[]) => (
     <div className={styles.fields}>
       {fields.map(param => {
-        const label = parameterLabel(param, zh);
+        const label = parameterLabel(param, i18n.language);
         const type = param.param_type?.toLowerCase();
         const fixed = param.ext_metadata?.tags?.includes('fixed');
         const secret =

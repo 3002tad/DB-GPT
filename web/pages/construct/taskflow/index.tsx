@@ -6,6 +6,7 @@ import ConstructLayout from '@/new-components/layout/Construct';
 import type { IFlow } from '@/types/flow';
 import type { ITaskflowNodeKind, ITaskflowRef } from '@/types/taskflow';
 import { flowToRef, resolveFlowUid, templateToRef } from '@/utils/taskflow';
+import { taskflowTemplateText } from '@/utils/taskflow-presentation';
 import {
   ApartmentOutlined,
   DeleteOutlined,
@@ -40,7 +41,8 @@ function TaskflowCard({
   onDelete?: (item: ITaskflowRef) => void;
   onCopy?: (item: ITaskflowRef) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const presentation = taskflowTemplateText(item, i18n.language);
   return (
     <div className='group bg-white dark:bg-[#1b1c1f] border border-gray-100 dark:border-white/10 rounded-2xl p-4 flex flex-col gap-3 hover:shadow-md hover:border-gray-200 dark:hover:border-white/20 transition-all'>
       <div className='flex items-start gap-3'>
@@ -49,7 +51,7 @@ function TaskflowCard({
         </div>
         <div className='min-w-0 flex-1'>
           <div className='flex items-center gap-2'>
-            <span className='font-semibold text-[15px] text-gray-900 dark:text-gray-100 truncate'>{item.label}</span>
+            <span className='font-semibold text-[15px] text-gray-900 dark:text-gray-100 truncate'>{presentation.label}</span>
             {item.isTemplate ? (
               <Tag color='blue' className='!text-[10px] !leading-4 !px-1.5'>
                 {t('taskflow_builtin')}
@@ -64,7 +66,7 @@ function TaskflowCard({
               </Tag>
             )}
           </div>
-          <p className='text-xs text-gray-400 mt-0.5 line-clamp-2 min-h-[2rem]'>{item.description}</p>
+          <p className='text-xs text-gray-400 mt-0.5 line-clamp-2 min-h-[2rem]'>{presentation.description}</p>
         </div>
         {(onDelete || onCopy) && (
           <Dropdown

@@ -513,7 +513,7 @@ export default function KnowledgeDetailPage() {
       );
     }
 
-    return <div className='flex items-center justify-center h-full text-gray-400'>Knowledge space not found</div>;
+    return <div className='flex items-center justify-center h-full text-gray-400'>{t('ui_knowledge_not_found')}</div>;
   };
 
   /** Render the Chat tab content */

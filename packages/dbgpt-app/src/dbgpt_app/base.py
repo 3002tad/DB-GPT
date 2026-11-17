@@ -162,6 +162,13 @@ def _migration_db_storage(
                  """
             logger.warning(warn_msg)
 
+    # MySQL does not run the generic automatic DDL migration. New module
+    # tables still need an additive bootstrap on existing deployments.
+    from dbgpt.storage.metadata.db_manager import db
+    from dbgpt_serve.semantic.schema import ensure_semantic_schema
+
+    ensure_semantic_schema(db)
+
 
 def _initialize_db(
     db_url: str,

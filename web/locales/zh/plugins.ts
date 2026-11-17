@@ -1,4 +1,8 @@
 export const PluginsZh = {
+  plugins_name_legal: '法律助手',
+  plugins_desc_legal: '检索法律依据、审查合同并提供供专业人员复核的证据。',
+  plugins_name_mysql: 'MySQL 运维',
+  plugins_desc_mysql: '诊断 SQL、检查实例并复核备份与运维变更。',
   plugins_title: '为你的数据工作，找到好帮手',
   plugins_subtitle: '选择专家插件，让取数、分析和数据库工作更顺手。',
   plugins_search: '搜索插件、能力或业务场景',

@@ -1,5 +1,6 @@
 import { ConfigurableParams } from '@/types/common';
 import { DBType, DbListResponse } from '@/types/db';
+import { uiText } from '@/hooks/use-ui-text';
 
 export type Connection = DbListResponse[0];
 
@@ -88,12 +89,14 @@ const labels: Record<string, [string, string]> = {
   check_same_thread: ['启用同线程检查', 'Check same thread'],
 };
 
-export function parameterLabel(param: ConfigurableParams, zh: boolean) {
-  return labels[param.param_name]?.[zh ? 0 : 1] || param.label || param.param_name;
+export function parameterLabel(param: ConfigurableParams, language: boolean | string) {
+  const locale = typeof language === 'boolean' ? (language ? 'zh' : 'en') : language;
+  const pair = labels[param.param_name];
+  return pair ? uiText(locale, pair[0], pair[1]) : param.label || param.param_name;
 }
 
 export function useDatabaseCopy(language: string) {
   const zh = language.startsWith('zh');
-  const copy = (cn: string, en: string) => (zh ? cn : en);
+  const copy = (cn: string, en: string) => uiText(language, cn, en);
   return { zh, copy };
 }

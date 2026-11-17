@@ -16,7 +16,8 @@ import {
 import ConstructLayout from '@/new-components/layout/Construct';
 import { ApiOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Button, Input, message, Segmented, Spin } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { STORAGE_USERINFO_KEY } from '@/utils/constants/index';
 import { useTranslation } from 'react-i18next';
 
 /* ─────────────────────────────────────────────────────────────────
@@ -44,6 +45,27 @@ const STATUS_ATTENTION_SET = new Set<ConnectorStatus>(['error', 'needs_reactivat
 
 function Connectors() {
   const { t } = useTranslation();
+  const [canManage, setCanManage] = useState(false);
+  useEffect(() => {
+    let disposed = false;
+    let role = '';
+    try { role = JSON.parse(localStorage.getItem(STORAGE_USERINFO_KEY) || '{}').role || ''; } catch { /* no identity */ }
+    if (role) {
+      setCanManage(role === 'super_admin');
+      return;
+    }
+    // A bundle built without the public identity flag may contain the native
+    // mock user. Discover the runtime identity before showing credential UI.
+    void fetch('/api/auth/funnelmetry/me', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async response => {
+        const allowed = response.status === 404
+          ? process.env.NEXT_PUBLIC_FUNNELMETRY_IDENTITY !== '1'
+          : response.ok && (await response.json())?.actor?.role === 'super_admin';
+        if (!disposed) setCanManage(allowed);
+      })
+      .catch(() => { if (!disposed) setCanManage(false); });
+    return () => { disposed = true; };
+  }, []);
   const { connectors, loading, refresh } = useConnectors();
   const { types: catalog, loading: catalogLoading } = useConnectorTypes();
   const { create, loading: creating } = useCreateConnector();
@@ -237,14 +259,14 @@ function Connectors() {
                   Uses ApiOutlined to mirror the sidebar nav entry and the
                   hero header so the "连接器管理" → "自定义 MCP" visual link
                   is consistent across all three touchpoints. */}
-              <Button
+              {canManage && <Button
                 className='border-none text-white bg-button-gradient h-9 px-4 shadow-[0_4px_14px_-4px_rgba(124,58,237,0.45)] hover:shadow-[0_6px_18px_-4px_rgba(124,58,237,0.6)] transition-shadow'
                 icon={<ApiOutlined />}
                 onClick={handleAddConnector}
                 loading={creating || updating}
               >
                 {t('connector.page.addBtn')}
-              </Button>
+              </Button>}
             </div>
           </div>
 
@@ -287,7 +309,7 @@ function Connectors() {
           {/* ───────────── GRID / EMPTY STATE ───────────── */}
           <Spin spinning={loading || catalogLoading || deleting}>
             {!hasAnything && !loading && !catalogLoading ? (
-              <EmptyState onAddCustom={handleAddConnector} />
+              <EmptyState onAddCustom={canManage ? handleAddConnector : undefined} />
             ) : showEmptyFilter ? (
               <FilterEmpty
                 onReset={() => {
@@ -302,6 +324,7 @@ function Connectors() {
                     <ConnectorCard
                       key={`tpl-${item.template.type}`}
                       kind='template'
+                      readOnly={!canManage}
                       template={item.template}
                       instanceCount={item.instanceCount}
                       onActivate={handleActivateTemplate}
@@ -310,6 +333,7 @@ function Connectors() {
                     <ConnectorCard
                       key={`inst-${item.instance.id}`}
                       kind='instance'
+                      readOnly={!canManage}
                       connector={item.instance}
                       catalogEntry={item.catalogEntry}
                       onEdit={handleEdit}
@@ -323,7 +347,7 @@ function Connectors() {
           </Spin>
         </div>
 
-        <ConnectorForm
+        {canManage && <ConnectorForm
           open={formOpen}
           onClose={handleClose}
           onSubmit={handleSubmit}
@@ -332,7 +356,7 @@ function Connectors() {
           initialValues={editingConnector}
           prefilledType={prefilledType}
           submitting={creating || updating}
-        />
+        />}
       </div>
     </ConstructLayout>
   );
@@ -342,7 +366,7 @@ function Connectors() {
    EmptyState — when there's nothing at all (catalog & instances empty)
    ────────────────────────────────────────────────────────────────── */
 
-function EmptyState({ onAddCustom }: { onAddCustom: () => void }) {
+function EmptyState({ onAddCustom }: { onAddCustom?: () => void }) {
   const { t } = useTranslation();
   return (
     <div className='flex flex-col items-center justify-center text-center py-24'>
@@ -351,9 +375,9 @@ function EmptyState({ onAddCustom }: { onAddCustom: () => void }) {
       </div>
       <h3 className='text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1'>{t('connector.page.emptyTitle')}</h3>
       <p className='text-sm text-gray-500 dark:text-gray-400 max-w-md mb-5'>{t('connector.page.emptyDesc')}</p>
-      <Button type='primary' icon={<PlusOutlined />} className='border-none bg-button-gradient' onClick={onAddCustom}>
+      {onAddCustom && <Button type='primary' icon={<PlusOutlined />} className='border-none bg-button-gradient' onClick={onAddCustom}>
         {t('connector.page.addBtn')}
-      </Button>
+      </Button>}
     </div>
   );
 }

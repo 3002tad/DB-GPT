@@ -2,11 +2,12 @@
 
 import copy
 import json
+import os
 import re
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.responses import StreamingResponse
 
 from dbgpt._private.pydantic import Field
@@ -38,7 +39,12 @@ def get_generation_service() -> GenerationService:
     return _service
 
 
-def get_owner(token: Optional[str] = Depends(check_api_key)) -> str:
+def get_owner(request: Request, token: Optional[str] = Depends(check_api_key)) -> str:
+    if os.getenv("DBGPT_PIPELINE_IDENTITY_URL"):
+        actor = getattr(request.state, "pipeline_actor", None)
+        if not actor or not actor.id:
+            raise HTTPException(401, "Pipeline session required")
+        return fingerprint(f"pipeline:{actor.id}")
     # Never store API keys or treat a client-supplied user header as identity.
     # Without configured API keys the existing application is single-instance.
     return fingerprint(token or "local-instance")

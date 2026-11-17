@@ -460,7 +460,7 @@ export default function ArtifactRail({
         </span>
         {!previewArtifact && list.length > 0 && (
           <span className='text-xs text-[#8b8b84] flex-none'>
-            {t('rail_artifacts_count', { count: list.length })} · {groups.length} 组
+            {t('rail_artifacts_count', { count: list.length })} · {t('rail_groups_count', { count: groups.length })}
           </span>
         )}
         <span className='flex-1' />

@@ -17,11 +17,12 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from dbgpt_serve.core import Result
 from dbgpt_serve.semantic.service import SemanticService
+from dbgpt_serve.semantic.errors import SemanticRoute
 from dbgpt_serve.semantic.sync import SemanticSyncService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(route_class=SemanticRoute)
 
 _service: Optional[SemanticService] = None
 

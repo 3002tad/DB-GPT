@@ -544,6 +544,8 @@ export const ChatZh: Resources['translation'] = {
   timeline_thinking_dots: '思考中…',
   timeline_thinking_running: '思考中',
   timeline_thinking: '思考',
+  timeline_status_failed: '失败',
+  rail_groups_count: '{{count}} 组',
   timeline_read_skill: '读取技能',
   timeline_read_skill_resource: '读取技能参考',
   timeline_phase_running: '正在执行 {{count}} 个步骤',

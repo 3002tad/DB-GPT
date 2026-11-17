@@ -5,6 +5,7 @@ import {
   ConsoleSqlOutlined,
   ForkOutlined,
   PartitionOutlined,
+  DeploymentUnitOutlined,
   SettingOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
@@ -33,10 +34,10 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
       // ),
     },
     {
-      key: 'flow',
+      key: 'taskflow',
       name: t('awel_flow'),
       icon: <ForkOutlined />,
-      path: '/flow',
+      path: '/taskflow',
     },
     {
       key: 'models-config',
@@ -56,12 +57,18 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
       icon: <PartitionOutlined />,
       path: '/knowledge',
     },
-    // {
-    //   key: 'agent',
-    //   name: t('Plugins'),
-    //   path: '/agent',
-    //   icon: <BuildOutlined />,
-    // },
+    {
+      key: 'suites',
+      name: t('suites'),
+      path: '/suites',
+      icon: <AppstoreOutlined />,
+    },
+    {
+      key: 'semantic',
+      name: t('semantic_center.title'),
+      icon: <DeploymentUnitOutlined />,
+      path: '/semantic',
+    },
     {
       key: 'skills',
       name: t('skills') || '技能',

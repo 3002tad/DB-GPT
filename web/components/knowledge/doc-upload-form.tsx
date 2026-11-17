@@ -80,9 +80,9 @@ export default function DocUploadForm(props: IProps) {
     }
     setSpinning(false);
     if (docType === 'DOCUMENT' && files.length < 1) {
-      return message.error('Upload failed, please re-upload.');
+      return message.error(t('ui_upload_retry'));
     } else if (docType !== 'DOCUMENT' && !docId) {
-      return message.error('Upload failed, please re-upload.');
+      return message.error(t('ui_upload_retry'));
     }
 
     let fileList = files;

@@ -166,8 +166,10 @@ def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
         return True
     if actor.role == "analyst" and method == "GET" and path in {
         "/api/v2/serve/connectors", "/api/v2/serve/connectors/",
+        "/api/v2/serve/connectors/types",
     }:
-        # The endpoint returns an active-only, credential-free picker view.
+        # List returns active identities only; types is static catalog/schema,
+        # never saved credentials. Connector management remains Admin-only.
         return True
     if actor.role == "super_admin" and (
         (method in ("GET", "POST") and path in {

@@ -252,7 +252,7 @@ function Database() {
       <div className={styles.page}>
         <header className={styles.header}>
           <div>
-            <div className={styles.eyebrow}>DATA SOURCES</div>
+            <div className={styles.eyebrow}>{copy('数据源', 'Data sources')}</div>
             <h1>{copy('数据源', 'Data sources')}</h1>
             <p className={styles.subtitle}>
               {copy('让业务数据就绪，从一个可靠的连接开始。', 'Every insight starts with a reliable data connection.')}

@@ -1,7 +1,6 @@
 import { ChatContext } from '@/app/chat-context';
 import {
   apiInterceptors,
-  delApp,
   getAppAdmins,
   getAppList,
   newDialogue,
@@ -12,7 +11,7 @@ import {
 import BlurredCard, { ChatButton, InnerDropdown } from '@/new-components/common/blurredCard';
 import ConstructLayout from '@/new-components/layout/Construct';
 import { IApp } from '@/types/app';
-import { BulbOutlined, DingdingOutlined, PlusOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
+import { BulbOutlined, DingdingOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useDebounceFn, useRequest } from 'ahooks';
 import { App, Button, Input, Modal, Pagination, Popover, Segmented, SegmentedProps, Select, Spin, Tag } from 'antd';
 import copy from 'copy-to-clipboard';
@@ -21,6 +20,7 @@ import { useRouter } from 'next/router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CreateAppModal from './components/create-app-modal';
+import { useDeleteApplication } from '@/hooks/use-delete-application';
 
 type TabKey = 'all' | 'published' | 'unpublished';
 type ModalType = 'edit' | 'add';
@@ -90,7 +90,7 @@ export default function AppContent() {
       manual: true,
       onSuccess: data => {
         if (data[2]?.success) {
-          message.success('操作成功');
+          message.success(t('success'));
         }
         getListFiltered();
       },
@@ -124,20 +124,7 @@ export default function AppContent() {
     },
   ).run;
 
-  const showDeleteConfirm = (app: IApp) => {
-    Modal.confirm({
-      title: t('Tips'),
-      icon: <WarningOutlined />,
-      content: `do you want delete the application?`,
-      okText: 'Yes',
-      okType: 'danger',
-      cancelText: 'No',
-      async onOk() {
-        await apiInterceptors(delApp({ app_code: app.app_code }));
-        getListFiltered();
-      },
-    });
-  };
+  const showDeleteConfirm = useDeleteApplication(getListFiltered);
 
   useEffect(() => {
     if (openModal) {
@@ -149,6 +136,7 @@ export default function AppContent() {
   const languageMap = {
     en: t('English'),
     zh: t('Chinese'),
+    vi: t('Vietnamese'),
   };
   const handleChat = async (app: IApp) => {
     // 原生应用跳转
@@ -375,17 +363,12 @@ export default function AppContent() {
                             },
                             {
                               key: 'del',
-                              label: (
-                                <span
-                                  className='text-red-400'
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    showDeleteConfirm(item);
-                                  }}
-                                >
-                                  {t('Delete')}
-                                </span>
-                              ),
+                              danger: true,
+                              label: t('Delete'),
+                              onClick: ({ domEvent }) => {
+                                domEvent.stopPropagation();
+                                showDeleteConfirm(item);
+                              },
                             },
                           ],
                         }}
@@ -444,10 +427,10 @@ export default function AppContent() {
           )}
         </div>
       </Spin>
-      <Modal title='权限管理' open={adminOpen} onCancel={() => setAdminOpen(false)} footer={null}>
+      <Modal title={t('permission_management')} open={adminOpen} onCancel={() => setAdminOpen(false)} footer={null}>
         <Spin spinning={loading}>
           <div className='py-4'>
-            <div className='mb-1'>管理员（工号，去前缀0）：</div>
+            <div className='mb-1'>{t('app_admin_identifiers')}</div>
             <Select
               mode='tags'
               value={admins}

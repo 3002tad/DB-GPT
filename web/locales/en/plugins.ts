@@ -1,4 +1,8 @@
 export const PluginsEn = {
+  plugins_name_legal: 'Legal assistant',
+  plugins_desc_legal: 'Research legal sources and review contracts with evidence for professional review.',
+  plugins_name_mysql: 'MySQL operations',
+  plugins_desc_mysql: 'Diagnose SQL, inspect instances and review backup and operational changes.',
   plugins_title: 'Find the right expert for your data work',
   plugins_subtitle: 'Expert plugins for queries, analysis, and database work.',
   plugins_search: 'Search plugins, capabilities, or scenarios',

@@ -1,3 +1,4 @@
+import { useUiText } from '@/hooks/use-ui-text';
 import type { ITaskflowNodeKind, TaskflowGroup } from '@/types/taskflow';
 import { groupColor } from '@/utils/taskflow';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
@@ -15,8 +16,8 @@ const NodePalette: React.FC<{
   manifest: ITaskflowNodeKind[] | null;
   onAdd: (kind: ITaskflowNodeKind) => void;
 }> = ({ manifest, onAdd }) => {
-  const { t, i18n } = useTranslation();
-  const isZh = i18n.language?.startsWith('zh');
+  const { t } = useTranslation();
+  const tr = useUiText();
   const [keyword, setKeyword] = useState('');
 
   const groups = useMemo(() => {
@@ -24,7 +25,7 @@ const NodePalette: React.FC<{
     const kw = keyword.trim().toLowerCase();
     const filtered = kw
       ? items.filter(item =>
-          [item.label, item.label_en, item.desc, item.desc_en]
+          [item.label, item.label_en, item.desc, item.desc_en, tr(item.label, item.label_en), tr(item.desc, item.desc_en)]
             .filter(Boolean)
             .some(text => text.toLowerCase().includes(kw)),
         )
@@ -33,7 +34,7 @@ const NodePalette: React.FC<{
       group,
       items: filtered.filter(item => item.group === group),
     })).filter(entry => entry.items.length > 0);
-  }, [manifest, keyword]);
+  }, [manifest, keyword, tr]);
 
   return (
     <aside className='w-[250px] flex-none border-r border-gray-100 dark:border-white/10 bg-white dark:bg-[#16171a] flex flex-col min-h-0'>
@@ -55,7 +56,7 @@ const NodePalette: React.FC<{
             <div key={group} className='mt-3'>
               <div className='flex items-center gap-1.5 px-1.5 pb-1.5 text-[11px] font-semibold text-gray-400'>
                 <span style={{ color }}>●</span>
-                {isZh ? items[0]?.group_label : items[0]?.group_label_en}
+                {tr(items[0]?.group_label || '', items[0]?.group_label_en || '')}
                 <span className='ml-auto font-normal'>{items.length}</span>
               </div>
               {items.map(item => (
@@ -72,10 +73,10 @@ const NodePalette: React.FC<{
                   </span>
                   <span className='flex-1 min-w-0'>
                     <span className='block text-[12.5px] font-semibold text-gray-800 dark:text-gray-100 leading-tight'>
-                      {isZh ? item.label : item.label_en}
+                      {tr(item.label || '', item.label_en || '')}
                     </span>
                     <span className='block text-[10.5px] text-gray-400 truncate'>
-                      {isZh ? item.desc : item.desc_en}
+                      {tr(item.desc || '', item.desc_en || '')}
                     </span>
                   </span>
                   <PlusOutlined className='text-blue-500 text-[10px] flex-none' />

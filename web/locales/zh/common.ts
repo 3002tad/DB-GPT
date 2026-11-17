@@ -7,6 +7,20 @@ interface Resources {
 }
 
 export const CommonZh: Resources['translation'] = {
+  ui_knowledge_general: '通用',
+  ui_knowledge_financial: '财务报告',
+  ui_request_error: '请求错误',
+  ui_network_error: '网络错误',
+  ui_api_unavailable: '服务不可用，请稍后重试。',
+  ui_upload_retry: '上传失败，请重新上传。',
+  ui_documents_synced: '所有文档已同步成功。',
+  ui_git_repo: 'Git 仓库',
+  ui_automatic: '自动',
+  ui_result_limit: '结果上限',
+  ui_knowledge_not_found: '知识空间不存在',
+  Vietnamese: '越南语',
+  permission_management: '权限管理',
+  app_admin_identifiers: '管理员标识',
   ui_enter_password: '请输入密码',
   ui_related_questions: '关联问题:',
   ui_enter_question: '请输入问题',

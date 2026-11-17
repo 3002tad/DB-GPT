@@ -1,3 +1,5 @@
+import { useUiText } from '@/hooks/use-ui-text';
+import { taskflowPlaceholder } from '@/utils/taskflow-presentation';
 import { ChatContext } from '@/app/chat-context';
 import { apiInterceptors, uploadFile } from '@/client/api';
 import { getTaskflowAgentOptions } from '@/client/api/flow';
@@ -31,7 +33,7 @@ const PropertyPanel: React.FC<{
   onChange: (id: string, patch: { label?: string; config: Record<string, any> }) => void;
 }> = ({ node, spec, onChange }) => {
   const { t, i18n } = useTranslation();
-  const isZh = i18n.language?.startsWith('zh');
+  const tr = useUiText();
   const { modelList, refreshModelList } = useContext(ChatContext);
   const [uploading, setUploading] = useState(false);
 
@@ -92,7 +94,7 @@ const PropertyPanel: React.FC<{
     switch (field.name) {
       case 'tools':
         return (agentOptions?.tools ?? []).map(t => ({
-          label: isZh ? t.label : t.label_en,
+          label: tr(t.label || '', t.label_en || ''),
           value: t.id,
         }));
       case 'skills':
@@ -114,8 +116,8 @@ const PropertyPanel: React.FC<{
     if (field.name === 'tools') {
       return (agentOptions?.tools ?? []).map(t => ({
         value: t.id,
-        label: (isZh ? t.label : t.label_en) as string,
-        desc: (isZh ? t.desc : t.desc_en) as string | undefined,
+        label: (tr(t.label || '', t.label_en || '')) as string,
+        desc: (tr(t.desc || '', t.desc_en || '')) as string | undefined,
       }));
     }
     return multiselectOptions(field).map(o => ({
@@ -147,15 +149,15 @@ const PropertyPanel: React.FC<{
 
   const renderField = (field: ITaskflowConfigField) => {
     const value = node.config?.[field.name] ?? field.default ?? undefined;
-    const label = isZh ? field.label : field.label_en;
-    const desc = isZh ? field.desc : field.desc_en;
+    const label = tr(field.label || '', field.label_en || '');
+    const desc = tr(field.desc || '', field.desc_en || '');
     const control = (() => {
       switch (field.type) {
         case 'textarea':
           return (
             <Input.TextArea
               value={value}
-              placeholder={field.placeholder ?? undefined}
+              placeholder={taskflowPlaceholder(field.placeholder, i18n.language)}
               autoSize={{ minRows: 3, maxRows: 8 }}
               onChange={e => setConfig(field.name, e.target.value)}
             />
@@ -186,7 +188,7 @@ const PropertyPanel: React.FC<{
               className='w-full'
               showSearch
               allowClear={!field.required}
-              placeholder={field.placeholder ?? undefined}
+              placeholder={taskflowPlaceholder(field.placeholder, i18n.language)}
               value={value}
               options={dbOptions}
               onChange={val => setConfig(field.name, val)}
@@ -214,8 +216,8 @@ const PropertyPanel: React.FC<{
         case 'agent_profile': {
           const options = (agentOptions?.profiles ?? []).map(p => ({
             value: p.id,
-            label: (isZh ? p.label : p.label_en) as string,
-            desc: (isZh ? p.desc : p.desc_en) as string | undefined,
+            label: (tr(p.label || '', p.label_en || '')) as string,
+            desc: (tr(p.desc || '', p.desc_en || '')) as string | undefined,
           }));
           return (
             <Select
@@ -285,7 +287,7 @@ const PropertyPanel: React.FC<{
               showSearch
               allowClear
               maxTagCount={3}
-              placeholder={field.placeholder ?? (t('taskflow_multiselect_placeholder') as string)}
+              placeholder={taskflowPlaceholder(field.placeholder, i18n.language) ?? (t('taskflow_multiselect_placeholder') as string)}
               value={Array.isArray(value) ? value : []}
               options={multiselectOptions(field)}
               onChange={val => setConfig(field.name, val)}
@@ -335,7 +337,7 @@ const PropertyPanel: React.FC<{
               {!hasUploaded && (
                 <Input
                   value={value}
-                  placeholder={field.placeholder ?? undefined}
+                  placeholder={taskflowPlaceholder(field.placeholder, i18n.language)}
                   onChange={e =>
                     onChange(node.id, {
                       config: { ...node.config, file_id: undefined, file_name: e.target.value },
@@ -351,7 +353,7 @@ const PropertyPanel: React.FC<{
           return (
             <Input
               value={value}
-              placeholder={field.placeholder ?? undefined}
+              placeholder={taskflowPlaceholder(field.placeholder, i18n.language)}
               onChange={e => setConfig(field.name, e.target.value)}
               status={field.required && !value ? 'error' : undefined}
             />
@@ -381,10 +383,10 @@ const PropertyPanel: React.FC<{
             {spec.icon}
           </span>
           <span className='text-[13.5px] font-bold text-gray-800 dark:text-gray-100'>
-            {isZh ? spec.label : spec.label_en}
+            {tr(spec.label || '', spec.label_en || '')}
           </span>
         </div>
-        <div className='text-[11px] text-gray-400 mt-1'>{isZh ? spec.desc : spec.desc_en}</div>
+        <div className='text-[11px] text-gray-400 mt-1'>{tr(spec.desc || '', spec.desc_en || '')}</div>
       </div>
 
       <div className='px-4 py-3 border-b border-gray-50 dark:border-white/5'>
@@ -395,7 +397,7 @@ const PropertyPanel: React.FC<{
           </div>
           <Input
             value={node.label ?? ''}
-            placeholder={isZh ? spec.label : spec.label_en}
+            placeholder={tr(spec.label || '', spec.label_en || '')}
             onChange={e => onChange(node.id, { label: e.target.value, config: node.config })}
           />
         </div>
@@ -411,11 +413,11 @@ const PropertyPanel: React.FC<{
         <div className='text-[11px] font-semibold text-gray-400 mb-2'>{t('taskflow_io')}</div>
         <div className='border border-dashed border-gray-200 dark:border-white/15 rounded-md px-2.5 py-1.5 text-[11.5px] text-gray-500 dark:text-gray-300 mb-1.5'>
           <span className='font-semibold text-gray-700 dark:text-gray-200 mr-1.5'>{t('taskflow_inputs')}</span>
-          {isZh ? spec.inputs_desc || '—' : spec.inputs_desc_en || '—'}
+          {tr(spec.inputs_desc || '—', spec.inputs_desc_en || '—')}
         </div>
         <div className='border border-dashed border-gray-200 dark:border-white/15 rounded-md px-2.5 py-1.5 text-[11.5px] text-gray-500 dark:text-gray-300'>
           <span className='font-semibold text-gray-700 dark:text-gray-200 mr-1.5'>{t('taskflow_outputs')}</span>
-          {isZh ? spec.outputs_desc || '—' : spec.outputs_desc_en || '—'}
+          {tr(spec.outputs_desc || '—', spec.outputs_desc_en || '—')}
         </div>
       </div>
     </aside>

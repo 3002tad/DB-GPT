@@ -1,4 +1,6 @@
 import type { SuiteItem, SuiteRecommendedQuestion } from '@/types/suite';
+import { suitePresentationVi, suiteCommandVi, suiteSkillVi } from '@/locales/vi/suite-presentation';
+import { officialSkillDescription } from '@/new-components/skills/official-skill-descriptions';
 
 const HOME_SUITE_ORDER: Record<string, number> = {
   'db-query': 0,
@@ -84,32 +86,42 @@ export function scoreSuites(
 /** Locale-aware display name: EN prefers manifest display_en, else display/slug. */
 export function suiteDisplayName(suite: SuiteItem, lang?: string): string {
   const snap = suite.manifest_snapshot;
-  const isEn = (lang || '').toLowerCase().startsWith('en');
+  if (lang?.startsWith('vi') && suite.source === 'official' && suitePresentationVi[suite.name]) {
+    return suitePresentationVi[suite.name][0];
+  }
+  const isEn = !(lang || 'zh').toLowerCase().startsWith('zh');
   if (isEn && snap?.display_en) return snap.display_en;
   return suite.display || snap?.display || suite.name;
 }
 
 /** Translate presentation fields without changing command IDs or database scope. */
 export function localizeSuite(suite: SuiteItem, lang?: string): SuiteItem {
-  const isEn = (lang || '').toLowerCase().startsWith('en');
+  const locale = (lang || 'zh').toLowerCase();
+  const isEn = !locale.startsWith('zh');
+  const isVi = locale.startsWith('vi');
+  const builtinVi = isVi && suite.source === 'official' ? suitePresentationVi[suite.name] : undefined;
   const snap = suite.manifest_snapshot;
   const skills = suite.skill_details ?? snap?.skill_details;
   return {
     ...suite,
     display: suiteDisplayName(suite, lang),
-    readme: suite.readme_locales?.[isEn ? 'en' : 'zh'] || suite.readme,
+    readme: suite.readme_locales?.[isVi ? 'vi' : isEn ? 'en' : 'zh'] ||
+      (isEn ? suite.readme_locales?.en : undefined) || suite.readme,
     skill_details: skills?.map(skill => ({
       ...skill,
-      display: (isEn && skill.display_en) || skill.display || skill.name,
-      description: (isEn && skill.description_en) || skill.description,
+      display: (builtinVi && suiteSkillVi[skill.name]?.[0]) || (isEn && skill.display_en) || skill.display || skill.name,
+      description: builtinVi
+        ? suiteSkillVi[skill.name]?.[1] || officialSkillDescription(skill.name, 'vi', skill.description_en || skill.description || '')
+        : (isEn && skill.description_en) || skill.description,
     })),
     manifest_snapshot: snap && {
       ...snap,
-      description: (isEn && snap.description_en) || snap.description,
+      description: builtinVi?.[1] || (isEn && snap.description_en) || snap.description,
       commands: snap.commands?.map(command => ({
         ...command,
         display: (isEn && command.display_en) || command.name,
-        description: (isEn && command.description_en) || command.description || command.summary,
+        description: (builtinVi && (suiteCommandVi[command.name] || (command.skill && suiteSkillVi[command.skill]?.[1]))) ||
+          (isEn && command.description_en) || command.description || command.summary,
         prefill: (isEn && command.prefill_en) || command.prefill,
       })),
       recommended_questions: snap.recommended_questions?.map(question => ({

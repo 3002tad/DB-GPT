@@ -241,9 +241,9 @@ function SideBar() {
       {
         key: 'awel',
         name: t('awel_workflow'),
-        isActive: pathname.startsWith('/construct/flow'),
+        isActive: pathname.startsWith('/construct/taskflow') || pathname.startsWith('/construct/flow') || pathname.startsWith('/taskflow/editor'),
         IconComponent: props => <ForkOutlined {...props} />,
-        path: '/construct/flow',
+        path: '/construct/taskflow',
       },
       {
         key: 'dashboards',
@@ -303,9 +303,9 @@ function SideBar() {
       {
         key: 'workflow',
         name: t('sidebar_workflow'),
-        isActive: pathname.startsWith('/construct/flow'),
+        isActive: pathname.startsWith('/construct/taskflow') || pathname.startsWith('/construct/flow') || pathname.startsWith('/taskflow/editor'),
         IconComponent: ApartmentOutlined,
-        path: '/construct/flow',
+        path: '/construct/taskflow',
       },
       {
         key: 'scheduled-tasks',

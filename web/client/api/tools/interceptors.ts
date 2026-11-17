@@ -1,5 +1,6 @@
 import { notification } from 'antd';
 import { AxiosError } from 'axios';
+import i18next from 'i18next';
 import { ApiResponse, FailedTuple, ResponseType, SuccessTuple } from '../';
 
 /**
@@ -17,15 +18,15 @@ export const apiInterceptors = <T = any, D = any>(
     .then<SuccessTuple<T, D>>(response => {
       const { data } = response;
       if (!data) {
-        throw new Error('Network Error!');
+        throw new Error(i18next.t('ui_network_error', { defaultValue: 'Network error' }));
       }
       if (!data.success) {
         if (ignoreCodes === '*' || (data.err_code && ignoreCodes && ignoreCodes.includes(data.err_code))) {
           return [null, data.data, data, response];
         } else {
           notification.error({
-            message: `Request error`,
-            description: data?.err_msg ?? 'The interface is abnormal. Please try again later',
+            message: i18next.t('ui_request_error', { defaultValue: 'Request error' }),
+            description: data?.err_msg ?? i18next.t('ui_api_unavailable', { defaultValue: 'Service unavailable. Please try again later.' }),
           });
         }
       }
@@ -42,7 +43,7 @@ export const apiInterceptors = <T = any, D = any>(
         }
       }
       notification.error({
-        message: `Request error`,
+        message: i18next.t('ui_request_error', { defaultValue: 'Request error' }),
         description: errMessage,
       });
       return [err, null, null, null];

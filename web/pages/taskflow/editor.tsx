@@ -1,3 +1,4 @@
+import { uiText } from '@/hooks/use-ui-text';
 import { ChatContext } from '@/app/chat-context';
 import { apiInterceptors, getFlowById, getFlowTemplates, getTaskflowNodeKinds, importFlow } from '@/client/api';
 import { getDbList } from '@/client/api/request';
@@ -35,49 +36,46 @@ function FitWorkflow({ nodeIds }: { nodeIds: string }) {
   return null;
 }
 
-function summaryOf(node: ITaskflowNode, spec: ITaskflowNodeKind | undefined, isZh: boolean): string {
+function summaryOf(node: ITaskflowNode, spec: ITaskflowNodeKind | undefined, language: string): string {
+  const tr = (zh: string, en: string) => uiText(language, zh, en);
   const config = node.config ?? {};
   switch (node.kind) {
     case 'start':
-      return isZh ? '读取分析目标与对话上下文' : 'Read objective and chat context';
+      return tr('读取分析目标与对话上下文', 'Read objective and chat context');
     case 'db_query':
       return config.datasource
-        ? `${config.datasource} · ≤${config.max_rows ?? 1000} ${isZh ? '行' : 'rows'}`
-        : isZh
-          ? '未选择数据源'
-          : 'No datasource selected';
+        ? `${config.datasource} · ≤${config.max_rows ?? 1000} ${tr('行', 'rows')}`
+        : tr('未选择数据源', 'No datasource selected');
     case 'file_data':
-      return config.file_name || (isZh ? '未配置文件' : 'No file configured');
+      return config.file_name || (tr('未配置文件', 'No file configured'));
     case 'agent': {
       const goal = (config.goal || '').trim();
       const short = goal.length > 20 ? `${goal.slice(0, 20)}…` : goal;
       const toolCount = (config.tools?.length ?? 0) + (config.skills?.length ?? 0);
-      const toolPart = toolCount > 0 ? ` · ${toolCount} ${isZh ? '项能力' : 'tools'}` : '';
-      return short ? `${short}${toolPart}` : isZh ? `未配置目标${toolPart}` : `No goal configured${toolPart}`;
+      const toolPart = toolCount > 0 ? ` · ${toolCount} ${tr('项能力', 'tools')}` : '';
+      return short ? `${short}${toolPart}` : `${tr('未配置目标', 'No goal configured')}${toolPart}`;
     }
     case 'ai_analysis':
       return config.model
         ? `${config.model}`
-        : isZh
-          ? '默认模型 · 围绕分析目标执行计算'
-          : 'Default model · analyze upstream data';
+        : tr('默认模型 · 围绕分析目标执行计算', 'Default model · analyze upstream data');
     case 'visualize':
-      return isZh ? `最多 ${config.max_charts ?? 4} 张图表` : `Up to ${config.max_charts ?? 4} charts`;
+      return tr('最多 {{count}} 张图表', 'Up to {{count}} charts').replace('{{count}}', String(config.max_charts ?? 4));
     case 'human_confirm':
-      return config.message || (isZh ? '人工检查后继续' : 'Continue after review');
+      return config.message || (tr('人工检查后继续', 'Continue after review'));
     case 'report':
-      return isZh ? '生成结构化分析报告' : 'Generate a structured report';
+      return tr('生成结构化分析报告', 'Generate a structured report');
     case 'output':
-      return isZh ? '整理最终结果返回对话' : 'Assemble the final answer';
+      return tr('整理最终结果返回对话', 'Assemble the final answer');
     default:
-      return spec ? (isZh ? spec.desc : spec.desc_en) : '';
+      return spec ? tr(spec.desc, spec.desc_en) : '';
   }
 }
 
 function TaskflowEditor() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const isZh = i18n.language?.startsWith('zh');
+  const tr = (zh: string, en: string) => uiText(i18n.language, zh, en);
   const { model, modelList, refreshModelList } = useContext(ChatContext);
 
   const [dsl, setDsl] = useState<ITaskflowDSL>(() => emptyDSL());
@@ -269,7 +267,7 @@ function TaskflowEditor() {
         node,
         spec: kindSpecOf(manifest, node.kind),
         index,
-        summary: summaryOf(node, kindSpecOf(manifest, node.kind), isZh),
+        summary: summaryOf(node, kindSpecOf(manifest, node.kind), i18n.language),
         onDelete: deleteNode,
       },
     }));
@@ -284,7 +282,7 @@ function TaskflowEditor() {
       },
     }));
     return { rfNodes: nodes, rfEdges: edges };
-  }, [layout, dsl.edges, manifest, isZh, deleteNode]);
+  }, [layout, dsl.edges, manifest, i18n.language, deleteNode]);
 
   const selectedNode = useMemo(() => dsl.nodes.find(n => n.id === selectedId) ?? null, [dsl, selectedId]);
 
@@ -402,7 +400,7 @@ function TaskflowEditor() {
           className='!w-56 !text-[15px] !font-bold'
         />
         {stateTag}
-        {conversation.session?.dirty && <Tag>{isZh ? '未保存修改' : 'Unsaved changes'}</Tag>}
+        {conversation.session?.dirty && <Tag>{tr('未保存修改', 'Unsaved changes')}</Tag>}
         <Input
           variant='borderless'
           value={flowMeta.description}
@@ -412,9 +410,9 @@ function TaskflowEditor() {
         />
         {scopedDatabaseNodes.length > 0 && (
           <Select
-            aria-label={isZh ? '流程数据源' : 'Workflow datasource'}
+            aria-label={tr('流程数据源', 'Workflow datasource')}
             className='!w-52 flex-none'
-            placeholder={isZh ? '选择流程数据源' : 'Select workflow database'}
+            placeholder={tr('选择流程数据源', 'Select workflow database')}
             value={sharedDatabase}
             options={databaseOptions}
             showSearch
@@ -478,7 +476,7 @@ function TaskflowEditor() {
             <b className='text-gray-500 font-semibold'>{t('taskflow_editor')}</b>
             <span className='ml-2'>{t('taskflow_canvas_hint')}</span>
             <Button size='small' type='text' className='!ml-2' onClick={() => setShowPalette(prev => !prev)}>
-              {isZh ? (showPalette ? '收起节点库' : '添加节点') : showPalette ? 'Hide nodes' : 'Add node'}
+              {showPalette ? tr('收起节点库', 'Hide nodes') : tr('添加节点', 'Add node')}
             </Button>
           </div>
           <ReactFlow
@@ -516,7 +514,7 @@ function TaskflowEditor() {
                   >
                     <span className='text-sm'>{item.icon}</span>
                     <span className='text-[12.5px] text-gray-700 dark:text-gray-200'>
-                      {isZh ? item.label : item.label_en}
+                      {tr(item.label, item.label_en)}
                     </span>
                   </button>
                 ))}

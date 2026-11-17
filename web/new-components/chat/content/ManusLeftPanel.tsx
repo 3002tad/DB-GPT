@@ -1584,7 +1584,7 @@ const ManusLeftPanel: React.FC<ManusLeftPanelProps> = ({
                       className='h-6 inline-flex items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-blue-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-300'
                     >
                       <BookOutlined aria-hidden />
-                      查看 {citationIndexes.length} 条参考来源
+                      {t('evidence_graph_cited_references', { count: citationIndexes.length })}
                     </button>
                   </>
                 )}

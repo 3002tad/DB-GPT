@@ -2,6 +2,7 @@ import type { ITaskflowDSL, ITaskflowNodeKind } from '@/types/taskflow';
 import { groupColor, kindSpecOf } from '@/utils/taskflow';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUiText } from '@/hooks/use-ui-text';
 
 /**
  * Mini node-chain preview used on flow cards: icon per node in DSL order,
@@ -13,6 +14,7 @@ const FlowChainPreview: React.FC<{
   max?: number;
 }> = ({ dsl, manifest, max = 8 }) => {
   const { t } = useTranslation();
+  const tr = useUiText();
   const nodes = dsl?.nodes ?? [];
   const shown = nodes.slice(0, max);
   const hidden = nodes.length - shown.length;
@@ -27,7 +29,7 @@ const FlowChainPreview: React.FC<{
             <span
               className='w-6 h-6 rounded-md flex items-center justify-center text-[12px] flex-none bg-white dark:bg-white/10 border border-gray-100 dark:border-white/10'
               style={{ color }}
-              title={spec?.label ?? node.kind}
+              title={tr(spec?.label, spec?.label_en) || node.kind}
             >
               {spec?.icon ?? '•'}
             </span>

@@ -3,6 +3,8 @@ import type { GenerationSession } from '@/types/taskflow-generation';
 import { Button, Input, Select, Spin, Tag } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUiText } from '@/hooks/use-ui-text';
+import { taskflowPhase } from '@/utils/taskflow-presentation';
 
 interface Props {
   session: GenerationSession | null;
@@ -36,8 +38,7 @@ export default function ConversationPanel({
   onSelect,
 }: Props) {
   const { i18n } = useTranslation();
-  const zh = i18n.language?.startsWith('zh');
-  const text = (cn: string, en: string) => (zh ? cn : en);
+  const text = useUiText();
   const [input, setInput] = useState('');
   const [model, setModel] = useState(defaultModel);
   const [local, setLocal] = useState(false);
@@ -249,7 +250,7 @@ export default function ConversationPanel({
         {active && (
           <div className='text-xs text-violet-600 flex items-center gap-2'>
             <Spin size='small' />
-            {active.phase}
+            {taskflowPhase(active.phase, i18n.language)}
             <Button size='small' type='text' onClick={() => onAction('cancel')}>
               {text('取消生成', 'Cancel')}
             </Button>
