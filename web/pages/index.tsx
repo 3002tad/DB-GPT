@@ -6955,7 +6955,8 @@ const Playground: NextPage = () => {
                         <style
                           dangerouslySetInnerHTML={{
                             __html: `
-                              .suite-composer .ant-btn-circle { box-shadow: none !important; background-image: none !important; transform: none !important; }
+                              .suite-composer .ant-btn-circle { box-shadow: none !important; transform: none !important; }
+                              .suite-composer .ant-btn-circle:not([aria-pressed="true"]) { background-image: none !important; }
                               .suite-composer .model-selector-premium .ant-select-selector { background: transparent !important; box-shadow: none !important; border-radius: 999px !important; }
                             `,
                           }}
