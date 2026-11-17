@@ -26,7 +26,7 @@ describe('Construct module navigation', () => {
     expect(screen.getByRole('heading', { name: 'Runtime content' })).not.toBeNull();
     expect(screen.queryByRole('tab', { name: /Nhà cung cấp/ }) !== null).toBe(role === 'super_admin');
     expect(screen.queryByRole('tab', { name: /Cơ sở dữ liệu/ }) !== null).toBe(role === 'super_admin');
-    expect(screen.queryByRole('tab', { name: /Kết nối/ }) !== null).toBe(role === 'super_admin');
+    expect(screen.queryByRole('tab', { name: /Kết nối/ })).not.toBeNull();
   });
   it.each(['analyst', 'super_admin'])('renders Plugin content and selects its tab for %s', role => {
     route.pathname = '/construct/suites';

@@ -152,7 +152,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
     return authError ? <div role='alert' style={{ padding: 24 }}>{authError}</div> : null;
   }
   if (integrated && pipelineRole === 'analyst' &&
-      ['/construct/models-config', '/construct/connectors', '/construct/database',
+      ['/construct/models-config', '/construct/database',
        '/models_evaluation', '/observability'].some(
         path => router.pathname === path || router.pathname.startsWith(`${path}/`),
       )) {

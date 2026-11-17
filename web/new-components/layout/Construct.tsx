@@ -105,7 +105,7 @@ function ConstructLayout({ children, className }: { children: React.ReactNode; c
   const canManage = !integrated || role === 'super_admin';
   const visibleItems = canManage
     ? items
-    : items.filter(item => !['models-config', 'database', 'connectors'].includes(item.key));
+    : items.filter(item => !['models-config', 'database'].includes(item.key));
   const activeKey = router.pathname.split('/')[2];
   // const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches; // unused
 

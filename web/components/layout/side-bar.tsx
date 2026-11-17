@@ -308,7 +308,7 @@ function SideBar() {
       },
     ];
     const permitted = (item: { key: string }) => !integrated ||
-      ((item.key === 'datasources' || item.key === 'connectors') ? canManage : canAnalyze);
+      (item.key === 'datasources' ? canManage : canAnalyze);
     return { main: main.filter(permitted), extensions: extensions.filter(permitted), tail: tail.filter(permitted), all: [...extensions, ...main, ...tail].filter(permitted) };
   }, [t, pathname, i18n.language, integrated, canManage, canAnalyze]);
 
@@ -316,7 +316,7 @@ function SideBar() {
     <Link
       href={item.path}
       className={cls(
-        'flex items-center w-full h-12 px-3 rounded-[10px] cursor-pointer text-[15px] font-medium',
+        'flex items-center w-full h-9 shrink-0 px-3 rounded-[10px] cursor-pointer text-[14px] font-medium',
         'text-[#1c1c1a] dark:text-[#e6e4df] hover:bg-[#efefeb] dark:hover:bg-white/[.06] transition-colors',
         {
           'bg-[#ececea] dark:bg-white/[.10]': item.isActive,
@@ -459,8 +459,8 @@ function SideBar() {
   // ============ COLLAPSED SIDEBAR ============
   if (!isMenuExpand) {
     return (
-      <div className='flex flex-col justify-between pt-4 h-screen bg-[#f7f7f5] dark:bg-[#232734] animate-fade animate-duration-300'>
-        <div>
+      <div className='flex flex-col min-h-0 overflow-hidden pt-2 h-screen bg-[#f7f7f5] dark:bg-[#232734] animate-fade animate-duration-300'>
+        <div className='flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-default'>
           <div className='flex flex-col items-center pb-2'>
             <Tooltip title={t('Show_Sidebar')} placement='right'>
               <div
@@ -471,7 +471,7 @@ function SideBar() {
               </div>
             </Tooltip>
           </div>
-          <div className='flex flex-col gap-4 items-center'>
+          <div className='flex flex-col gap-1 items-center'>
             {embedded && <Tooltip title='Về Funnelmetry' placement='right'>
               <button type='button' onClick={returnToPipeline} aria-label='Về Funnelmetry' className={smallMenuItemStyle()}>
                 <HomeOutlined />
@@ -488,7 +488,7 @@ function SideBar() {
             ))}
           </div>
         </div>
-        <div className='py-4'>
+        <div className='shrink-0 py-2'>
           {/* Settings */}
           {canManage && <Popover
             content={settingsContent}
@@ -517,9 +517,13 @@ function SideBar() {
 
   // ============ EXPANDED SIDEBAR ============
   return (
-    <div className='flex flex-col h-screen w-[240px] min-w-[240px] px-4 pt-4 bg-bar dark:bg-[#232734] animate-fade animate-duration-300'>
+    <div className='flex flex-col h-screen min-h-0 overflow-hidden w-[240px] min-w-[240px] px-3 pt-2 bg-bar dark:bg-[#232734] animate-fade animate-duration-300'>
       {/* Collapse Toggle */}
-      <div className='flex items-center justify-end p-2 pb-4'>
+      <div className='flex shrink-0 items-center justify-between h-9 mb-1 px-2'>
+        {embedded ? <button type='button' onClick={returnToPipeline}
+          className='flex items-center gap-2 rounded-md py-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400'>
+          <HomeOutlined /> Về Funnelmetry
+        </button> : <span />}
         <Tooltip title={t('Close_Sidebar')}>
           <div
             onClick={handleToggleMenu}
@@ -530,24 +534,20 @@ function SideBar() {
         </Tooltip>
       </div>
 
-      {embedded && <button type='button' onClick={returnToPipeline}
-        className='mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20'>
-        <HomeOutlined /> Về Funnelmetry
-      </button>}
-
       {/* New Task Button */}
       {canAnalyze && <button
         type='button'
         onClick={handleStartNewTask}
-        className='flex items-center gap-3 w-full h-12 px-3 mb-3 rounded-[10px] text-[15px] font-medium text-[#1c1c1a] dark:text-[#e6e4df] hover:bg-[#efefeb] dark:hover:bg-white/[.06] transition-colors cursor-pointer'
+        className='flex shrink-0 items-center gap-3 w-full h-9 px-3 mb-1 rounded-[10px] text-[14px] font-medium text-[#1c1c1a] dark:text-[#e6e4df] hover:bg-[#efefeb] dark:hover:bg-white/[.06] transition-colors cursor-pointer'
       >
         <FormOutlined className='text-[17px] text-[#3f3f3a] dark:text-[#a8a59e]' />
         <span>{t('new_task')}</span>
       </button>}
 
+      <nav aria-label={t('sidebar_extensions')} className='min-h-0 max-h-[55%] shrink overflow-y-auto overscroll-contain scrollbar-default'>
       {/* Extensions cluster (AntWork-style labeled group) */}
-      <div role='group' aria-label={t('sidebar_extensions')} className='mt-2 flex flex-col gap-1'>
-        <div className='flex items-center h-12 px-3 text-[15px] font-medium text-[#1c1c1a] dark:text-[#e6e4df]'>
+      <div role='group' aria-label={t('sidebar_extensions')} className='flex flex-col'>
+        <div className='flex items-center h-8 px-3 text-[13px] font-medium text-[#1c1c1a] dark:text-[#e6e4df]'>
           <div className='mr-3 w-6 flex justify-center text-[17px] text-[#3f3f3a] dark:text-[#a8a59e]'>
             <BuildOutlined />
           </div>
@@ -559,7 +559,7 @@ function SideBar() {
               href={item.path}
               aria-current={item.isActive ? 'page' : undefined}
               className={cls(
-                'flex items-center gap-2 w-full h-10 px-3 rounded-[8px] cursor-pointer text-[14px] font-medium',
+                'flex items-center gap-2 w-full h-8 px-3 rounded-[8px] cursor-pointer text-[13px] font-medium',
                 'text-[#3f3f3a] dark:text-[#d4d2cc] hover:bg-[#efefeb] dark:hover:bg-white/[.06] transition-colors',
                 {
                   'bg-[#ececea] text-[#1c1c1a] dark:bg-white/[.10] dark:text-[#e6e4df]': item.isActive,
@@ -577,22 +577,23 @@ function SideBar() {
       </div>
 
       {/* Functions */}
-      <div className='flex flex-col gap-1'>{nav.main.map(item => navRow(item))}</div>
+      <div className='flex flex-col'>{nav.main.map(item => navRow(item))}</div>
 
-      <div className='flex flex-col gap-1 mt-1'>{nav.tail.map(item => navRow(item))}</div>
+      <div className='flex flex-col'>{nav.tail.map(item => navRow(item))}</div>
+      </nav>
 
       {/* All Tasks Section */}
-      {canAnalyze && <div className='mt-4 mb-2 px-1'>
+      {canAnalyze && <div className='shrink-0 mt-2 mb-1 border-t border-gray-300/50 pt-2 px-2 dark:border-white/10'>
         <div className='flex items-center justify-between'>
           <span className='text-xs font-medium text-[#8b8b84] dark:text-[#7c7972]'>{t('all_tasks')}</span>
-          <Link href='/conversations' className='inline-flex items-center'>
+          <Link href='/conversations' aria-label={t('view_all')} className='inline-flex items-center'>
             <Tooltip title={t('view_all')}>
               <RightOutlined className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer transition-colors text-xs leading-none' />
             </Tooltip>
           </Link>
         </div>
       </div>}
-      <div className='flex-1 overflow-y-auto min-h-0'>
+      <div aria-label={t('all_tasks')} role='region' className='flex-1 overflow-y-auto min-h-0 overscroll-contain scrollbar-default'>
         {canAnalyze && (loadingDialogues ? (
           <div className='px-2 pt-2'>
             <Skeleton active title={false} paragraph={{ rows: 4, width: '100%' }} />
@@ -648,7 +649,7 @@ function SideBar() {
       </div>
 
       {/* Bottom: Settings + toggles */}
-      <div className='pt-4 pb-2'>
+      <div className='shrink-0 pt-1 pb-1'>
         {/* Settings */}
         {canManage && <Popover
           content={settingsContent}
@@ -661,7 +662,7 @@ function SideBar() {
         >
           <div
             className={cls(
-              'flex items-center w-full h-12 px-3 mb-2 rounded-[10px] cursor-pointer text-[15px] font-medium',
+              'flex items-center w-full h-8 px-3 rounded-[10px] cursor-pointer text-[14px] font-medium',
               'text-[#1c1c1a] dark:text-[#e6e4df] hover:bg-[#efefeb] dark:hover:bg-white/[.06] transition-colors',
               { 'bg-[#ececea] dark:bg-white/[.10]': isSettingsActive },
             )}
@@ -672,7 +673,7 @@ function SideBar() {
             <span>{t('Setting')}</span>
           </div>
         </Popover>}
-        <div className='flex items-center justify-around py-4 mt-2 border-t border-dashed border-gray-200 dark:border-gray-700'>
+        <div className='flex items-center justify-around py-2 border-t border-dashed border-gray-200 dark:border-gray-700'>
           <Popover content={mode === 'dark' ? 'Light' : 'Dark'}>
             <div
               className='flex-1 flex items-center justify-center cursor-pointer text-[17px] text-[#8b8b84] hover:text-[#1c1c1a] dark:hover:text-[#e6e4df] transition-colors'

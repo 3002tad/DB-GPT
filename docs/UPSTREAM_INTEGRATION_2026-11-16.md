@@ -561,3 +561,20 @@ SQL examples. Four tool-availability and five skill-prompt regression tests also
 pass; both changed API/guard modules parse successfully. These deterministic
 heuristics do not certify arbitrary prose, numeric correctness or causation.
 Source has not been rebuilt/deployed or browser/model accepted for BUG-14.
+
+## Sidebar follow-up: connector visibility and usable history space
+
+Runtime identity exposed an overly broad UI restriction: Analyst could no
+longer reach Connectors, although the backend already permits its redacted
+list/catalog reads and the page has read-only presentation. Connector navigation
+is restored in the sidebar and Construct tabs; the top-level Admin-only page
+block no longer includes Connectors. Create/edit/delete/test controls remain
+Admin-only. No backend policy or credential visibility is expanded.
+
+Expanded navigation now combines Pipeline return/collapse into one compact
+header, uses shorter menu rows and caps its own scroll region at 55% height.
+Task history receives the remaining flexible space with its own scrollbar;
+footer controls do not shrink. Collapsed navigation also scrolls independently
+instead of pushing its footer beyond a short viewport. Routes and Agent task
+behavior remain unchanged. Targeted Construct/connector tests pass (12 cases).
+The follow-up has not been rebuilt/deployed or browser-accepted yet.
