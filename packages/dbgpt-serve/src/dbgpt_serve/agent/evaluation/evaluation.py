@@ -58,7 +58,7 @@ class AgentOutputOperator(MapOperator):
 
                     final_output = content
             end_time_ms = int(datetime.now().timestamp())
-            cost_time_ms = begin_time_ms - end_time_ms
+            cost_time_ms = max(0, end_time_ms - begin_time_ms)
             result = {}
             result[EVALUATE_FILE_COL_PREDICTION] = final_output
             result[EVALUATE_FILE_COL_PREDICTION_COST] = cost_time_ms
@@ -117,7 +117,7 @@ class AgentEvaluatorOperator(JoinOperator[List[EvaluationResult]]):
                     raw_dataset=raw_dataset,
                     metric_name=metric.name(),
                     prediction_cost=prediction_cost,
-                    feedback=result.feedback,
+                    feedback=getattr(result, "feedback", None),
                 )
             )
         return results

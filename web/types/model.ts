@@ -50,7 +50,19 @@ export type SupportModel = {
   description: string;
 };
 
+export type ManualModelDeclaration = {
+  context_length: number | null;
+  max_output_length: number | null;
+  function_calling: boolean | null;
+  reference: string | null;
+  checked_at: string | null;
+};
+
 export type ProviderModel = {
+  manual_metadata?: Partial<ManualModelDeclaration>;
+  metadata_declaration?: string;
+  metadata_source?: string;
+  metadata_checked_at?: string;
   model: string;
   label: string;
   context_length: number | null;

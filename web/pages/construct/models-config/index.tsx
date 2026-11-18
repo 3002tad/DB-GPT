@@ -9,11 +9,14 @@ import {
   enableProviderModel,
   getModelProviders,
   getProviderConfig,
+  saveModelMetadata,
 } from '@/client/api';
 import { renderModelIcon } from '@/components/chat/header/model-selector';
+import ModelContextMetadata from '@/new-components/common/ModelContextMetadata';
+import ManualModelMetadataForm from '@/new-components/common/ManualModelMetadataForm';
 import { ProviderSpriteIcon } from '@/components/icons/provider-icons';
 import ConstructLayout from '@/new-components/layout/Construct';
-import { ModelProvider, ProviderConfig } from '@/types/model';
+import { ModelProvider, ProviderConfig, ProviderModel } from '@/types/model';
 import { notifyModelsChanged } from '@/utils/events';
 import { CopyOutlined, SearchOutlined } from '@ant-design/icons';
 import { Button, Empty, Form, Input, Modal, Segmented, Spin, Switch, Tag, Tooltip, message } from 'antd';
@@ -66,11 +69,6 @@ const POPULAR_ORDER = new Map(POPULAR_PROVIDERS.map((p, i) => [p.id, i]));
 function providerI18nKey(provider: string): string | null {
   if (!provider.startsWith('proxy/')) return null;
   return provider.split('/')[1];
-}
-
-function formatContextLength(n?: number | null): string {
-  if (!n) return '—';
-  return n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`;
 }
 
 function cleanDescription(desc?: string | null): string {
@@ -173,6 +171,7 @@ function ModelsConfig() {
   const [connectForm] = Form.useForm();
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [customForm] = Form.useForm();
+  const [metadataModel, setMetadataModel] = useState<{ provider: string; model: ProviderModel } | null>(null);
   const [modelQuery, setModelQuery] = useState('');
   const [showAllModels, setShowAllModels] = useState(false);
   // GitHub Copilot OAuth device flow state (opencode-style login).
@@ -566,9 +565,14 @@ function ModelsConfig() {
                             {t('function_calling')}
                           </Tag>
                         )}
-                        <span className='text-xs text-gray-400 w-16 text-right' title={t('context_length')}>
-                          {formatContextLength(m.context_length)}
-                        </span>
+                        <ModelContextMetadata model={m} />
+                        {workerType === 'llm' && (
+                          <Button size='small' disabled={!configs[current.provider]?.api_base}
+                            title={!configs[current.provider]?.api_base ? t('provider_metadata_endpoint_hint') : undefined}
+                            onClick={() => setMetadataModel({ provider: current.provider, model: m })}>
+                            {t('provider_model_metadata')}
+                          </Button>
+                        )}
                         <Switch
                           size='small'
                           checked={checked}
@@ -734,6 +738,19 @@ function ModelsConfig() {
             </Button>
           </div>
         </Form>
+      </Modal>
+      <Modal open={metadataModel !== null} title={`${t('provider_model_metadata')} · ${metadataModel?.model.model || ''}`}
+        footer={null} destroyOnClose onCancel={() => setMetadataModel(null)}>
+        {metadataModel && <ManualModelMetadataForm key={`${metadataModel.provider}:${metadataModel.model.model}`}
+          value={metadataModel.model.manual_metadata}
+          onSave={async values => {
+            const [error, , response] = await apiInterceptors(saveModelMetadata(metadataModel.provider, metadataModel.model.model, values));
+            if (error || !response?.success) return false;
+            setMetadataModel(null);
+            await loadProviders(workerType);
+            notifyModelsChanged();
+            return true;
+          }} />}
       </Modal>
     </ConstructLayout>
   );

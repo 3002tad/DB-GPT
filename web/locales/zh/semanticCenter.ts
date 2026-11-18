@@ -9,6 +9,10 @@ export const SemanticCenterZh: {
 } = {
   semantic_center: {
     title: '语义中心',
+    connection_missing: 'Source connection removed or unregistered',
+    connection_missing_hint: 'Retained metadata is a previous snapshot. Register the intended source and sync to check freshness.',
+    connection_unknown: 'Source registration could not be checked',
+    connection_unknown_hint: 'The registry is unavailable. This does not mean the source was deleted.',
     subtitle: '管理数据定义、业务语义与可信取数来源。',
     spaces: '数据空间',
     spaces_hint: '选择连接，管理对应的语义资产。',

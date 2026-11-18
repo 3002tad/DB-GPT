@@ -82,6 +82,10 @@ class Serve(BaseServe):
         from .models.models import ModelProviderConfigEntity, ServeEntity
 
         self._db_manager = self.create_or_get_db_manager()
+        from dbgpt.model.cluster.manual_metadata import ensure_manual_metadata_schema
+
+        if self.config.model_storage != "memory":
+            ensure_manual_metadata_schema(self._db_manager)
         serializer = JsonSerializer()
         if self.config.model_storage == "memory":
             self._model_storage = InMemoryStorage(serializer)

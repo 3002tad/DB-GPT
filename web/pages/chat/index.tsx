@@ -2,6 +2,7 @@ import { ChatContext } from '@/app/chat-context';
 import { apiInterceptors, getAppInfo, getChatHistory, getDialogueList } from '@/client/api';
 import PromptBot from '@/components/common/prompt-bot';
 import useChat, { ChatContextStatus, PendingQuestionEvent } from '@/hooks/use-chat';
+import { useConversationModel } from '@/hooks/use-conversation-model';
 import ChatContentContainer from '@/new-components/chat/ChatContentContainer';
 import ChatDefault from '@/new-components/chat/content/ChatDefault';
 import QuestionDock from '@/new-components/chat/content/QuestionDock';
@@ -116,6 +117,9 @@ const Chat: React.FC = () => {
   const selectedPromptCodeRef = useRef<string | undefined>(undefined);
 
   const [history, setHistory] = useState<ChatHistoryResponse>([]);
+  const [historyChatId, setHistoryChatId] = useState('');
+  const activeChatId = useRef(chatId);
+  activeChatId.current = chatId;
   const [chartsData] = useState<Array<ChartData>>();
   const [replyLoading, setReplyLoading] = useState<boolean>(false);
   const [canAbort, setCanAbort] = useState<boolean>(false);
@@ -125,12 +129,18 @@ const Chat: React.FC = () => {
   const [maxNewTokensValue, setMaxNewTokensValue] = useState();
   const [resourceValue, setResourceValue] = useState<any>();
   const [knowledgeValue, setKnowledgeValue] = useState<string | null>(null);
-  const [modelValue, setModelValue] = useState<string>('');
+  const { modelValue, setModelValue } = useConversationModel({
+    chatId,
+    scene,
+    historyModel: historyChatId === chatId
+      ? [...history].reverse().find(item => item.model_name)?.model_name : undefined,
+    appModel: appInfo?.param_need?.find(item => item.type === 'model')?.value,
+    defaultModel: model,
+  });
 
   useEffect(() => {
     setTemperatureValue(appInfo?.param_need?.filter(item => item.type === 'temperature')[0]?.value || 0.6);
     setMaxNewTokensValue(appInfo?.param_need?.filter(item => item.type === 'max_new_tokens')[0]?.value || 4000);
-    setModelValue(appInfo?.param_need?.filter(item => item.type === 'model')[0]?.value || model);
     setResourceValue(
       knowledgeId || dbName || appInfo?.param_need?.filter(item => item.type === 'resource')[0]?.bind_value,
     );
@@ -194,10 +204,13 @@ const Chat: React.FC = () => {
     run: getHistory,
     loading: historyLoading,
     refresh: refreshHistory,
-  } = useRequest(async () => await apiInterceptors(getChatHistory(chatId)), {
+  } = useRequest(async () => ({ id: chatId, response: await apiInterceptors(getChatHistory(chatId)) }), {
     manual: true,
-    onSuccess: data => {
-      const [, res] = data;
+    onSuccess: ({ id, response }) => {
+      // A slow response for another conversation must not restore its model.
+      if (id !== activeChatId.current) return;
+      const [, res] = response;
+      setHistoryChatId(id);
       const viewList = res?.filter(item => item.role === 'view');
       if (viewList && viewList.length > 0) {
         order.current = viewList[viewList.length - 1].order + 1;

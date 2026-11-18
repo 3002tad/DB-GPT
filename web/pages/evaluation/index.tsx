@@ -10,6 +10,7 @@ import {
   getEvaluations,
   getMetrics,
   getSpaceList,
+  getStorageTypes,
   showEvaluation,
   updateEvaluations,
   uploadDataSetsContent,
@@ -38,6 +39,7 @@ import {
 } from 'antd';
 import { valueType } from 'antd/es/statistic/utils';
 import { useMemo, useState } from 'react';
+import { useUiText } from '@/hooks/use-ui-text';
 
 const { TextArea } = Input;
 const { useWatch } = Form;
@@ -76,6 +78,7 @@ interface EvaluationItemType {
   gmt_modified: string;
 }
 const Evaluation = () => {
+  const tr = useUiText();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDataSetModalOpen, setIsDataSetModalOpen] = useState(false);
   const [evaluationList, setEvaluationList] = useState<EvaluationItemType[]>([]);
@@ -89,7 +92,7 @@ const Evaluation = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isAddDataSet, setIsAddDataSet] = useState(true);
   const [evaluationShowData, setEvaluationShowData] = useState<Record<string, string>[]>([{}]);
-  const [storageTypeOptions, _] = useState<{ label: string; value: string }[]>();
+  const [storageTypeOptions, setStorageTypeOptions] = useState<{ label: string; value: string }[]>();
   const [dataSetsList, setDataSetsList] = useState<DataSetItemType[]>([]);
   const [currentEvaluationCode, setCurrentEvaluationCode] = useState<string>('');
   const [dataSetModalLoading, setDataSetModalLoading] = useState(false);
@@ -117,7 +120,7 @@ const Evaluation = () => {
       onSuccess: data => {
         setMetricOptions(
           data?.map((i: Record<string, string>) => {
-            return { label: i.describe, value: i.name };
+            return { label: i.name, value: i.name };
           }),
         );
       },
@@ -140,25 +143,11 @@ const Evaluation = () => {
     },
   );
 
-  // TODO: unuesed function
-  // // getStorageTypes
-  // const { run: runGetStorageTypes } = useRequest(
-  //   async () => {
-  //     const [_, data] = await apiInterceptors(getStorageTypes());
-  //     return data;
-  //   },
-  //   {
-  //     onSuccess: data => {
-  //       data &&
-  //         setStorageTypeOptions(
-  //           data.map((i: Record<string, string>[]) => {
-  //             const [k, v] = Object.entries(i)[0];
-  //             return { label: v, value: k };
-  //           }),
-  //         );
-  //     },
-  //   },
-  // );
+  useRequest(async () => {
+    const [, data] = await apiInterceptors(getStorageTypes());
+    setStorageTypeOptions(Array.isArray(data) ? data.flatMap(item =>
+      Object.entries(item).map(([value, label]) => ({ label: String(label), value }))) : []);
+  });
 
   const {
     run: runGetEvaluations,
@@ -177,8 +166,8 @@ const Evaluation = () => {
     {
       // manual: true,
       onSuccess: data => {
-        setEvaluationList(data?.items);
-        setEvaluationTotal(data?.total_count);
+        setEvaluationList(data?.items || []);
+        setEvaluationTotal(data?.total_count || 0);
       },
     },
   );
@@ -199,8 +188,8 @@ const Evaluation = () => {
     {
       // manual: true,
       onSuccess: data => {
-        setDataSetsList(data?.items);
-        setDataSetsTotal(data?.total_count);
+        setDataSetsList(data?.items || []);
+        setDataSetsTotal(data?.total_count || 0);
       },
     },
   );
@@ -230,37 +219,37 @@ const Evaluation = () => {
 
   const columns: TableProps<DataSetItemType>['columns'] = [
     {
-      title: '名称',
+      title: tr('名称', 'Evaluation name'),
       dataIndex: 'name',
       key: 'name',
       width: '10%',
       fixed: 'left',
     },
     {
-      title: '编码',
+      title: tr('编码', 'Dataset code'),
       dataIndex: 'code',
       key: 'code',
       width: '20%',
       // render: (text) => <a>{text}</a>,
     },
     {
-      title: '储存方式',
+      title: tr('储存方式', 'Dataset storage'),
       dataIndex: 'storage_type',
       key: 'storage_type',
     },
     {
-      title: '数据集数量',
+      title: tr('数据集数量', 'Dataset row count'),
       dataIndex: 'datasets_count',
       key: 'datasets_count',
     },
 
     {
-      title: '创建时间',
+      title: tr('创建时间', 'Created at'),
       dataIndex: 'gmt_create',
       key: 'gmt_create',
     },
     {
-      title: '成员',
+      title: tr('成员', 'Dataset members'),
       dataIndex: 'members',
       key: 'members',
       width: '10%',
@@ -271,17 +260,17 @@ const Evaluation = () => {
       },
     },
     {
-      title: '更新时间',
+      title: tr('更新时间', 'Updated at'),
       dataIndex: 'gmt_modified',
       key: 'gmt_modified',
     },
     {
-      title: 'Action',
+      title: tr('操作', 'Actions'),
       key: 'action',
       render: (_, record) => (
         <Space size='middle'>
           <Popconfirm
-            title='确认删除吗'
+            title={tr('确认删除吗', 'Delete this evaluation item?')}
             onConfirm={async () => {
               const [, , res] = await apiInterceptors(
                 delDataSet({
@@ -289,12 +278,12 @@ const Evaluation = () => {
                 }),
               );
               if (res?.success == true) {
-                message.success('删除成功');
+                message.success(tr('删除成功', 'Deleted successfully'));
                 getDataSetsRefresh();
               }
             }}
           >
-            <Button type='link'>删除</Button>
+            <Button type='link'>{tr('删除', 'Delete')}</Button>
           </Popconfirm>
           <Button
             type='link'
@@ -308,7 +297,7 @@ const Evaluation = () => {
               });
             }}
           >
-            编辑
+            {tr('编辑', 'Edit')}
           </Button>
           <Button
             type='link'
@@ -318,7 +307,7 @@ const Evaluation = () => {
               const response = await downloadDataSet({
                 code: record?.code,
               });
-              const contentType = response.headers['content-type'];
+              const contentType = response.headers['content-type'] || '';
               if (contentType.includes('application/json')) {
                 // 如果是 JSON，解析错误信息
                 const reader = new FileReader();
@@ -335,10 +324,10 @@ const Evaluation = () => {
               } else {
                 // 从响应头中获取文件名
                 const contentDisposition = response.headers['content-disposition'];
-                let filename = 'downloaded_file.xlsx';
+                let filename = 'dataset.csv';
                 if (contentDisposition) {
                   const match = contentDisposition.match(/filename\*?="?(.+)"/);
-                  if (match[1]) {
+                  if (match?.[1]) {
                     filename = decodeURIComponent(match[1]);
                   }
                 }
@@ -346,7 +335,7 @@ const Evaluation = () => {
                 // 创建 URL 并触发下载
                 const url = window.URL.createObjectURL(
                   new Blob([response.data as any], {
-                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    type: contentType || 'text/csv',
                   }),
                 );
                 const a = document.createElement('a');
@@ -360,7 +349,7 @@ const Evaluation = () => {
               setCommonLoading(false);
             }}
           >
-            下载
+            {tr('下载', 'Download')}
           </Button>
         </Space>
       ),
@@ -370,7 +359,7 @@ const Evaluation = () => {
    */
   const evaluationsColumns: TableProps<EvaluationItemType>['columns'] = [
     {
-      title: '数据集名称',
+      title: tr('数据集名称', 'Dataset name'),
       dataIndex: 'datasets_name',
       key: 'datasets_name',
       fixed: 'left',
@@ -387,7 +376,7 @@ const Evaluation = () => {
       ),
     },
     {
-      title: '测评状态',
+      title: tr('测评状态', 'Evaluation state'),
       dataIndex: 'state',
       key: 'state',
       render: text => {
@@ -395,28 +384,28 @@ const Evaluation = () => {
       },
     },
     {
-      title: '测评编码',
+      title: tr('测评编码', 'Evaluation code'),
       dataIndex: 'evaluate_code',
       key: 'evaluate_code',
     },
     {
-      title: '场景',
+      title: tr('场景', 'Evaluation scene'),
       dataIndex: 'scene_key',
       key: 'scene_key',
     },
 
     {
-      title: '测评指标',
+      title: tr('测评指标', 'Evaluation metrics'),
       dataIndex: 'evaluate_metrics',
       key: 'evaluate_metrics',
     },
     {
-      title: '创建时间',
+      title: tr('创建时间', 'Created at'),
       dataIndex: 'gmt_create',
       key: 'gmt_create',
     },
     {
-      title: '更新时间',
+      title: tr('更新时间', 'Updated at'),
       dataIndex: 'gmt_modified',
       key: 'gmt_modified',
     },
@@ -424,8 +413,8 @@ const Evaluation = () => {
     {
       title: (
         <span className='w-[50px]'>
-          <span className='text-nowrap'>详情</span>
-          <Tooltip placement='topLeft' title='查看日志与评分'>
+          <span className='text-nowrap'>{tr('详情', 'Details')}</span>
+          <Tooltip placement='topLeft' title={tr('查看日志与评分', 'View evaluation logs and scores')}>
             <InfoCircleOutlined />
           </Tooltip>
         </span>
@@ -439,7 +428,7 @@ const Evaluation = () => {
       ),
     },
     {
-      title: '测评结果',
+      title: tr('测评结果', 'Evaluation results'),
       key: 'result',
       render: (_, record) => (
         <>
@@ -452,7 +441,7 @@ const Evaluation = () => {
               });
             }}
           >
-            评分明细
+            {tr('评分明细', 'Evaluation score details')}
           </Button>
           <Button
             type='link'
@@ -462,7 +451,7 @@ const Evaluation = () => {
               const response = await downloadEvaluation({
                 evaluate_code: record?.evaluate_code,
               });
-              const contentType = response.headers['content-type'];
+              const contentType = response.headers['content-type'] || '';
 
               if (contentType.includes('application/json')) {
                 // 如果是 JSON，解析错误信息
@@ -480,10 +469,10 @@ const Evaluation = () => {
               } else {
                 // 从响应头中获取文件名
                 const contentDisposition = response.headers['content-disposition'];
-                let filename = 'downloaded_file.xlsx';
+                let filename = 'dataset.csv';
                 if (contentDisposition) {
                   const match = contentDisposition.match(/filename\*?="?(.+)"/);
-                  if (match[1]) {
+                  if (match?.[1]) {
                     filename = decodeURIComponent(match[1]);
                   }
                 }
@@ -491,7 +480,7 @@ const Evaluation = () => {
                 // 创建 URL 并触发下载
                 const url = window.URL.createObjectURL(
                   new Blob([response.data as any], {
-                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    type: contentType || 'text/csv',
                   }),
                 );
                 const a = document.createElement('a');
@@ -505,19 +494,19 @@ const Evaluation = () => {
               setCommonLoading(false);
             }}
           >
-            下载
+            {tr('下载', 'Download')}
           </Button>
         </>
       ),
     },
     {
-      title: '操作',
+      title: tr('操作', 'Actions'),
       key: 'action',
       width: '25%',
       render: (_, record) => (
         <>
           <Popconfirm
-            title='确认删除吗'
+            title={tr('确认删除吗', 'Delete this evaluation item?')}
             onConfirm={async () => {
               const [, , res] = await apiInterceptors(
                 delEvaluation({
@@ -525,12 +514,12 @@ const Evaluation = () => {
                 }),
               );
               if (res?.success == true) {
-                message.success('删除成功');
+                message.success(tr('删除成功', 'Deleted successfully'));
                 getEvaluationsRefresh();
               }
             }}
           >
-            <Button type='link'>删除</Button>
+            <Button type='link'>{tr('删除', 'Delete')}</Button>
           </Popconfirm>
         </>
       ),
@@ -556,11 +545,11 @@ const Evaluation = () => {
             className='backdrop-filter backdrop-blur-lg bg-white bg-opacity-30 border-2 border-white rounded-lg shadow p-1 dark:border-[#6f7f95] dark:bg-[#6f7f95] dark:bg-opacity-60'
             options={[
               {
-                label: '评测数据',
+                label: tr('评测数据', 'Evaluations'),
                 value: 'evaluations',
               },
               {
-                label: '数据集',
+                label: tr('数据集', 'Datasets'),
                 value: 'dataSet',
               },
             ]}
@@ -579,7 +568,7 @@ const Evaluation = () => {
                     setIsAddDataSet(true);
                   }}
                 >
-                  添加数据集
+                  {tr('添加数据集', 'Add dataset')}
                 </Button>
               </div>
               <Table
@@ -605,7 +594,7 @@ const Evaluation = () => {
                     setIsModalOpen(true);
                   }}
                 >
-                  发起评测
+                  {tr('发起评测', 'Run evaluation')}
                 </Button>
               </div>
               <Table
@@ -654,7 +643,7 @@ const Evaluation = () => {
             </>
           )}
           <Modal
-            title='发起测评'
+            title={tr('发起测评', 'Run evaluation')}
             open={isModalOpen}
             onOk={async () => {
               const values = await form.validateFields();
@@ -666,12 +655,12 @@ const Evaluation = () => {
                   }),
                 );
                 if (res?.success) {
-                  message.success('发起成功');
+                  message.success(tr('发起成功', 'Evaluation finished'));
                   getEvaluationsRefresh();
                   form.resetFields();
+                  setIsModalOpen(false);
                 }
               }
-              setIsModalOpen(false);
               setEvaluationModalLoading(false);
             }}
             confirmLoading={evaluationModalLoading}
@@ -687,16 +676,16 @@ const Evaluation = () => {
               labelCol={{ span: 4 }}
               wrapperCol={{ span: 20 }}
             >
-              <Form.Item name='scene_key' label='场景类型' rules={[{ required: true }]}>
+              <Form.Item name='scene_key' label={tr('场景类型', 'Evaluation scene type')} rules={[{ required: true }]}>
                 <Select
                   options={[
                     {
                       value: 'recall',
-                      label: 'recall',
+                      label: tr('召回评测', 'Retrieval evaluation'),
                     },
                     {
                       value: 'app',
-                      label: 'app',
+                      label: tr('应用评测', 'Application evaluation'),
                     },
                   ]}
                   onChange={async value => {
@@ -728,7 +717,7 @@ const Evaluation = () => {
                   }}
                 ></Select>
               </Form.Item>
-              <Form.Item name='scene_value' label='场景参数' rules={[{ required: true }]}>
+              <Form.Item name='scene_value' label={tr('场景参数', 'Evaluation target')} rules={[{ required: true }]}>
                 <Select
                   loading={sceneValueOptionLoading}
                   disabled={sceneValueOptionLoading}
@@ -743,15 +732,15 @@ const Evaluation = () => {
                   }}
                 ></Select>
               </Form.Item>
-              <Form.Item name='parallel_num' label='并行参数' rules={[{ required: true }]} initialValue={1}>
+              <Form.Item name='parallel_num' label={tr('并行参数', 'Evaluation concurrency')} rules={[{ required: true }]} initialValue={1}>
                 <Input></Input>
               </Form.Item>
-              <Form.Item name='datasets' label='数据集' rules={[{ required: true }]}>
+              <Form.Item name='datasets' label={tr('数据集', 'Datasets')} rules={[{ required: true }]}>
                 <Select options={dataSetsOptions}></Select>
               </Form.Item>
               <Form.Item
                 name='evaluate_metrics'
-                label='评测指标'
+                label={tr('评测指标', 'Evaluation metrics')}
                 rules={[{ required: useWatch('scene_key', form) === 'app' }]}
               >
                 <Select loading={getMetricsLoading} disabled={getMetricsLoading} options={metricOptions}></Select>
@@ -759,7 +748,7 @@ const Evaluation = () => {
             </Form>
           </Modal>
           <Modal
-            title={isAddDataSet ? '添加数据集' : '编辑数据集'}
+            title={isAddDataSet ? tr('添加数据集', 'Add dataset') : tr('编辑数据集', 'Edit dataset')}
             open={isDataSetModalOpen}
             confirmLoading={dataSetModalLoading}
             onOk={() => {
@@ -767,27 +756,33 @@ const Evaluation = () => {
                 setDataSetModalLoading(true);
                 if (isAddDataSet) {
                   const storageType = values.storage_type;
-                  if (storageType === 'oss') {
+                  if (storageType === 'file') {
                     // 创建FormData对象
                     const formData = new FormData();
                     formData.append('dataset_name', values.dataset_name);
-                    values.members && formData.append('members', values.members.join(','));
+                    values.members && formData.append('members', (values.members || []).join(','));
 
-                    const file = values.doc_file.file; // 获取文件对象
-                    formData.append('doc_file', file, file.name);
+                    const upload = values.doc_file?.[0] || values.doc_file;
+                    const file = upload?.file?.originFileObj || upload?.file || upload?.originFileObj || upload;
+                    if (!(file instanceof Blob)) {
+                      message.error(tr('上传失败', 'Dataset upload failed'));
+                      setDataSetModalLoading(false);
+                      return;
+                    }
+                    formData.append('doc_file', file, file instanceof File ? file.name : 'dataset.json');
 
                     uploadDataSetsFile(formData)
                       .then(response => {
                         if (response.data.success) {
-                          message.success('上传成功');
+                          message.success(tr('上传成功', 'Dataset uploaded'));
                           runGetDataSets();
                         } else {
                           message.error(response.data.err_msg);
                         }
                       })
                       .catch(error => {
-                        console.error('上传失败', error);
-                        message.error(error?.response?.data?.err_msg || '上传失败');
+                        console.error(tr('上传失败', 'Dataset upload failed'), error);
+                        message.error(error?.response?.data?.err_msg || tr('上传失败', 'Dataset upload failed'));
                       })
                       .finally(() => {
                         setIsDataSetModalOpen(false);
@@ -796,12 +791,12 @@ const Evaluation = () => {
                   } else if (storageType === 'db') {
                     uploadDataSetsContent({
                       dataset_name: values.dataset_name,
-                      members: values.members.join(','),
+                      members: (values.members || []).join(','),
                       content: values.content,
                     })
                       .then(res => {
                         if (res.data.success) {
-                          message.success('上传成功');
+                          message.success(tr('上传成功', 'Dataset uploaded'));
                           runGetDataSets();
                         } else {
                           message.error(res.data.err_msg);
@@ -809,7 +804,7 @@ const Evaluation = () => {
                       })
                       .catch(err => {
                         console.log(err);
-                        message.error(err?.response?.data?.err_msg || '上传失败');
+                        message.error(err?.response?.data?.err_msg || tr('上传失败', 'Dataset upload failed'));
                       })
                       .finally(() => {
                         setIsDataSetModalOpen(false);
@@ -820,11 +815,11 @@ const Evaluation = () => {
                 } else {
                   updateEvaluations({
                     code: currentEvaluationCode,
-                    members: values.members.join(','),
+                    members: (values.members || []).join(','),
                   })
                     .then(res => {
                       if (res.data.success) {
-                        message.success('更新成功');
+                        message.success(tr('更新成功', 'Dataset updated'));
                         runGetDataSets();
                       } else {
                         message.error(res.data.err_msg);
@@ -832,7 +827,7 @@ const Evaluation = () => {
                     })
                     .catch(err => {
                       console.log(err);
-                      message.error('更新失败');
+                      message.error(tr('更新失败', 'Dataset update failed'));
                     })
                     .finally(() => {
                       setIsDataSetModalOpen(false);
@@ -853,47 +848,40 @@ const Evaluation = () => {
               labelCol={{ span: 4 }}
               wrapperCol={{ span: 20 }}
             >
-              <Form.Item name='dataset_name' label='名称' rules={[{ required: true }]}>
+              <Form.Item name='dataset_name' label={tr('名称', 'Evaluation name')} rules={[{ required: true }]}>
                 <Input disabled={!isAddDataSet} />
               </Form.Item>
-              <Form.Item name='members' label='成员'>
+              <Form.Item name='members' label={tr('成员', 'Dataset members')}>
                 <Select mode='tags' />
               </Form.Item>
               {isAddDataSet && (
-                <Form.Item name='storage_type' label='储存类型' rules={[{ required: true }]}>
-                  <Select options={storageTypeOptions} />
+                <Form.Item name='storage_type' label={tr('储存类型', 'Storage type')} rules={[{ required: true }]}>
+                  <Select options={storageTypeOptions?.map(item => ({ ...item, label: item.value === 'db' ? tr('数据库 JSON', 'Database JSON') : tr('上传文件（数据库存储）', 'Upload file (database storage)') }))} />
                 </Form.Item>
               )}
-              {useWatch('storage_type', dataSetForm) === 'oss' && isAddDataSet && (
-                <Form.Item name='doc_file' label='doc_file' rules={[{ required: true }]}>
+              {useWatch('storage_type', dataSetForm) === 'file' && isAddDataSet && (
+                <Form.Item name='doc_file' label={tr('数据集文件', 'Dataset file')} valuePropName='fileList'
+                  getValueFromEvent={event => Array.isArray(event) ? event : event?.fileList}
+                  rules={[{ required: true }]}>
                   <Upload
                     name='dataSet'
+                    accept='.json,.jsonl,.csv'
                     maxCount={1}
-                    beforeUpload={file => {
-                      dataSetForm.setFieldsValue({
-                        doc_file: file,
-                      });
-                      return false;
-                    }}
-                    onRemove={() => {
-                      dataSetForm.setFieldsValue({
-                        doc_file: undefined,
-                      });
-                    }}
+                    beforeUpload={() => false}
                   >
-                    <Button icon={<UploadOutlined />}>Click to Upload</Button>
+                    <Button icon={<UploadOutlined />}>{tr('上传数据集', 'Upload dataset')}</Button>
                   </Upload>
                 </Form.Item>
               )}
               {useWatch('storage_type', dataSetForm) === 'db' && isAddDataSet && (
-                <Form.Item name='content' label='content' rules={[{ required: true }]}>
-                  <TextArea rows={8} />
+                <Form.Item name='content' label={tr('JSON 内容', 'JSON content')} rules={[{ required: true }]}>
+                  <TextArea rows={8} placeholder={'[{"query":"Question","factual":"Expected answer"}]'} />
                 </Form.Item>
               )}
             </Form>
           </Modal>
           <Modal
-            title='评分明细'
+            title={tr('评分明细', 'Evaluation score details')}
             open={isModalVisible}
             onOk={handleModalClose}
             onCancel={handleModalClose}
@@ -909,7 +897,7 @@ const Evaluation = () => {
             }}
             footer={[
               <Button key='back' onClick={handleModalClose}>
-                返回
+                {tr('返回', 'Back')}
               </Button>,
             ]}
           >

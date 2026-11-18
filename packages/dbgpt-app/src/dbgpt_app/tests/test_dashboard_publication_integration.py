@@ -29,6 +29,8 @@ from dbgpt_ext.datasource.rdbms.conn_sqlite import SQLiteConnector
 class Verifier:
     async def verify(self, authorization):
         role = authorization.removeprefix("Bearer ")
+        if role in ("admin-user-123", "admin-user-456"):
+            return PipelineActor(id=role, role="super_admin")
         return PipelineActor(id=role, role=role)
 
 
@@ -127,6 +129,34 @@ class PublicationIntegrationTest(unittest.IsolatedAsyncioTestCase):
                 revoked = await self.client.delete(path + "/publications/1", headers=headers)
                 self.assertEqual(200, revoked.status_code, revoked.text)
                 self.assertEqual(404, (await self.client.get(f"/api/v1/public/dashboards/{new_token}")).status_code)
+
+    async def test_admin_live_share_uses_actor_id_not_role_and_supports_full_lifecycle(self):
+        owner_id = "admin-user-123"
+        record = self.service.create_dashboard(DashboardCreateRequest(schema=self.schema), owner_id)
+        path = f"/api/v1/dashboards/{record.id}"
+        owner = {"Authorization": f"Bearer {owner_id}", "user-id": "spoofed-owner"}
+        status = await self.client.get(path + "/live-share", headers=owner)
+        self.assertEqual(200, status.status_code, status.text)
+        published = await self.client.post(path + "/publish", headers=owner,
+            json={"expected_revision": record.current_revision, "filters": {}})
+        self.assertEqual(200, published.status_code, published.text)
+        shared = await self.client.post(path + "/live-share", headers=owner, json={})
+        self.assertEqual(200, shared.status_code, shared.text)
+        token = shared.json()["data"]["share_path"].rsplit("/", 1)[-1]
+        public = f"/api/v1/public/dashboards/{token}"
+        data = await self.client.get(public)
+        self.assertEqual(200, data.status_code, data.text)
+        self.assertEqual([[30.0]], data.json()["data"]["snapshot"]["widgets"]["total"]["rows"])
+        filtered = await self.client.post(public + "/filter", json={"filters": {}})
+        self.assertEqual(200, filtered.status_code, filtered.text)
+        self.assertEqual(200, (await self.client.get(path + "/live-share", headers=owner)).status_code)
+        foreign = {"Authorization": "Bearer admin-user-456"}
+        for method, suffix in (("get", "/live-share"), ("post", "/publish"), ("delete", "/live-share")):
+            body = {"json": {"expected_revision": record.current_revision, "filters": {}}} if method == "post" else {}
+            response = await getattr(self.client, method)(path + suffix, headers=foreign, **body)
+            self.assertIn(response.status_code, (403, 404))
+        self.assertEqual(200, (await self.client.delete(path + "/live-share", headers=owner)).status_code)
+        self.assertEqual(404, (await self.client.get(public)).status_code)
 
     async def test_live_share_and_owner_source_boundaries(self):
         record = self.service.create_dashboard(DashboardCreateRequest(schema=self.schema), "analyst")

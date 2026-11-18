@@ -21,6 +21,7 @@ from dbgpt_serve.evaluate.service.fetchdata.benchmark_data_manager import (
     get_benchmark_manager,
 )
 from dbgpt_serve.evaluate.service.service import Service
+from .management import management_router
 
 from ...prompt.service.service import Service as PromptService
 from ..service.benchmark.benchmark_service import (
@@ -418,6 +419,9 @@ async def list_benchmark_tasks(limit: int = 50, offset: int = 0):
             }
         )
     return Result.succ(result)
+
+
+router.include_router(management_router(get_service, check_api_key))
 
 
 def init_endpoints(system_app: SystemApp, config: ServeConfig) -> None:

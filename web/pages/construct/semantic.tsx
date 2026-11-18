@@ -46,7 +46,7 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useAsyncEffect } from 'ahooks';
-import { Button, Drawer, Empty, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { Alert, Button, Drawer, Empty, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
 import { useRouter } from 'next/router';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -92,6 +92,11 @@ const SemanticCenter = () => {
   const statusBadge = (status: string) => (
     <span className={styles.status} data-status={status}>
       {statusLabel(status)}
+    </span>
+  );
+  const connectionNotice = (source: SemanticSpace) => source.connection_status !== 'configured' && (
+    <span className={styles.muted} role='status'>
+      {label(source.connection_status === 'missing' ? 'connection_missing' : 'connection_unknown')}
     </span>
   );
   const filtered = <T extends object>(rows: T[]) =>
@@ -370,6 +375,7 @@ const SemanticCenter = () => {
                             {row.conn_name || row.conn_id}
                           </Button>
                           <div className={styles.muted}>{row.db_type.toUpperCase()}</div>
+                          {connectionNotice(row)}
                         </div>
                       </div>
                     ),
@@ -417,7 +423,7 @@ const SemanticCenter = () => {
                         <Button
                           type='text'
                           icon={<SyncOutlined />}
-                          disabled={!!busy}
+                          disabled={!!busy || row.connection_status === 'missing'}
                           loading={busy === `sync-${row.id}`}
                           onClick={() => runAction(`sync-${row.id}`, () => doSync(row.id))}
                         >
@@ -826,7 +832,7 @@ const SemanticCenter = () => {
               <Button
                 icon={<SyncOutlined />}
                 loading={busy === 'sync'}
-                disabled={!!busy}
+                disabled={!!busy || space?.connection_status === 'missing'}
                 onClick={() => runAction('sync', () => doSync(dsId))}
               >
                 {label('sync')}
@@ -842,6 +848,15 @@ const SemanticCenter = () => {
               </Button>
             </div>
           </header>
+          {space && space.connection_status !== 'configured' && (
+            <Alert
+              type='warning'
+              showIcon
+              message={label(space.connection_status === 'missing' ? 'connection_missing' : 'connection_unknown')}
+              description={label(space.connection_status === 'missing' ? 'connection_missing_hint' : 'connection_unknown_hint')}
+              className='mb-4'
+            />
+          )}
           {coverage &&
             stats([
               { title: label('table_count'), value: coverage.tables },

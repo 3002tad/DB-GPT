@@ -326,6 +326,9 @@ export const getProviderConfig = (provider: string) => {
 };
 
 // Save provider credentials (connect the provider)
+export const saveModelMetadata = (provider: string, model: string, values: import('@/types/model').ManualModelDeclaration) =>
+  PUT('/api/v2/serve/model/providers/models/metadata', { provider, model, ...values });
+
 export const saveProviderConfig = (provider: string, data: { api_key?: string; api_base?: string }) => {
   return PUT<{ provider: string; api_key?: string; api_base?: string }, boolean>(
     '/api/v2/serve/model/providers/config',

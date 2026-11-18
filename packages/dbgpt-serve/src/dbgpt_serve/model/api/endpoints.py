@@ -28,6 +28,7 @@ from .schemas import (
     ProviderConfigRequest,
     ProviderCustomRequest,
     ProviderModelRequest,
+    ProviderModelMetadataRequest,
     ProviderModelsRequest,
     ProviderRequest,
 )
@@ -417,6 +418,24 @@ async def model_providers(
                         )
                     )
 
+        from dbgpt.model.cluster.manual_metadata import read_manual_metadata
+
+        for item in storage.list_all():
+            for provider in providers.values():
+                if provider["provider"] != item.provider:
+                    continue
+                for model in provider["models"]:
+                    declared = read_manual_metadata(item.api_base, model["model"])
+                    model["manual_metadata"] = declared
+                    active = False
+                    for field in ("context_length", "max_output_length", "function_calling"):
+                        if declared.get(field) is not None:
+                            model[field] = declared[field]
+                            active = True
+                    if active:
+                        model["metadata_source"] = declared.get("reference")
+                        model["metadata_checked_at"] = declared.get("checked_at")
+                        model["metadata_declaration"] = "user_config"
         result = sorted(providers.values(), key=lambda p: p["name"].lower())
         return Result.succ(result)
     except Exception as e:
@@ -469,6 +488,30 @@ async def save_provider_config(
     except Exception as e:
         logger.error(f"save provider config failed {e}")
         return Result.failed(err_code="E000X", msg=f"save provider config failed {e}")
+
+
+@router.put("/providers/models/metadata")
+async def save_model_metadata(
+    request: ProviderModelMetadataRequest,
+    storage: ModelProviderConfigStorage = Depends(get_provider_config_storage),
+):
+    from dbgpt.model.cluster.manual_metadata import write_manual_metadata
+
+    item = storage.get(request.provider)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Provider is not configured")
+    values = {
+        "context_length": request.context_length,
+        "max_output_length": request.max_output_length,
+        "function_calling": request.function_calling,
+        "reference": request.reference.strip() if request.reference else None,
+        "checked_at": request.checked_at.isoformat() if request.checked_at else None,
+    }
+    try:
+        write_manual_metadata(item.api_base, request.model, values)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return Result.succ(values)
 
 
 @router.post("/providers/connect")

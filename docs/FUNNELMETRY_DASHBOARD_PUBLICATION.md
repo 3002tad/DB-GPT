@@ -46,3 +46,21 @@ identity middleware, SQLite data, both roles, anonymous reads/filters,
 rotation/revocation, owner checks and live-source denial. No live data or LLM
 was used. Code is not deployed; frontend build and Analyst browser acceptance
 remain pending. Retest fixed and live links plus revocation after deployment.
+
+## ADMIN18-02 verification
+
+ADMIN18-02 has the same integration-policy cause as RUN18-02 and is covered by
+the correction committed in `e05cda30`. It does not require a second permission
+expansion. The editor and live-share control do not add an Admin-specific role
+restriction; native object PUBLISH/source checks apply to both roles.
+
+Follow-up regression passed 14 targeted backend tests, adding the full Admin
+live-link lifecycle with an actor ID distinct from `super_admin`: publish,
+live-share status/create, anonymous read/filter with fixture data, revoke and
+subsequent rejection. Another Admin and a spoofed user-id header do not bypass
+ownership. Existing fixed-snapshot rotation/revocation tests still pass for
+both roles. No additional production policy/handler change was necessary.
+
+This is source/fixture verification, not deployed-browser acceptance. Deploy
+the committed fix and verify publication from each role before closing the live
+incident; do not infer deployment from passing tests in a separate process.

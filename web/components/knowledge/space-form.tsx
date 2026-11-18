@@ -1,5 +1,6 @@
 import { I18nKeys } from '@/app/i18n';
 import {
+  addDocument,
   addSpace,
   apiInterceptors,
   getChunkStrategies,
@@ -133,8 +134,7 @@ const DS_CARDS: DataSourceCardDef[] = [
     color: '#722ED1',
     bgLight: '#F9F0FF',
     bgDark: '#1E1326',
-    // superseded by binding-style sources (Feishu/Yuque/RSS); kept here so
-    // the type + forward flow still compiles — just not offered in the UI
+    // Superseded by binding-style sources; retained for existing form callers.
     hidden: true,
   },
   {
@@ -215,6 +215,10 @@ export default function SpaceForm(props: IProps) {
   const [files, setFiles] = useState<any[]>([]);
   const [models, setModels] = useState<Array<{ label: string; value: string }>>([]);
   const [bindStage, setBindStage] = useState(false);
+  // Retry only unfinished inline ingestion, keeping its source fields fixed.
+  const [inlineCreated, setInlineCreated] = useState(false);
+  const inlineDocumentId = useRef<number | null>(null);
+  const submitting = useRef(false);
   const router = useRouter();
   const createdNameRef = useRef<string>('');
   const goDetail = () =>
@@ -296,6 +300,19 @@ export default function SpaceForm(props: IProps) {
   );
 
   const handleFinish = async (fieldsValue: FieldType) => {
+    if (submitting.current) return;
+    submitting.current = true;
+    try {
+      await submitSpace(fieldsValue);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('create_failed'));
+    } finally {
+      submitting.current = false;
+      setSpinning(false);
+    }
+  };
+
+  const submitSpace = async (fieldsValue: FieldType) => {
     const { spaceName, owner, description, storage, dataSourceType: dst, index_methods } = fieldsValue;
     setSpinning(true);
 
@@ -317,26 +334,73 @@ export default function SpaceForm(props: IProps) {
     // domain_type defaults to 'Normal' (standard ETL pipeline);
     // GitRepo uses a dedicated domain index pipeline.
     const domain_type = dst === 'GIT_REPO' ? 'GitRepo' : 'Normal';
-    const [err, _data, res] = await apiInterceptors(
-      addSpace({
-        name: spaceName,
-        vector_type: primaryIndex,
-        owner,
-        desc: description,
-        domain_type,
-        index_methods: index_methods,
-        ...(wiki_config ? { context: { wiki_config } } : {}),
-      }),
-    );
-    if (err || !res?.success) {
-      setSpinning(false);
-      message.error(t('create_failed') + ': ' + (err as Error)?.message);
+    if (!inlineCreated) {
+      const [err, _data, res] = await apiInterceptors(
+        addSpace({
+          name: spaceName,
+          vector_type: primaryIndex,
+          owner,
+          desc: description,
+          domain_type,
+          index_methods: index_methods,
+          ...(wiki_config ? { context: { wiki_config } } : {}),
+        }),
+      );
+      if (err || !res?.success) {
+        setSpinning(false);
+        message.error(t('create_failed') + ': ' + (err as Error)?.message);
+        return;
+      }
+      // addSpace v1 API returns [] — use spaceName as the identifier
+      // (backend _resolve_space supports both id and name)
+      createdNameRef.current = spaceName;
+      localStorage.setItem('cur_space_id', JSON.stringify(spaceName));
+      if (dst === 'TEXT' || dst === 'URL') setInlineCreated(true);
+    }
+
+    // This form already owns source content and chunk settings. Do not send
+    // users through the legacy document-type/upload wizard to enter it again.
+    if (dst === 'TEXT' || dst === 'URL') {
+      if (inlineDocumentId.current === null) {
+        const [documentError, documentId, response] = await apiInterceptors(
+          addDocument(spaceName, {
+            doc_name: spaceName,
+            doc_type: dst,
+            content: (dst === 'TEXT' ? fieldsValue.raw_text : fieldsValue.web_url) || '',
+          }),
+        );
+        if (
+          documentError ||
+          !response?.success ||
+          typeof documentId !== 'number'
+        )
+          return;
+        inlineDocumentId.current = documentId;
+      }
+      const [syncError, , response] = await apiInterceptors(
+        syncBatchDocument(spaceName, [
+          {
+            doc_id: inlineDocumentId.current,
+            name: spaceName,
+            chunk_parameters: {
+              chunk_strategy: fieldsValue.chunk_strategy || 'Automatic',
+              ...(fieldsValue.chunk_size != null
+                ? { chunk_size: Number(fieldsValue.chunk_size) }
+                : {}),
+              ...(fieldsValue.chunk_overlap != null
+                ? { chunk_overlap: Number(fieldsValue.chunk_overlap) }
+                : {}),
+            },
+          },
+        ]),
+      );
+      if (syncError || !response?.success) return;
+      // Indexing is asynchronous; its actual status is shown on the detail page.
+      onSuccess?.();
+      handleStepChange({ label: 'finish' });
+      goDetail();
       return;
     }
-    // addSpace v1 API returns [] — use spaceName as the identifier
-    // (backend _resolve_space supports both id and name)
-    createdNameRef.current = spaceName;
-    localStorage.setItem('cur_space_id', JSON.stringify(spaceName));
 
     // 2. For Git Repo, trigger sync immediately
     if (dst === 'GIT_REPO') {
@@ -458,16 +522,6 @@ export default function SpaceForm(props: IProps) {
       setBindStage(true);
       return;
     }
-
-    // 5. For other types (URL, TEXT), forward to upload step
-    setSpinning(false);
-    handleStepChange({
-      label: 'forward',
-      spaceName,
-      pace: 2,
-      docType: dst,
-      files,
-    });
   };
 
   if (bindStage && bindSpaceId !== null) {
@@ -506,6 +560,7 @@ export default function SpaceForm(props: IProps) {
     <Spin spinning={spinning}>
       <Form
         form={form}
+        disabled={inlineCreated}
         size='large'
         className='mt-4'
         layout='vertical'
@@ -566,7 +621,7 @@ export default function SpaceForm(props: IProps) {
           {DS_CARDS.filter(card => !card.hidden).map(card => {
             const selected = dataSourceType === card.key;
             const label = dataSourceLabels[card.key];
-            const isDisabled = card.disabled;
+            const isDisabled = card.disabled || inlineCreated;
             return (
               <div
                 key={card.key}
@@ -593,7 +648,7 @@ export default function SpaceForm(props: IProps) {
                 }}
               >
                 {/* Coming soon badge */}
-                {isDisabled && (
+                {card.disabled && (
                   <div className='absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 leading-none'>
                     {t('ds_coming_soon')}
                   </div>
@@ -742,7 +797,7 @@ export default function SpaceForm(props: IProps) {
 
         {/* ── Section 3: Index Methods ── */}
         <div className='mb-3 text-base font-semibold text-gray-700 dark:text-gray-300'>{t('Index_Method')}</div>
-        <Form.Item<FieldType> name='index_methods' initialValue={['VectorStore', 'FullText', 'KnowledgeGraph']}>
+        <Form.Item<FieldType> name='index_methods'>
           <Checkbox.Group
             className='grid grid-cols-3 gap-3 w-full'
             onChange={(values: string[]) => {
@@ -873,6 +928,7 @@ export default function SpaceForm(props: IProps) {
         <Form.Item>
           <div className='flex justify-end gap-3'>
             <Button
+              disabled={false}
               onClick={() => {
                 form.resetFields();
                 setFiles([]);
@@ -881,8 +937,9 @@ export default function SpaceForm(props: IProps) {
             >
               {t('cancel')}
             </Button>
-            <Button type='primary' htmlType='submit' loading={spinning}>
-              {isGitRepo ? t('create_and_sync') : isDocument ? t('create_and_upload') : t('Next')}
+            <Button type='primary' htmlType='submit' loading={spinning} disabled={false}>
+              {isGitRepo || dataSourceType === 'TEXT' || dataSourceType === 'URL'
+                ? t('create_and_sync') : isDocument ? t('create_and_upload') : t('Next')}
             </Button>
           </div>
         </Form.Item>

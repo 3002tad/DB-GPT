@@ -51,9 +51,42 @@ def _connector(db_name: str) -> Any:
 
 
 # ---- spaces ----
+def _with_connection_status(spaces: list) -> list:
+    """Retain semantic history while reporting current connection registration.
+
+    Select names only: this is not a connectivity probe or a credential payload.
+    A registry lookup failure must not mislabel every source as deleted.
+    """
+    from dbgpt_serve.datasource.manages.connect_config_db import (
+        ConnectConfigDao,
+        ConnectConfigEntity,
+    )
+
+    names = None
+    try:
+        session = ConnectConfigDao().get_raw_session()
+        try:
+            names = {row[0] for row in session.query(ConnectConfigEntity.db_name).all()}
+        finally:
+            session.close()
+    except Exception as exc:
+        logger.warning("semantic connection registry unavailable: %s", type(exc).__name__)
+    return [
+        {
+            **space,
+            "connection_status": (
+                "unknown"
+                if names is None
+                else "configured" if space["conn_id"] in names else "missing"
+            ),
+        }
+        for space in spaces
+    ]
+
+
 @router.get("/v1/semantic/spaces")
 async def list_spaces():
-    return Result.succ(get_semantic_service().list_spaces())
+    return Result.succ(_with_connection_status(get_semantic_service().list_spaces()))
 
 
 @router.get("/v1/semantic/spaces/{ds_id}")
@@ -61,7 +94,7 @@ async def get_space(ds_id: int):
     space = get_semantic_service().get_space(ds_id)
     if not space:
         raise HTTPException(status_code=404, detail=f"space {ds_id} not found")
-    return Result.succ(space)
+    return Result.succ(_with_connection_status([space])[0])
 
 
 @router.post("/v1/semantic/spaces/{ds_id}/activate")
@@ -86,6 +119,11 @@ async def sync_space(ds_id: int, payload: Dict[str, Any] = Body(default={})):
     space = get_semantic_service().get_space(ds_id)
     if not space:
         raise HTTPException(status_code=404, detail=f"space {ds_id} not found")
+    if _with_connection_status([space])[0]["connection_status"] == "missing":
+        raise HTTPException(
+            status_code=409,
+            detail="Datasource registration is missing; semantic metadata is retained",
+        )
     db_name = str(payload.get("db_name") or space["conn_id"])
     try:
         connector = _connector(db_name)

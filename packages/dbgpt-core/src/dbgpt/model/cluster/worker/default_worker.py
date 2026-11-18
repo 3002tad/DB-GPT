@@ -298,7 +298,13 @@ class DefaultModelWorker(ModelWorker):
                     proxy_metadata.metadata or {}
                 ).get("context_length_source", "adapter_metadata")
             metadata.max_output_length = proxy_metadata.max_output_length
-        return metadata
+        from dbgpt.model.cluster.manual_metadata import apply_manual_metadata
+
+        return apply_manual_metadata(
+            metadata,
+            getattr(getattr(self, "_model_params", None), "api_base", None),
+            self.model_name,
+        )
 
     def embeddings(self, params: Dict) -> List[List[float]]:
         raise NotImplementedError

@@ -106,6 +106,11 @@ class DefaultLLMClient(LLMClient):
             model_map[single_model.model] = single_model
         return [model_map[model_name] for model_name in sorted(model_map.keys())]
 
+    async def get_model_metadata(self, model: str) -> ModelMetadata:
+        # Operator declarations may change between runs. Read the selected
+        # worker instead of retaining LLMClient's process-lifetime cache.
+        return await self.worker_manager.get_model_metadata({"model": model})
+
     async def count_token(self, model: str, prompt: str) -> int:
         return await self.worker_manager.count_token({"model": model, "prompt": prompt})
 

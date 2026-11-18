@@ -17,6 +17,13 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./new-components/dashboard/test-setup.ts'],
     include: [
+      './new-components/common/ManualModelMetadataForm.test.tsx',
+      './new-components/common/ModelContextMetadata.test.tsx',
+      './hooks/use-conversation-model.test.tsx',
+      './pages/chat/model-selection.test.tsx',
+      './pages/construct/semantic.registration.test.tsx',
+      './components/knowledge/space-form.test.tsx',
+      './pages/evaluation/evaluation.test.tsx',
       './hooks/use-conversation-meters.test.tsx',
       './new-components/chat/content/ConversationTokenBadge.test.tsx',
       './hooks/use-react-agent.locale.test.tsx',

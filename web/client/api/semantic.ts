@@ -6,6 +6,7 @@ export interface SemanticSpace {
   conn_name: string;
   db_type: string;
   status: string;
+  connection_status?: 'configured' | 'missing' | 'unknown';
   space_name: string;
   embedding_model?: string;
   table_count?: number;

@@ -107,6 +107,8 @@ def mount_routers(app: FastAPI):
 
 
 def mount_static_files(app: FastAPI, param: ApplicationConfig):
+    from dbgpt_app.static_files import SameOriginStaticFiles
+
     package_dir = os.path.dirname(os.path.abspath(__file__))
     if param.service.web.new_web_ui:
         static_file_path = os.path.join(package_dir, "static", "web")
@@ -116,7 +118,7 @@ def mount_static_files(app: FastAPI, param: ApplicationConfig):
     os.makedirs(STATIC_MESSAGE_IMG_PATH, exist_ok=True)
     app.mount(
         "/images",
-        StaticFiles(directory=STATIC_MESSAGE_IMG_PATH, html=True),
+        SameOriginStaticFiles(directory=STATIC_MESSAGE_IMG_PATH, html=True),
         name="static2",
     )
     app.mount(
@@ -177,7 +179,7 @@ def mount_static_files(app: FastAPI, param: ApplicationConfig):
             return FileResponse(scheduled_task_html, media_type="text/html")
         raise HTTPException(status_code=404, detail="Page not found")
 
-    app.mount("/", StaticFiles(directory=static_file_path, html=True), name="static")
+    app.mount("/", SameOriginStaticFiles(directory=static_file_path, html=True), name="static")
 
     app.mount(
         "/swagger_static",

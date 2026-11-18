@@ -52,7 +52,7 @@ class Service(BaseService[ServeEntity, EvaluateServeRequest, EvaluateServeRespon
     ):
         self._system_app = system_app
         self._serve_config: ServeConfig = config
-        self._dao: ServeDao = dao
+        self._dao: ServeDao = dao or ServeDao(config)
         super().__init__(system_app)
         self.rag_service = get_rag_service(system_app)
         self.prompt_service = get_prompt_service(system_app)

@@ -62,6 +62,7 @@ _ADMIN_MODEL_PATHS = {
     ("GET", "/api/v2/serve/model/providers/github_copilot/auth/poll"),
     ("PUT", "/api/v2/serve/model/providers/config"),
     ("PUT", "/api/v2/serve/model/providers/models"),
+    ("PUT", "/api/v2/serve/model/providers/models/metadata"),
     ("POST", "/api/v2/serve/model/providers/connect"),
     ("POST", "/api/v2/serve/model/providers/disconnect"),
     ("POST", "/api/v2/serve/model/providers/custom"),

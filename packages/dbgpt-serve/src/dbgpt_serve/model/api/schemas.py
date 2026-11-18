@@ -1,5 +1,7 @@
 # Define your Pydantic schemas here
 from typing import Any, Dict, List, Optional
+from datetime import date
+from pydantic import StrictBool, StrictInt, model_validator
 
 from dbgpt._private.pydantic import BaseModel, ConfigDict, Field, model_to_dict
 
@@ -79,6 +81,23 @@ class ProviderModelRequest(BaseModel):
 
     provider: str = Field(description="The provider id, e.g. proxy/openai")
     model: str = Field(description="The model name to enable or disable")
+
+
+class ProviderModelMetadataRequest(ProviderModelRequest):
+    context_length: Optional[StrictInt] = Field(None, gt=0)
+    max_output_length: Optional[StrictInt] = Field(None, gt=0)
+    function_calling: Optional[StrictBool] = None
+    reference: Optional[str] = Field(None, max_length=2048)
+    checked_at: Optional[date] = None
+
+    @model_validator(mode="after")
+    def validate_declaration(self):
+        if self.context_length and self.max_output_length and self.max_output_length > self.context_length:
+            raise ValueError("Output limit cannot exceed context window")
+        if any(value is not None for value in (self.context_length, self.max_output_length, self.function_calling)):
+            if not (self.reference or "").strip() or self.checked_at is None:
+                raise ValueError("Provide a reference and check date for declared metadata")
+        return self
 
 
 class ProviderRequest(BaseModel):
