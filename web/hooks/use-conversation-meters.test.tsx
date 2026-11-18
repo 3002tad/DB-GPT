@@ -5,8 +5,12 @@ import { conversationTokenTotal, useConversationContext, useConversationTokens }
 const api = vi.hoisted(() => ({ owner: 'analyst', read: vi.fn() }));
 vi.mock('@/utils/storage', () => ({ getUserId: () => api.owner }));
 vi.mock('@/client/api', () => ({
-  getConversationUsage: (id: string) => id,
-  apiInterceptors: (id: string) => api.read(id),
+  getConversationUsage: async (id: string) => {
+    const [error, data] = await api.read(id);
+    if (error) throw error;
+    return { data: { success: !!data, data } };
+  },
+  apiInterceptors: () => { throw new Error('Background meters must not use notification interceptors'); },
 }));
 const measurement = {
   state: 'OK' as const, used_tokens: 200, max_tokens: 1000, usage_percent: 20,
@@ -144,4 +148,15 @@ it('polls while running and cleans up timers on unmount', async () => {
   hook.unmount();
   await act(async () => { vi.advanceTimersByTime(30000); });
   expect(api.read).toHaveBeenCalledTimes(2);
+});
+
+it('recovers from a first-turn 404 when conversation history becomes available', async () => {
+  api.read.mockResolvedValueOnce([new Error('Conversation not found'), null])
+    .mockResolvedValue([null, { source: 'provider', models: [complete('a', 42)] }]);
+  const hook = renderHook(({ running }) => useConversationTokens('new-chat', running), { initialProps: { running: true } });
+  await waitFor(() => expect(hook.result.current.failed).toBe(true));
+  expect(hook.result.current.total).toBeNull();
+  hook.rerender({ running: false });
+  await waitFor(() => expect(hook.result.current.total).toBe(42));
+  expect(hook.result.current.failed).toBe(false);
 });

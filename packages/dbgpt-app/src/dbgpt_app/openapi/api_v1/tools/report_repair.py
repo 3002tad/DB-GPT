@@ -631,8 +631,18 @@ def _record_failure(
                 + json.dumps(targets[:3], ensure_ascii=False)
                 + ". "
             )
+    if error.startswith("REPORT_TARGET_BINDING_REQUIRED:"):
+        instruction = (
+            "Use report_evidence_manifest to select actual artifact/result paths. "
+            "Bind each reported numeric target to the matching source; a computed "
+            "literal is not a verified datasource observation. Keep existing valid "
+            "sections and repair only the failed targets. "
+        ) + instruction
+    error_preview = error[:3000]
+    if len(error) > len(error_preview):
+        error_preview += " [error details truncated; full diagnostics remain in the saved checkpoint]"
     message = (
-        f"{error}\n{instruction}Render attempts: {attempts}/{MAX_RENDER_ATTEMPTS}; "
+        f"{error_preview}\n{instruction}Render attempts: {attempts}/{MAX_RENDER_ATTEMPTS}; "
         f"document assembly attempts: {document_attempts}/{MAX_REPORT_CALLS}; "
         f"preflight attempts: {preflight_attempts}/{MAX_PREFLIGHT_ATTEMPTS}; "
         "consecutive invocation failures: "
@@ -652,7 +662,10 @@ def _record_failure(
         state["_report_html_error"] = message
     result = json.dumps(
         {
+            "success": False,
             "chunks": [{"output_type": "text", "content": message}],
+            "error_detail_chars": len(error),
+            "error_preview_truncated": len(error) > 3000,
             "error_code": error.split(":", 1)[0],
             "previous_render_error_code": previous_code,
             "render_attempts": attempts,

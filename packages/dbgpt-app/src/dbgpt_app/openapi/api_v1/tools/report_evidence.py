@@ -228,6 +228,15 @@ def _artifact_manifest_item(
         item.update(
             {
                 "language": artifact.language,
+                "source_authority": (
+                    "captured_inputs" if artifact.input_artifact_ids else "computation_only"
+                ),
+                "interpretation_hint": (
+                    "Input references identify captured evidence; verify their grain and freshness."
+                    if artifact.input_artifact_ids else
+                    "This result proves a computation, not datasource observations. "
+                    "Link actual source artifacts before interpreting it as database statistics."
+                ),
                 "exit_code": artifact.exit_code,
                 "result_available": artifact.result is not None,
                 "result_structure": result_structure(preview_data),

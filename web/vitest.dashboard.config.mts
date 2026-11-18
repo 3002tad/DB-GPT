@@ -17,6 +17,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./new-components/dashboard/test-setup.ts'],
     include: [
+      './utils/conversation-resources.test.ts',
       './new-components/common/ManualModelMetadataForm.test.tsx',
       './new-components/common/ModelContextMetadata.test.tsx',
       './hooks/use-conversation-model.test.tsx',

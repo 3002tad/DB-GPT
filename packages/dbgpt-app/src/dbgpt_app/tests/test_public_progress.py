@@ -79,3 +79,33 @@ def test_ordinary_multiline_narration_keeps_streaming_and_markdown():
         public_assistant_text("先读取数据。\nThought: private\nAction: read")
         == "先读取数据。"
     )
+
+
+def test_native_narration_is_not_normalized_as_a_one_line_status():
+    import ast
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "openapi/api_v1/agentic_data_api.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    narration_calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "public_assistant_text"
+        and any(
+            isinstance(part, ast.Constant) and part.value == "public_text"
+            for part in ast.walk(node)
+        )
+    ]
+    assert narration_calls
+    for call in narration_calls:
+        assert not any(
+            isinstance(part, ast.Call) and isinstance(part.func, ast.Name)
+            and part.func.id == "normalize_display_text"
+            for part in ast.walk(call)
+        )
+    markdown = "## Trend\n\n| Month | Sessions |\n| --- | --- |\n| Jan | 42 |\n\n```sql\nSELECT 42;\n```"
+    history = []
+    event = PublicProgressStream(history).update(1, markdown, streaming=False)
+    assert event["content"] == markdown
+    assert history[0]["progress_content"] == markdown

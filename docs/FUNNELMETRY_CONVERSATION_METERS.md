@@ -3,6 +3,9 @@
 The main Agent composer displays two separate measurements. Neither changes
 the prompt, conversation memory, compaction, tools or model quota.
 
+Resource restoration, cross-turn evidence and interruption handling are
+described in [Conversation continuity](FUNNELMETRY_CONVERSATION_CONTINUITY.md).
+
 ## Context snapshot
 
 The backend captures valid `context.status` measurements and allowlists numeric
@@ -41,6 +44,14 @@ refresh; it does not add repeated poll responses or estimate usage from context.
 It fetches on conversation open, execution transitions and browser focus, polls
 every ten seconds while running, and refreshes after completion for trace flush.
 Late responses from another conversation are ignored.
+
+Usage reads are background telemetry and do not invoke the global request-error
+notification interceptor. A first-turn conversation may not yet have a history
+row, so the owned usage endpoint can legitimately return 404 while the Agent
+request is already starting. The badge stays incomplete and retries on its
+existing execution/focus schedule. Other usage read failures also remain local
+to the badge; they do not report that chat execution failed. Backend ownership
+checks and 401/403/404 responses are unchanged.
 
 No usage data, missing provider counters or failed API reads display
 **Incomplete**, not zero. Known partial totals retain that label. A genuine

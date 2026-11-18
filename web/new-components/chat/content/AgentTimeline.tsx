@@ -13,6 +13,7 @@
  * Consumes the same `step.*` SSE data as ManusLeftPanel.
  */
 import { publicAssistantText } from '@/utils/action-display';
+import { chatSystemNotice } from '@/utils/chat-system-notice';
 import { expandToolCallSteps } from '@/utils/tool-call-display';
 import { envelopeReadableText, extractEnvelopeObjects, publicToolProgressText } from '@/utils/tool-envelope';
 import {
@@ -228,7 +229,7 @@ const sweepKeyframes = `
 // ── row: 24px collapsible line (tools & thinking) ──────────────────────
 
 function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // thinking rows start collapsed (DSH default); tool rows too.
   const [open, setOpen] = useState(false);
   const running = block.status === 'running' || block.streaming;
@@ -409,7 +410,7 @@ function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }
               )}
               {!block.queryPayload && block.input && (
                 <div>
-                  <div className='text-[11px] text-gray-400 uppercase tracking-wide mb-0.5'>Input</div>
+                  <div className='text-[11px] text-gray-400 uppercase tracking-wide mb-0.5'>{i18n?.language?.startsWith('vi') ? 'Đầu vào' : i18n?.language?.startsWith('zh') ? '输入' : 'Input'}</div>
                   <pre className='text-xs leading-5 bg-[#efefeb] dark:bg-white/[.04] rounded-md p-2 text-[#55554f] dark:text-[#a8a59e] whitespace-pre-wrap break-all overflow-x-auto'>
                     {isSqlInput(block) ? renderSqlHighlighted(displayInput) : displayInput}
                   </pre>
@@ -417,14 +418,14 @@ function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }
               )}
               {!block.queryPayload && block.output && (
                 <div>
-                  <div className='text-[11px] text-gray-400 uppercase tracking-wide mb-0.5'>Output</div>
+                  <div className='text-[11px] text-gray-400 uppercase tracking-wide mb-0.5'>{i18n?.language?.startsWith('vi') ? 'Đầu ra' : i18n?.language?.startsWith('zh') ? '输出' : 'Output'}</div>
                   {prettyOutput ? (
                     <div className='text-xs leading-5 bg-[#efefeb] dark:bg-white/[.04] rounded-md p-2 text-[#3d3d38] dark:text-[#d4d2cc] max-h-56 overflow-y-auto'>
                       <MarkdownContext>{prettyOutput}</MarkdownContext>
                     </div>
                   ) : (
                     <pre className='text-xs leading-5 bg-[#efefeb] dark:bg-white/[.04] rounded-md p-2 text-[#55554f] dark:text-[#a8a59e] whitespace-pre-wrap break-all overflow-x-auto max-h-56 overflow-y-auto'>
-                      {block.output}
+                      {chatSystemNotice(block.output, i18n?.resolvedLanguage || i18n?.language)}
                     </pre>
                   )}
                   {block.outputImages && block.outputImages.length > 0 && (
@@ -452,12 +453,27 @@ function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }
 // ── text block: plain streamed markdown paragraph ──────────────────────
 
 function TextBlock({ block }: { block: TimelineBlock }) {
-  return (
+  const { i18n } = useTranslation();
+  const content = (
     <div className='min-w-0 text-sm leading-7 text-[#1c1c1a] dark:text-[#e6e4df] mb-3 prose prose-sm dark:prose-invert max-w-none [&_pre]:max-w-full [&_pre]:overflow-x-auto'>
       <MarkdownContext>{block.content || ''}</MarkdownContext>
       {block.streaming && <span className='inline-block w-2 h-4 bg-blue-500 align-[-2px] ml-0.5 animate-pulse' />}
     </div>
   );
+  // Completed narration can contain a full draft before the final answer.
+  // Keep that evidence accessible without presenting multiple reports in the
+  // main answer stream. Never fold a currently streaming paragraph.
+  if (!block.streaming && (block.content || '').length > 1000) {
+    const vi = i18n?.language?.startsWith('vi');
+    const zh = i18n?.language?.startsWith('zh');
+    return <details className='min-w-0 mb-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700'>
+      <summary className='cursor-pointer text-sm text-slate-500'>
+        {vi ? 'Ghi chú trong quá trình xử lý' : zh ? '处理过程备注' : 'Execution notes'}
+      </summary>
+      <div className='mt-3 max-h-80 overflow-auto'>{content}</div>
+    </details>;
+  }
+  return content;
 }
 
 /**

@@ -97,7 +97,8 @@ def test_sql_query_degrades_when_no_database():
     tools = make_react_tools({"conv_id": "c1"}, database_connector=None)
     out = tools["sql_query"](sql="SELECT 1")
     parsed = json.loads(out)
-    assert "未选择数据库" in parsed["chunks"][0]["content"]
+    assert parsed["error_code"] == "SQL_DATASOURCE_REQUIRED"
+    assert "Select a data source" in parsed["chunks"][0]["content"]
 
 
 def test_sql_query_blocks_non_select():

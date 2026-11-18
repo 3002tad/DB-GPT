@@ -94,6 +94,7 @@ from .react_final import AgentFinalAnswer, FinalAnswerAssembler
 from .execution_fallback import execution_copy, unfinished_message, missing_report_message
 from .react_history import ReactHistoryCheckpoint, save_history_view
 from .context_snapshot import capture_context_snapshot, snapshot_payload
+from .conversation_resources import resource_context_snapshot
 from .react_prompt import build_react_prompt_template
 from .subagent.dispatcher import DISPATCH_PROMPT_SECTION, make_dispatch_tool
 from .subagent.history import (
@@ -1596,6 +1597,7 @@ def _build_react_history_payload(
     execution_status: Optional[str] = None,
     financial_report: Optional[Dict[str, Any]] = None,
     context_snapshots: Optional[Dict[str, Any]] = None,
+    resource_context: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Serialize the persisted react-agent history payload (version 2).
 
@@ -1633,6 +1635,8 @@ def _build_react_history_payload(
         value["financial_report"] = financial_report
     if context_snapshots:
         value["context_snapshots"] = snapshot_payload(context_snapshots)
+    if resource_context is not None:
+        value["resource_context"] = resource_context_snapshot(resource_context)
     return json.dumps(value, ensure_ascii=False)
 
 
@@ -2274,8 +2278,12 @@ async def _react_agent_stream_inner(
             done_emitted = done_emitted or event_type == "done"
             history_checkpoint.flush()
             yield event
-    except Exception:
-        logger.exception("ReAct agent stream failed before normal completion")
+    except (asyncio.CancelledError, GeneratorExit) as error:
+        logger.warning("ReAct transport closed conv=%s exception_type=%s final=%s done=%s",
+                       dialogue.conv_uid, type(error).__name__, final_emitted, done_emitted)
+        raise
+    except Exception as error:
+        logger.exception("ReAct agent stream failed before normal completion exception_type=%s", type(error).__name__)
         if not final_emitted and not done_emitted:
             yield _sse_event(
                 AgentFinalAnswer(
@@ -3791,7 +3799,9 @@ async def _react_agent_stream_impl(
                 catalog_path(), owner_id=str(dialogue.user_name or "anonymous")
             )
             session_sink = SessionArtifactSink(
-                context, catalog, include_prior=report_resume_requested
+                # Evidence reuse is owner/session scoped, not restricted to an
+                # explicit report-resume phrase. Queries remain unrestricted.
+                context, catalog, include_prior=True
             )
             if artifact_sink is not None:
                 for restored in artifact_sink.snapshot():
@@ -3919,6 +3929,7 @@ async def _react_agent_stream_impl(
                 input_files=input_files_snapshot,
                 execution_status=status,
                 context_snapshots=react_state.get("_context_snapshots"),
+                resource_context=dialogue.ext_info or {},
             ),
         )
         history_checkpoint.flush(force=True)
@@ -4979,6 +4990,7 @@ or substitute a textual summary for a requested report.
             execution_status=status,
             financial_report=financial_report,
             context_snapshots=react_state.get("_context_snapshots"),
+            resource_context=dialogue.ext_info or {},
             suite_reference=suite_reference,
             suite_binding=suite_binding_snapshot,
         )
@@ -5003,6 +5015,9 @@ or substitute a textual summary for a requested report.
             yield _sse_event(event)
         history_steps.append(skill_step)
 
+    from .stream_lifecycle import StreamHeartbeat
+
+    stream_heartbeat = StreamHeartbeat()
     while True:
         if agent_task.done() and stream_queue.empty():
             reset_current_tool_gate(_approval_gate_token)
@@ -5010,6 +5025,9 @@ or substitute a textual summary for a requested report.
         try:
             event = await asyncio.wait_for(stream_queue.get(), timeout=0.1)
         except asyncio.TimeoutError:
+            heartbeat = stream_heartbeat.due()
+            if heartbeat:
+                yield heartbeat
             for waiting_event in financial_execution.waiting():
                 yield _sse_event(waiting_event)
             continue
@@ -5096,7 +5114,10 @@ or substitute a textual summary for a requested report.
                         intentions.append(str(intention))
                 inputs.append(args)
             text = public_assistant_text(
-                normalize_display_text(event.get("public_text")) or ""
+                # Public narration is Markdown, not a one-line status field.
+                # Collapsing whitespace turns a whole report into its first
+                # heading and corrupts tables/code when history is replayed.
+                event.get("public_text") or ""
             ) or "\n".join(intentions)
             if text:
                 progress_event = public_progress.update(
@@ -5752,6 +5773,7 @@ or substitute a textual summary for a requested report.
             dashboard_refs=react_state.get("dashboard_refs", []),
             dashboard_generation_failure=incomplete,
             context_snapshots=react_state.get("_context_snapshots"),
+            resource_context=dialogue.ext_info or {},
         )
         terminal_events = _react_terminal_events(
             storage_conv,
@@ -5910,6 +5932,11 @@ or substitute a textual summary for a requested report.
         if react_state.get("_report_delivery_completed"):
             reconcile_report_delivery(_todo_list, react_state)
         complete_delivery_task(_todo_list, summary_delivered=True)
+    from .tools.analysis_lineage import source_lineage_notice
+
+    lineage_notice = source_lineage_notice(artifact_sink, requested_locale)
+    if lineage_notice:
+        final_content += "\n\n" + lineage_notice
     final_answer = final_answer_assembler.finalize(final_content)
     final_answer = await _finalize_turn_report_persistence(
         dialogue=dialogue,
@@ -5937,6 +5964,7 @@ or substitute a textual summary for a requested report.
         dashboard_refs=react_state.get("dashboard_refs", []),
         dashboard_generation_failure=incomplete,
         context_snapshots=react_state.get("_context_snapshots"),
+        resource_context=dialogue.ext_info or {},
     )
     terminal_events = _react_terminal_events(
         storage_conv,

@@ -22,6 +22,7 @@ from .query_artifact import (
     check_read_only,
 )
 from .sql_read_only import ReadOnlySqlError, read_only_sql
+from .schema_recovery import query_schema_hint
 
 
 def _supports_bounded_query(connector: Any) -> bool:
@@ -451,6 +452,9 @@ def make_sql_query(
                 error=message,
                 artifact_sink=artifact_sink,
             )
+            schema_hint = await query_schema_hint(react_state, database_connector, sql_stripped) if code in {
+                "SQL_UNDEFINED_COLUMN", "SQL_UNDEFINED_TABLE", "SQL_AMBIGUOUS_COLUMN"
+            } else None
             return with_recovery(
                 {
                     "chunks": [
@@ -474,6 +478,7 @@ def make_sql_query(
                         ),
                     ],
                     "error_code": code,
+                    **({"recovery_schema": schema_hint} if schema_hint else {}),
                     "success": False,
                     **({"recovery_hint": recovery_hint} if recovery_hint else {}),
                 },

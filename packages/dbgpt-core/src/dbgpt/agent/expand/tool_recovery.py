@@ -94,9 +94,18 @@ def observe_action_results(
                 error_code = payload.get("error_code") if isinstance(payload, dict) else None
             except (TypeError, ValueError):
                 pass
+        elif not succeeded and isinstance(batch, dict):
+            error_code = batch.get("error_code")
         signal = observe_tool_result(
             state, name, arguments, success=succeeded, error_code=error_code,
         )
         if signal:
+            if error_code == "SQL_DATASOURCE_REQUIRED":
+                signal["instruction"] = (
+                    "The datasource selection is missing; changing SQL will not "
+                    "repair it. Ask the user to select/restore the database, or "
+                    "continue only with captured evidence. Do not invent detailed "
+                    "source records from aggregate totals."
+                )
             signals.append(signal)
     return signals

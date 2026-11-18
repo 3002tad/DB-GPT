@@ -427,4 +427,6 @@ class AIWrapper:
             if sys.exc_info()[1] is not None:
                 end_meta["status"] = "ERROR"
                 end_meta["error"] = str(sys.exc_info()[1])
+                end_meta["error_type"] = type(sys.exc_info()[1]).__name__
+                end_meta["cancelled"] = isinstance(sys.exc_info()[1], asyncio.CancelledError)
             span.end(metadata=end_meta)

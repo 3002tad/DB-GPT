@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiInterceptors, getConversationUsage, type ConversationUsage } from '@/client/api';
+import { getConversationUsage, type ConversationUsage } from '@/client/api';
 import { getUserId } from '@/utils/storage';
 
 export interface ContextMeasurement {
@@ -129,8 +129,13 @@ export function useConversationTokens(conversationId: string | null, running: bo
       if (pending) return;
       pending = true;
       try {
-        const [error, data] = await apiInterceptors(getConversationUsage(conversationId));
-        if (!cancelled) setResult({ scope, usage: error ? null : data || null, failed: !!error || !data });
+        // This is background telemetry, not the chat request. A new conversation
+        // ID can be visible before its first history row is persisted (404).
+        // Keep the meter unknown and retry on the existing schedule; do not
+        // surface telemetry failures through the global request-error toast.
+        const response = await getConversationUsage(conversationId);
+        const data = response.data.success ? response.data.data : null;
+        if (!cancelled) setResult({ scope, usage: data || null, failed: !data });
       } catch {
         if (!cancelled) setResult({ scope, usage: null, failed: true });
       } finally { pending = false; }

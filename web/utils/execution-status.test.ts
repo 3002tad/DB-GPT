@@ -1,7 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { executionStatus } from './execution-status';
+import { executionStatus, interruptedAnswer, settleTaskPlan, settleExecutionSteps, recordedExecutionSteps } from './execution-status';
 
 describe('execution completion status', () => {
+  it('does not turn an interrupted or failed final event into successful running tools', () => {
+    const steps = [{ action: 'code', status: 'running' }, { action: 'sql', status: 'failed' }];
+    expect(settleExecutionSteps(steps, 'interrupted').map(step => step.status)).toEqual(['failed', 'failed']);
+    expect(settleExecutionSteps(steps, 'failed').map(step => step.status)).toEqual(['failed', 'failed']);
+    expect(settleExecutionSteps(steps, 'completed').map(step => step.status)).toEqual(['done', 'failed']);
+  });
+  it('replays one current version per step id without duplicating persisted todo updates', () => {
+    expect(recordedExecutionSteps([
+      { id: 'todo', status: 'running' }, { id: 'sql', status: 'done' }, { id: 'todo', status: 'done' },
+    ])).toEqual([{ id: 'todo', status: 'done' }, { id: 'sql', status: 'done' }]);
+  });
+  it('retains partial Markdown on disconnect and settles active tasks without claiming completion', () => {
+    const partial = '## Partial\n\n```sql\nSELECT 1;\n```';
+    expect(interruptedAnswer(partial, 'vi')).toContain(partial);
+    expect(interruptedAnswer('', 'vi')).toContain('Kết nối đã bị gián đoạn');
+    const tasks = [{ status: 'completed' }, { status: 'in_progress' }, { status: 'pending' }];
+    expect(settleTaskPlan(tasks, 'interrupted')?.map(t => t.status)).toEqual(['completed', 'cancelled', 'pending']);
+    expect(settleTaskPlan(tasks, 'completed')).toBe(tasks);
+  });
   const done = { action: 'prepare_financial_report', status: 'done' };
   const failed = { action: 'review_financial_report', status: 'failed' };
 

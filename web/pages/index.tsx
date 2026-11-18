@@ -38,6 +38,7 @@ import ArtifactRail from '@/new-components/chat/content/ArtifactRail';
 import ContextUsageBar from '@/new-components/chat/content/ContextUsageBar';
 import ConversationTokenBadge from '@/new-components/chat/content/ConversationTokenBadge';
 import { useConversationContext } from '@/hooks/use-conversation-meters';
+import { conversationResourcesFromHistory, resolveConversationResources, type ConversationResources } from '@/utils/conversation-resources';
 import ManusLeftPanel, {
   ExecutionStep as ManusExecutionStep,
   StepType,
@@ -103,7 +104,7 @@ import type { SuiteCommand, SuiteItem, SuiteMessageReference, SuiteRecommendedQu
 import type { ITaskflowRef } from '@/types/taskflow';
 import { buildActionDisplayText } from '@/utils/action-display';
 import axios from '@/utils/ctx-axios';
-import { executionStatus } from '@/utils/execution-status';
+import { executionStatus, interruptedAnswer, settleTaskPlan, settleExecutionSteps, recordedExecutionSteps } from '@/utils/execution-status';
 import { scheduledChatInput } from '@/utils/scheduled-chat-input';
 import { skillDraft } from '@/utils/skill-draft';
 import { useSkillTryEntry } from '@/hooks/use-skill-try-entry';
@@ -1220,6 +1221,7 @@ const Playground: NextPage = () => {
 
   const [isSkillPanelOpen, setIsSkillPanelOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [pendingResourceRestore, setPendingResourceRestore] = useState<{ epoch: number; selection: ConversationResources } | null>(null);
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
 
   const [isKnowledgePanelOpen, setIsKnowledgePanelOpen] = useState(false);
@@ -1518,10 +1520,11 @@ const Playground: NextPage = () => {
       if (msg.role !== 'view' || !msg.id) continue;
       const exec = executionMap[msg.id];
       if (!exec || exec.steps.length === 0) continue;
-      const toolCalls = exec.steps.filter(
+      const recordedSteps = recordedExecutionSteps(exec.steps);
+      const toolCalls = recordedSteps.filter(
         s => s.action && s.action !== '__progress__' && s.action.toLowerCase() !== 'terminate',
       ).length;
-      const rounds = exec.steps.reduce((m, s) => Math.max(m, s.step || 0), 0);
+      const rounds = recordedSteps.filter(step => step.action !== '__progress__').length;
       const status = executionStatus(exec.steps, msg.thinking, msg.taskPlan, msg.executionStatus);
       const running = status === 'running';
       const starts = exec.steps.map(s => s.startedAt).filter((v): v is number => typeof v === 'number');
@@ -1728,6 +1731,7 @@ const Playground: NextPage = () => {
     setSelectedDb(null);
     setSelectedKnowledge(null);
     setSelectedSkill(null);
+    setPendingResourceRestore(null);
     setSelectedFlow(null);
     selectedFlowRef.current = null;
     setSelectedConnectors([]);
@@ -1908,6 +1912,27 @@ const Playground: NextPage = () => {
     () => allSkills?.filter(skill => !DASHBOARD_INTERNAL_SKILLS.has(skill.name)),
     [allSkills],
   );
+
+  useEffect(() => {
+    if (!pendingResourceRestore || _loadingSources || _loadingKnowledge || _loadingSkills ||
+        !dataSources || !knowledgeSpaces || !allSkills) return;
+    if (pendingResourceRestore.epoch !== taskEpochRef.current) {
+      setPendingResourceRestore(null);
+      return;
+    }
+    const value = pendingResourceRestore.selection;
+    // Re-resolve against the actor's currently available resources. Historical
+    // selections never create a connector or grant access to a removed resource.
+    const resolved = resolveConversationResources(value, dataSources, knowledgeSpaces, allSkills);
+    setSelectedDb(resolved.database);
+    setSelectedKnowledge(resolved.knowledge);
+    setSelectedSkill(resolved.skill);
+    if (resolved.missing) message.warning(i18n.language.startsWith('vi')
+      ? 'Một số nguồn dữ liệu, kho tri thức hoặc kỹ năng của phiên không còn khả dụng. Hãy chọn lại trước khi phân tích tiếp.'
+      : i18n.language.startsWith('zh') ? '部分会话资源已不可用，请重新选择后继续分析。'
+      : 'Some conversation resources are no longer available. Select them again before continuing analysis.');
+    setPendingResourceRestore(null);
+  }, [pendingResourceRestore, dataSources, knowledgeSpaces, allSkills, _loadingSources, _loadingKnowledge, _loadingSkills, i18n.language]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -2966,6 +2991,10 @@ const Playground: NextPage = () => {
     overrideExtInfo?: Record<string, any>,
     overrideDashboardTemplate?: string | null,
   ) => {
+    if (pendingResourceRestore) {
+      message.info(t('ui_loading_history'));
+      return;
+    }
     const effectiveSkill = suiteCreationMode ? null : overrideSkill !== undefined ? overrideSkill : selectedSkill;
     const effectiveDb = overrideDb !== undefined ? overrideDb : selectedDb;
     const effectiveKnowledge = overrideKnowledge !== undefined ? overrideKnowledge : selectedKnowledge;
@@ -3203,6 +3232,7 @@ const Playground: NextPage = () => {
 
     const controller = new AbortController();
     let receivedFinal = false;
+    let streamAccepted = false;
     chatAbortControllerRef.current = controller;
     terminatedStepIdsRef.current.clear();
     setExecutionMap(prev => ({
@@ -3309,6 +3339,7 @@ const Playground: NextPage = () => {
       if (!response.body) {
         throw new Error('No response body');
       }
+      streamAccepted = true;
 
       // Submission accepted by the server. The composer rail intentionally
       // keeps the sent files: they stay attached to the conversation scope
@@ -3393,7 +3424,9 @@ const Playground: NextPage = () => {
           return;
         }
         if (payload.type === 'error') {
-          throw new Error(payload.message || payload.error || dt('生成失败，请重试'));
+          const error = new Error(payload.message || payload.error || dt('生成失败，请重试'));
+          error.name = 'AgentExecutionError';
+          throw error;
         }
         if (payload.type === 'context.status') {
           const budget = Number(payload.budget ?? 0);
@@ -3836,8 +3869,8 @@ const Playground: NextPage = () => {
           setExecutionMap(prev => {
             const current = prev[responseId];
             if (!current) return prev;
-            const nextSteps = current.steps.map(item => {
-              const next = item.status === 'running' ? { ...item, status: 'done' as const } : item;
+            const nextSteps = settleExecutionSteps(current.steps, payload.execution_status).map(item => {
+              const next = item;
               if (item.action?.toLowerCase() === 'todowrite' && payload.todo_meta) {
                 const meta = payload.todo_meta;
                 return { ...next, todoMeta: meta, title: `TODO::${meta.state}:${meta.done}/${meta.total}` };
@@ -3857,7 +3890,7 @@ const Playground: NextPage = () => {
                 reportRunId: finalAnswer.reportRunId,
                 thinking: false,
                 executionStatus: payload.execution_status,
-                ...(finalTaskPlan && { taskPlan: finalTaskPlan }),
+                ...(finalTaskPlan && { taskPlan: settleTaskPlan(finalTaskPlan, payload.execution_status) }),
               };
             }),
           );
@@ -3908,6 +3941,7 @@ const Playground: NextPage = () => {
         parts.forEach(processEvent);
       }
       if (buffer.trim()) processEvent(buffer);
+      if (!receivedFinal && !controller.signal.aborted) throw new Error('STREAM_ENDED_WITHOUT_FINAL');
     } catch (err: any) {
       if (err?.name === 'AbortError' || controller.signal.aborted) {
         // User-initiated stop (stop button, or the conversation-switch effect
@@ -3934,6 +3968,7 @@ const Playground: NextPage = () => {
                 context: partial ? `${partial}\n\n_${stoppedMark}_` : `_${stoppedMark}_`,
                 thinking: false,
                 executionStatus: 'cancelled',
+                taskPlan: settleTaskPlan(msg.taskPlan, 'cancelled'),
               };
             }),
           );
@@ -3941,16 +3976,25 @@ const Playground: NextPage = () => {
         }
       } else {
         if (taskEpochRef.current !== taskEpoch || conversationIdRef.current !== currentConvId) return;
-        message.error(err?.message || 'Failed to get response');
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMsg = newMessages[newMessages.length - 1];
-          if (lastMsg && lastMsg.role === 'view') {
-            lastMsg.context = err?.message || 'Error occurred';
-            lastMsg.thinking = false;
-            lastMsg.executionStatus = 'failed';
-          }
-          return newMessages;
+        if (receivedFinal) return; // A lost trailing byte must not erase a delivered answer.
+        console.warn('Agent stream ended', { name: err?.name, streamAccepted });
+        const transportInterrupted = streamAccepted && err?.name !== 'AgentExecutionError';
+        const status = transportInterrupted ? 'interrupted' : 'failed';
+        const notice = transportInterrupted ? interruptedAnswer('', i18n.language) : err?.message || 'Request failed';
+        message.error(notice);
+        cancelSummaryPresentation();
+        setMessages(prev => prev.map(msg => msg.id !== responseId ? msg : {
+          ...msg, thinking: false, executionStatus: status,
+          context: transportInterrupted ? interruptedAnswer(msg.context || '', i18n.language)
+            : msg.context?.trim() ? `${msg.context}\n\n${notice}` : notice,
+          taskPlan: settleTaskPlan(msg.taskPlan, status),
+        }));
+        setTaskPlan([]);
+        setExecutionMap(prev => {
+          const current = prev[responseId];
+          return current ? { ...prev, [responseId]: { ...current,
+            steps: current.steps.map(step => step.status === 'running' ? { ...step, status: 'failed' as const } : step),
+          } } : prev;
         });
       }
     } finally {
@@ -4342,6 +4386,13 @@ const Playground: NextPage = () => {
     historyMessages: Array<{ role: string; context: string; order?: number; model_name?: string }>,
     liveTail: ChatMessage[] = [],
   ) => {
+    const liveHuman = liveTail.find(message => message.role === 'human');
+    const selection = liveHuman ? {
+      database_name: liveHuman.attachedDb?.db_name,
+      knowledge_space_name: liveHuman.attachedKnowledge?.name,
+      skill_name: liveHuman.attachedSkill?.name,
+    } : conversationResourcesFromHistory(historyMessages);
+    setPendingResourceRestore({ epoch: taskEpochRef.current, selection });
     cancelSummaryPresentation();
     setExecutionMap({});
     setActiveMessageId(null);
@@ -4375,6 +4426,7 @@ const Playground: NextPage = () => {
         }
 
         if (payload && (payload.version === 1 || payload.version === 2) && payload.type === 'react-agent') {
+          payload.steps = recordedExecutionSteps(Array.isArray(payload.steps) ? payload.steps : []);
           let historyStepNumber = 0;
           const steps: ExecutionStep[] = (payload.steps || []).map((s: any, idx: number) => ({
             id: s.id || `history-step-${idx}`,
@@ -4570,7 +4622,7 @@ const Playground: NextPage = () => {
             thinking: false,
             executionStatus: payload.execution_status,
             taskPlan: savedTasks?.map((task: TaskItem) =>
-              payload.execution_status && task.status === 'in_progress'
+              ['interrupted', 'cancelled', 'failed', 'incomplete'].includes(payload.execution_status) && task.status === 'in_progress'
                 ? {
                     ...task,
                     status: 'cancelled' as const,

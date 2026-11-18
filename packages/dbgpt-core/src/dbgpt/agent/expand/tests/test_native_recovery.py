@@ -4,18 +4,29 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from dbgpt.agent.core.agent import AgentContext, AgentMessage
 from dbgpt.agent.core.action.base import ActionOutput
 from dbgpt.agent.core.base_agent import ConversableAgent
 from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
 from dbgpt.agent.expand.actions.tool_action import ToolCallSpec, run_tools_batch
-from dbgpt.agent.expand.tool_recovery import observe_tool_result
+from dbgpt.agent.expand.tool_recovery import observe_action_results, observe_tool_result
 from dbgpt.agent.util.llm.llm import LLMStrategyType
 
 
 class NativeRecoveryTest(unittest.TestCase):
+    def test_missing_datasource_single_result_recovers_by_error_across_changed_sql(self):
+        state = {}
+        error = json.dumps({"success": False, "error_code": "SQL_DATASOURCE_REQUIRED"})
+        for sql in ('SELECT 1', 'SELECT 2'):
+            signals = observe_action_results(state, [{"function": {
+                "name": "chart_query", "arguments": json.dumps({"sql": sql})
+            }}], error, False)
+        self.assertEqual(signals[0]["reason"], "same_error_recurred")
+        self.assertIn("changing SQL will not", signals[0]["instruction"])
+        self.assertEqual(state["_tool_recovery"]["chart_query"]["error_repeats"], 2)
+
     def test_repeated_kb_failure_skips_only_identical_read_call(self):
         state = {}
         for _ in range(2):
@@ -106,9 +117,12 @@ class NativeRecoveryTest(unittest.TestCase):
         agent = SimpleNamespace(
             _report_repair_state=state,
             _build_native_tools=lambda: [{"type": "function"}],
+            _manage_model_context=AsyncMock(side_effect=lambda messages, *_args, **_kwargs: messages),
+            _request_max_new_tokens=lambda: 300,
+            _native_tool_choice=lambda: 'auto',
             _a_select_llm_model=lambda _excluded: asyncio.sleep(0, result="qwen3.5-flash"),
             llm_client=SimpleNamespace(create_with_output=create_with_output),
-            not_null_agent_context=SimpleNamespace(max_new_tokens=300,
+            not_null_agent_context=SimpleNamespace(max_new_tokens=300, gpts_app_code=None,
                 temperature=0, verbose=False, conv_id="test-conversation"),
             memory=SimpleNamespace(gpts_memory=None),
             stream_out=False,

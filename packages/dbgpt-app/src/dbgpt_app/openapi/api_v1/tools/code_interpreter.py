@@ -214,10 +214,15 @@ def make_code_interpreter(
             "Supports pandas, numpy, matplotlib, json, os, etc. "
             "Use this tool when you need to run Python code to process data, "
             "generate charts, or perform calculations. "
-            "When SQL was executed earlier in this report turn, use the injected "
+            "For SQL evidence captured in this conversation, use the injected "
             "SQL_RESULTS list or sql_result_frame(index) instead of reconnecting "
             "to or scanning for the database. Each item has artifact_id, sql, "
             "columns, rows, row_count and truncated; index -1 is the latest query. "
+            "Do not import db_gpt_tools: it is not a runtime module. SQL_RESULTS "
+            "and sql_result_frame are already available globals. For finer time "
+            "grains, query actual rows or aggregates first; monthly totals cannot "
+            "establish weekly/hourly distributions. Literal/sample input remains "
+            "allowed for exploration but is not evidence about the datasource. "
             "For report analysis, assign the computed results to REPORT_RESULT "
             "(a JSON-compatible dict/list). Convert DataFrames to "
             "{columns: [...], rows: frame.to_dict(orient='records')}. "
@@ -244,6 +249,8 @@ def make_code_interpreter(
                 )
                 return json.dumps(
                     {
+                        "success": False,
+                        "error_code": "PYTHON_CALCULATION_INCOMPLETE",
                         "retryable": False,
                         "chunks": [
                             {
@@ -257,7 +264,8 @@ def make_code_interpreter(
 
         if not code or not code.strip():
             return json.dumps(
-                {"chunks": [{"output_type": "text", "content": "No code provided"}]},
+                {"success": False, "error_code": "PYTHON_CODE_REQUIRED",
+                 "chunks": [{"output_type": "text", "content": "No code provided"}]},
                 ensure_ascii=False,
             )
 
@@ -334,6 +342,8 @@ def make_code_interpreter(
                 )
                 return json.dumps(
                     {
+                        "success": False,
+                        "error_code": "PYTHON_SYNTAX_ERROR",
                         "chunks": [
                             {"output_type": "code", "content": code.strip()},
                             {"output_type": "text", "content": error_msg},
@@ -536,6 +546,7 @@ def make_code_interpreter(
                 if path in changed_files
             ],
             input_artifact_ids=list(dict.fromkeys(sql_input_artifact_ids)),
+            metadata={"input_lineage": "captured_inputs" if sql_input_artifact_ids else "uncaptured_inputs"},
             artifact_sink=react_state.get("_report_artifact_sink"),
         )
         sink = react_state.get("_report_artifact_sink")
@@ -592,13 +603,48 @@ def make_code_interpreter(
 
         all_images = react_state.get("generated_images", [])
         if all_images:
-            img_summary = "已生成的图片URL（在生成HTML时请使用这些URL）:\n" + "\n".join(
+            locale = str(react_state.get("_ui_locale") or "en")
+            image_heading = (
+                "Ảnh đã tạo (dùng các URL này khi tạo HTML):"
+                if locale.startswith("vi") else
+                "已生成的图片URL（在生成HTML时请使用这些URL）:"
+                if locale.startswith("zh") else
+                "Generated images (use these URLs when creating HTML):"
+            )
+            img_summary = image_heading + "\n" + "\n".join(
                 f"  - {url}" for url in all_images
             )
             chunks.append({"output_type": "text", "content": img_summary})
 
-        return json.dumps(
-            {"chunks": chunks, "artifact_id": python_artifact_id}, ensure_ascii=False
+        success = status == "succeeded"
+        lineage = list(dict.fromkeys(sql_input_artifact_ids))
+        error_code = None if success else (
+            "PYTHON_EXECUTION_TIMEOUT" if status == "timed_out" else
+            "PYTHON_IMPORT_ERROR" if "ModuleNotFoundError" in (error_text or artifact_error or "") else
+            "PYTHON_EXECUTION_FAILED"
         )
+        recovery_hint = (
+            "Use SQL_RESULTS or sql_result_frame(index), which are injected globals; "
+            "db_gpt_tools is not installed. Inspect imports and available inputs "
+            "before retrying. Do not substitute invented source records."
+            if error_code == "PYTHON_IMPORT_ERROR" else
+            "Inspect the captured error and correct the script; preserve valid prior artifacts."
+            if not success else None
+        )
+        if success and not lineage:
+            chunks.append({"output_type": "text", "content": (
+                "INPUT_LINEAGE_UNCAPTURED: this computation has no captured input "
+                "artifact references. It may be a standalone calculation or literal "
+                "example; do not present it as observed datasource statistics. "
+                "Use SQL_RESULTS/sql_result_frame or captured source files for "
+                "data-grounded analysis."
+            )})
+        return json.dumps({
+            "success": success, "execution_status": status, "error_code": error_code,
+            "recovery_hint": recovery_hint,
+            "provenance": {"input_artifact_ids": lineage,
+                           "status": "captured_inputs" if lineage else "uncaptured_inputs"},
+            "chunks": chunks, "artifact_id": python_artifact_id,
+        }, ensure_ascii=False)
 
     return code

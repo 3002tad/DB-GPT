@@ -16,6 +16,19 @@ it('renders assistant progress Markdown through the shared code/block renderer',
   expect(screen.getByTestId('markdown-renderer').textContent).toBe(content);
 });
 
+it('folds completed long drafts but preserves their Markdown and leaves live narration open', () => {
+  const content = '## Draft\n\n' + 'Evidence paragraph.\n\n'.repeat(65);
+  const { container, rerender } = render(<AgentTimeline blocks={[{ id: 'draft', kind: 'text', content, streaming: false }]} />);
+  expect(container.querySelector('details')).not.toBeNull();
+  expect(container.querySelector('details')?.open).toBe(false);
+  expect(screen.getByTestId('markdown-renderer').textContent).toBe(content);
+  fireEvent.click(screen.getByText('Execution notes'));
+  expect(container.querySelector('details')?.open).toBe(true);
+  rerender(<AgentTimeline blocks={[{ id: 'draft', kind: 'text', content, streaming: true }]} />);
+  expect(container.querySelector('details')).toBeNull();
+  expect(screen.getByTestId('markdown-renderer').textContent).toBe(content);
+});
+
 const query = (sql: string, value: number) => ({
   sql,
   columns: ['sales'],

@@ -155,6 +155,12 @@ class EvidenceCatalog:
             "grain": grain,
             "meaning_source": "producer_field" if label else "unknown",
             "status": "selector_validated",
+            # Selector validity certifies the computation coordinate, not its
+            # business meaning or relationship to source database records.
+            "source_authority": (
+                "computation_only" if artifact.type == "python" and not artifact.input_artifact_ids
+                else "captured_inputs" if artifact.input_artifact_ids else "direct_source_execution"
+            ),
         }
         if not payload["run_id"]:
             raise ValueError("EVIDENCE_RUN_REQUIRED")
