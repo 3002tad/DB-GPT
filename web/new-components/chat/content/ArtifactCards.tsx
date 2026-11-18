@@ -28,12 +28,15 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import { message } from 'antd';
+import i18next from 'i18next';
 import cls from 'classnames';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { resolveImageUrl } from './image-url';
+import { artifactFileUrl, artifactImageUrl, fetchArtifactFile } from './artifact-file';
 import QueryArtifactBlock from './QueryArtifactBlock';
+import NativeChartArtifact from './NativeChartArtifact';
 import SuiteArtifactCard from './SuiteArtifactCard';
 
 export interface StreamArtifact {
@@ -163,6 +166,28 @@ export async function downloadArtifact(artifact: StreamArtifact) {
     return;
   }
   const embedded = artifact.content && typeof artifact.content === 'object' ? artifact.content.content : null;
+  if ((artifact.type === 'file' && typeof artifact.content !== 'string' && typeof embedded !== 'string') || artifact.type === 'image') {
+    const fileUrl = artifactFileUrl(artifact);
+    const imageUrl = artifactImageUrl(artifact);
+    const url = fileUrl || imageUrl;
+    if (!url) {
+      message.warning(i18next.t('ui_file_unavailable', { defaultValue: 'File unavailable' }));
+      return;
+    }
+    try {
+      const response = await fetchArtifactFile(url);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = artifact.name || 'artifact';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch {
+      message.error(i18next.t('ui_file_download_failed', { defaultValue: 'File download failed' }));
+    }
+    return;
+  }
   const content =
     typeof artifact.content === 'string'
       ? artifact.content
@@ -221,7 +246,8 @@ export default function ArtifactCards({
   const isFinalQuery = (a: StreamArtifact) => a.type === 'query' && !!a.content && a.tier !== 'process';
   const queryArtifacts = artifacts.filter(isFinalQuery);
   const { visible: visibleQueries, folded: foldedQueries } = splitQueryArtifacts(queryArtifacts, foldAllQueries);
-  const rest = artifacts.filter(a => !isFinalQuery(a));
+  const nativeCharts = artifacts.filter(a => a.type === 'chart' && a.content?.renderer === 'vis-db-chart');
+  const rest = artifacts.filter(a => !isFinalQuery(a) && !nativeCharts.includes(a));
   const finals = rest.filter(a => a.tier !== 'process' && a.type !== 'image');
   const processes = rest.filter(a => a.tier === 'process');
   // Charts are not deliverables: every image artifact (thumbnail-backed or
@@ -231,7 +257,7 @@ export default function ArtifactCards({
   const charts = processes.filter(isChart);
   const processOthers = processes.filter(a => !isChart(a));
   const bundleItems = artifacts.filter(a => a.type !== 'summary' && a.type !== 'query');
-  const primary = bundleItems.find(a => a.type === 'html') || finals[0] || bundleItems[0];
+  const primary = bundleItems.find(a => a.type === 'html') || nativeCharts[0] || finals[0] || bundleItems[0];
   if (consolidate && primary) {
     const isEr = primary.type === 'html' && String(primary.content).includes('data-dbgpt-er="1"');
     const name = isEr ? t('er_diagram_title', 'ER 图') : primary.name;
@@ -243,6 +269,7 @@ export default function ArtifactCards({
     };
     return (
       <div className='mt-3 mb-1 w-full'>
+        {nativeCharts.map(a => <NativeChartArtifact key={a.id} content={a.content} />)}
         <button
           type='button'
           onClick={() => onPreview?.(bundle)}
@@ -265,11 +292,12 @@ export default function ArtifactCards({
     );
   }
   const chartUrl = (a: StreamArtifact) => {
-    const raw = String(a.content ?? '');
-    return a.type === 'image' && raw ? resolveImageUrl(raw) : '';
+    const url = artifactImageUrl(a);
+    return url ? resolveImageUrl(url) : '';
   };
   return (
     <>
+      {nativeCharts.map(a => <NativeChartArtifact key={a.id} content={a.content} />)}
       {queryArtifacts.length > 0 && (
         <div className='flex flex-col gap-3 mt-3 w-full'>
           {foldedQueries.length > 0 && (

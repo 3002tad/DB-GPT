@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 interface Props {
   onChange?: (model: string) => void;
+  value?: string;
 }
 
 const DEFAULT_ICON_URL = '/models/huggingface.svg';
@@ -32,7 +33,7 @@ export function renderModelIcon(model?: string, props?: { width: number; height:
   );
 }
 
-function ModelSelector({ onChange }: Props) {
+function ModelSelector({ onChange, value }: Props) {
   const { t } = useTranslation();
   const { modelList, model } = useContext(ChatContext);
   if (!modelList || modelList.length <= 0) {
@@ -40,7 +41,7 @@ function ModelSelector({ onChange }: Props) {
   }
   return (
     <Select
-      value={model}
+      value={value ?? model}
       placeholder={t('choose_model')}
       className='min-w-[120px]'
       popupMatchSelectWidth={false}

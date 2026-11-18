@@ -3,6 +3,8 @@ import markdownComponents, { markdownPlugins, preprocessLaTeX } from '@/componen
 import type { SessionFileSnapshot } from '@/modules/session-files';
 import AdvancedChart, { createChartConfig } from '@/new-components/charts';
 import MarkDownContext from '@/new-components/common/MarkdownContext';
+import NativeChartArtifact from './NativeChartArtifact';
+import ReferenceCount from './ReferenceCount';
 import {
   FinancialReportReference,
   isFinancialReportReference,
@@ -991,7 +993,8 @@ const OutputRenderer: React.FC<{ output: ExecutionOutput; index: number; action?
           />
         )}
 
-        {output.output_type === 'chart' && (
+        {output.output_type === 'chart' && content?.renderer === 'vis-db-chart' && <NativeChartArtifact content={content} />}
+        {output.output_type === 'chart' && content?.renderer !== 'vis-db-chart' && (
           <div className='h-72'>
             <AdvancedChart
               config={createChartConfig(content?.data || [], {
@@ -2356,6 +2359,7 @@ const ReferencesPanel: React.FC<{
   onCitationSelect?: (index: number) => void;
 }> = ({ citations, selectedCitationIndex, onCitationSelect }) => {
   const tr = useUiText();
+  const { t } = useTranslation();
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -2366,7 +2370,7 @@ const ReferencesPanel: React.FC<{
   return (
     <div className='space-y-3' data-testid='references-panel'>
       <div className='rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs leading-5 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300'>
-        {tr('以下内容是回答过程中检索或读取的知识来源，不包含脚本执行回显、SQL 执行结果或其他工具输出。', 'These are knowledge sources retrieved or read for the answer. Script logs, SQL results and other tool outputs are excluded.')}
+        {t('reference_panel_help')}
       </div>
       {citations.map(citation => {
         const isSelected = citation.index === selectedCitationIndex;
@@ -2893,7 +2897,7 @@ const ManusRightPanel: React.FC<ManusRightPanelProps> = ({
               <BookOutlined className='mr-1.5' />
               {t('reference_sources_tab')}
               <span className='ml-1.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-600 dark:bg-blue-500/10 dark:text-blue-300'>
-                {citations.length}
+                <ReferenceCount count={citations.length} compact />
               </span>
               {panelView === 'references' && (
                 <div className='absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-gray-900 dark:bg-gray-100' />

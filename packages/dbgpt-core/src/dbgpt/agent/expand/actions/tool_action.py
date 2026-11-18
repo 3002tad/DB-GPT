@@ -15,6 +15,7 @@ from ...core.context.storage import get_current_storage
 from ...core.schema import Status
 from ...resource.base import AgentResource, Resource, ResourceType
 from ...resource.tool.pack import ToolPack, mcp_tool_result_or_raise
+from ...resource.tool.exceptions import ToolNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -243,12 +244,9 @@ async def run_tool(
                         + ". No tool was executed. Submit a complete JSON object "
                         "in the native function arguments, or include Action Input "
                         "after Action in text mode. Do not repeat the bare Action."
-                        + "\nRequired parameter schemas: "
+                        + "\nRegistered parameter schema: "
                         + json.dumps(
-                            {
-                                key: execution_tool.args[key].to_json_schema()
-                                for key in missing
-                            },
+                            execution_tool.parameters_schema(),
                             ensure_ascii=False,
                         )
                     ),
@@ -272,7 +270,19 @@ async def run_tool(
             logger.exception(f"Tool [{name}] execute failed!")
             status = Status.FAILED.value
             err_msg = f"Tool [{name}] execute failed! {str(e)}"
-            tool_result = err_msg
+            if isinstance(e, ToolNotFoundException):
+                has_discovery = any(item.name == "tool_search" for item in tool_pack.sub_resources)
+                tool_result = json.dumps({
+                    "success": False, "error_code": "TOOL_NOT_ACTIVE",
+                    "tool": name,
+                    "recovery_hint": (
+                        "Call tool_search with query=" + json.dumps(name) + ". Wait for the result and next round, then use its returned parameter schema. No requested tool was executed; discovery does not grant new permissions."
+                        if has_discovery else
+                        "This tool is not available in the supplied ToolPack. Use the registered functions and their schemas; do not invent a tool name."
+                    ),
+                }, ensure_ascii=False)
+            else:
+                tool_result = err_msg
 
         result_str = str(tool_result)
         try:

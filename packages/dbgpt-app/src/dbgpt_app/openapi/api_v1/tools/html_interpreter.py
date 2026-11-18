@@ -3491,6 +3491,10 @@ def make_html_interpreter(
         description=(
             "For non-financial reports. Annual financial reports use the dedicated "
             "financial tools and built-in report component instead. "
+            "Use this capability when HTML is part of the requested deliverable; "
+            "SQL results, CSV exports and PNG/chart outputs do not themselves "
+            "require a report. If an optional render fails, retain completed "
+            "requested results and explain the delivery limitation briefly. "
             "Render a complete styled HTML analysis report using html, or "
             "existing template_path/data. "
             "Use head/style for CSS. Long reports should reuse templates. "

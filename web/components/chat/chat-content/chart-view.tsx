@@ -3,8 +3,11 @@ import { formatSql } from '@/utils';
 import { Datum } from '@antv/ava';
 import { Table, Tabs, TabsProps } from 'antd';
 import { CodePreview } from './code-preview';
+import { useTranslation } from 'react-i18next';
 
 function ChartView({ data, type, sql }: { data: Datum[]; type: BackEndChartType; sql: string }) {
+  const { t } = useTranslation();
+  const rowKeys = new Map(data.map((row, index) => [row, String(index)]));
   const columns = data?.[0]
     ? Object.keys(data?.[0])?.map(item => {
         return {
@@ -16,7 +19,7 @@ function ChartView({ data, type, sql }: { data: Datum[]; type: BackEndChartType;
     : [];
   const ChartItem = {
     key: 'chart',
-    label: 'Chart',
+    label: t('native_chart_tab', 'Chart'),
     children: <AutoChart data={data} chartType={getChartType(type)} />,
   };
   const SqlItem = {
@@ -26,8 +29,8 @@ function ChartView({ data, type, sql }: { data: Datum[]; type: BackEndChartType;
   };
   const DataItem = {
     key: 'data',
-    label: 'Data',
-    children: <Table dataSource={data} columns={columns} scroll={{ x: 'auto' }} />,
+    label: t('native_chart_data', 'Data'),
+    children: <Table dataSource={data} columns={columns} rowKey={row => rowKeys.get(row) || '0'} scroll={{ x: 'auto' }} />,
   };
   const TabItems: TabsProps['items'] = type === 'response_table' ? [DataItem, SqlItem] : [ChartItem, SqlItem, DataItem];
 

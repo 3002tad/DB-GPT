@@ -1,6 +1,37 @@
 type Step = { action?: string; status: string };
 type Task = { status: string };
 
+export type ExecutionSummary = {
+  version: 1;
+  recorded_steps: number;
+  tool_steps: number;
+  duration_ms?: number;
+  duration_complete?: boolean;
+};
+
+export function readExecutionSummary(value: unknown): ExecutionSummary | undefined {
+  const item = value as ExecutionSummary | undefined;
+  if (!item || item.version !== 1 || !Number.isInteger(item.recorded_steps) || item.recorded_steps < 0
+    || !Number.isInteger(item.tool_steps) || item.tool_steps < 0 || item.tool_steps > item.recorded_steps) return;
+  return { version: 1, recorded_steps: item.recorded_steps, tool_steps: item.tool_steps,
+    ...(typeof item.duration_ms === 'number' && Number.isFinite(item.duration_ms) && item.duration_ms >= 0
+      ? { duration_ms: item.duration_ms, duration_complete: item.duration_complete === true } : {}) };
+}
+
+export function summarizeExecution(steps: (Step & { id?: string })[], summary?: ExecutionSummary) {
+  const saved = readExecutionSummary(summary);
+  if (saved) return saved;
+  const visible = recordedExecutionSteps(steps).filter(step => !['__progress__', 'terminate'].includes((step.action || '').toLowerCase()));
+  return { version: 1 as const, recorded_steps: visible.length, tool_steps: visible.filter(step => !!step.action).length };
+}
+
+export function executionDurationText(summary?: ExecutionSummary): string {
+  // An interrupted/running checkpoint is a partial duration, not a final one.
+  if (!summary?.duration_complete || summary.duration_ms == null) return '';
+  const seconds = Math.floor(summary.duration_ms / 1000);
+  return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+}
+
 export function settleExecutionSteps<T extends Step>(steps: T[], recordedStatus?: string): T[] {
   const interrupted = recordedStatus && !['done', 'completed', 'recovered'].includes(recordedStatus);
   return steps.map(step => step.status === 'running'

@@ -846,6 +846,8 @@ def _embedded_artifact_outputs(text: str) -> List[Dict[str, Any]]:
             )
         elif ctype == "image" and content:
             outputs.append({"output_type": "image", "content": content})
+        elif ctype == "chart" and isinstance(content, dict) and content.get("renderer") == "vis-db-chart":
+            outputs.append({"output_type": "chart", "content": content})
         elif ctype == "expert_suite" and isinstance(content, dict):
             outputs.append({"output_type": "expert_suite", "content": content})
         elif ctype == "file" and isinstance(content, dict) and content.get("file_path"):
@@ -1669,6 +1671,7 @@ async def run_pi_harness_turn(
 
     storage_conv = _open_pi_storage_conv(dialogue, conv_id)
     if storage_conv is not None:
+        yield _sse_event({"type": "conversation.ready", "conversation_id": conv_id})
         storage_conv.add_user_message(user_input)
     # Storage stays optional: without it the turn still
     # streams, only the history persistence is skipped.

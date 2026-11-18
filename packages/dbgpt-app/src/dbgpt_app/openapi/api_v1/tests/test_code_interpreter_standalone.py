@@ -153,8 +153,10 @@ async def test_report_result_normalization_without_dbgpt(sandbox):
         "from decimal import Decimal\n"
         "from datetime import date\n"
         "REPORT_RESULT = {'amount': Decimal('12.30'), 'day': date(2026, 10, 18),\n"
-        "                 'scalar': np.int64(7), 'missing': pd.NA,\n"
-        "                 'nonfinite': float('nan')}\nprint('captured')",
+        "                 'scalar': np.int64(7), 'ok': np.bool_(True), 'missing': pd.NA,\n"
+        "                 'nonfinite': float('nan')}\nprint(result_json(REPORT_RESULT))\n"
+        "from pathlib import Path\n"
+        "Path(output_path('exports/result.json')).write_text(result_json(REPORT_RESULT), encoding='utf-8')",
     )
     artifact = next(
         a for a in sink.snapshot() if a.artifact_id == response["artifact_id"]
@@ -164,6 +166,7 @@ async def test_report_result_normalization_without_dbgpt(sandbox):
         "amount": {"$decimal": "12.30"},
         "day": {"$date": "2026-10-18"},
         "scalar": 7,
+        "ok": True,
         "missing": None,
         "nonfinite": {"$number": "NaN"},
     }

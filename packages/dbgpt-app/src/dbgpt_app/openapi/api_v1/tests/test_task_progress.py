@@ -148,6 +148,7 @@ def test_terminal_sse_and_persisted_plan_and_timeline_are_identical(report_task)
     assert complete_delivery_task(tasks, report_completed=True)
     history = api._build_react_history_payload(
         final_content="报告已生成",
+        model_name="qwen3.5-plus-2026-02-15",
         task_plan=tasks,
         steps=[{"id": "plan", "action": "todowrite", "title": "TODO::init:0/2"}],
         generated_images=[],
@@ -159,6 +160,7 @@ def test_terminal_sse_and_persisted_plan_and_timeline_are_identical(report_task)
         storage, history, AgentFinalAnswer("报告已生成")
     )
     stored = json.loads(storage.add_view_message.call_args.args[0])
+    assert stored["model_name"] == "qwen3.5-plus-2026-02-15"
     event = json.loads(final.removeprefix("data: "))
     assert event["task_plan"] == stored["task_plan"] == tasks
     assert (

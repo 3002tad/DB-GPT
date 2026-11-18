@@ -1580,4 +1580,6 @@ def report_object_prompt(template_path, contract, injected_fields, language):
         "自动注入字段无需提交：" + json.dumps(injected_fields),
         "所有报告文字使用英文。" if language == "en" else "报告文字使用中文。",
     ]
-    return "\n".join(instructions)
+    from ..trend_guidance import TREND_GUIDANCE
+
+    return "\n".join(instructions) + "\n\n" + TREND_GUIDANCE

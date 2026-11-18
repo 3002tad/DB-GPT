@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useConversationTokens } from '@/hooks/use-conversation-meters';
 
-export default function ConversationTokenBadge({ conversationId, running }: { conversationId: string | null; running: boolean }) {
-  const usage = useConversationTokens(conversationId, running);
+export default function ConversationTokenBadge({ conversationId, running, ready = true }: { conversationId: string | null; running: boolean; ready?: boolean }) {
+  const usage = useConversationTokens(conversationId, running, ready);
   const { i18n } = useTranslation();
   const vi = i18n.language?.startsWith('vi');
   const zh = i18n.language?.startsWith('zh');

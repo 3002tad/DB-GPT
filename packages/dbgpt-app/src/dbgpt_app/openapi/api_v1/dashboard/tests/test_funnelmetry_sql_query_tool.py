@@ -81,8 +81,8 @@ def test_dashboard_sql_query_limit_is_enforced_before_connector_execution():
     second = json.loads(sql_query(sql="SELECT 2"))
     limited = json.loads(sql_query(sql="SELECT 3"))
 
-    assert first["chunks"][0]["output_type"] == "markdown"
-    assert second["chunks"][0]["output_type"] == "markdown"
+    assert any(chunk["output_type"] == "markdown" for chunk in first["chunks"])
+    assert any(chunk["output_type"] == "markdown" for chunk in second["chunks"])
     assert connector.calls == 2
     assert limited["dashboard_discovery_limit_reached"] is True
     assert "call plan_dashboard now" in limited["chunks"][0]["content"]
@@ -207,7 +207,9 @@ def test_quality_block_is_exposed_as_a_warning_not_a_zero_count():
     result = json.loads(make_sql_query({}, Connector())(sql="SELECT 1"))
     assert result["quality_warning"]["status"] == "BLOCKED_BY_QUALITY"
     assert "not zero" in result["chunks"][0]["content"]
-    assert "BLOCKED_BY_QUALITY" in result["chunks"][1]["content"]
+    assert "BLOCKED_BY_QUALITY" in next(
+        chunk["content"] for chunk in result["chunks"] if chunk["output_type"] == "markdown"
+    )
 
 
 def test_null_or_unrelated_status_text_does_not_trigger_quality_warning():
@@ -272,5 +274,7 @@ def test_quality_block_does_not_prevent_an_independent_query():
     blocked = json.loads(query(sql="SELECT * FROM blocked_catalog"))
     independent = json.loads(query(sql="SELECT 7 AS value"))
     assert blocked["error_code"] == "BLOCKED_BY_QUALITY"
-    assert "7" in independent["chunks"][0]["content"]
+    assert "7" in next(
+        chunk["content"] for chunk in independent["chunks"] if chunk["output_type"] == "markdown"
+    )
     assert "error_code" not in independent

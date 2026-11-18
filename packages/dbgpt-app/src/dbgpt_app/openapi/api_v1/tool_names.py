@@ -26,7 +26,11 @@ def tool_availability_guidance(active_names, discoverable_names=()) -> str:
     available = active | (set(discoverable_names) if discovery else set())
     lines = ["## Tool availability", "Use the supplied native function schemas and complete JSON arguments."]
     if discovery:
-        lines.append("Use tool_search to find a missing capability in this turn's catalog; activated tools become callable on the next round.")
+        lines.append("Callable now: " + ", ".join(sorted(active)) + ".")
+        deferred = set(discoverable_names) - active
+        if deferred:
+            lines.append("Discoverable, not yet callable: " + ", ".join(sorted(deferred)) + ".")
+        lines.append("Before calling a tool without a supplied function schema, call tool_search with its exact canonical name or capability. Wait for the discovery result and next round, then use the returned parameter schema. Do not guess argument names from older tools, examples or another chart API. Discovery and its newly activated tool are sequential, not parallel calls.")
     aliases = [f"{old} -> {new}" for old, new in TOOL_ALIASES.items() if new in available]
     if aliases:
         lines.append("Historical instructions use these renamed tools: " + "; ".join(aliases) + ". Use the canonical function name.")

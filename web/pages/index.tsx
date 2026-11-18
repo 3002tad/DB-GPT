@@ -35,9 +35,13 @@ import AgentTimeline, { stepsToTimelineBlocks } from '@/new-components/chat/cont
 import ApprovalDock from '@/new-components/chat/content/ApprovalDock';
 import ArtifactCards, { StreamArtifact } from '@/new-components/chat/content/ArtifactCards';
 import ArtifactRail from '@/new-components/chat/content/ArtifactRail';
+import { generatedFileOutput } from '@/utils/generated-file-output';
+import { nativeChartsFromOutput } from '@/utils/native-chart-output';
 import ContextUsageBar from '@/new-components/chat/content/ContextUsageBar';
 import ConversationTokenBadge from '@/new-components/chat/content/ConversationTokenBadge';
-import { useConversationContext } from '@/hooks/use-conversation-meters';
+import { useConversationContext, useConversationUsageReady } from '@/hooks/use-conversation-meters';
+import { useConversationModel } from '@/hooks/use-conversation-model';
+import { conversationModelFromHistory } from '@/utils/conversation-model';
 import { conversationResourcesFromHistory, resolveConversationResources, type ConversationResources } from '@/utils/conversation-resources';
 import ManusLeftPanel, {
   ExecutionStep as ManusExecutionStep,
@@ -104,7 +108,7 @@ import type { SuiteCommand, SuiteItem, SuiteMessageReference, SuiteRecommendedQu
 import type { ITaskflowRef } from '@/types/taskflow';
 import { buildActionDisplayText } from '@/utils/action-display';
 import axios from '@/utils/ctx-axios';
-import { executionStatus, interruptedAnswer, settleTaskPlan, settleExecutionSteps, recordedExecutionSteps } from '@/utils/execution-status';
+import { executionStatus, interruptedAnswer, settleTaskPlan, settleExecutionSteps, recordedExecutionSteps, summarizeExecution, readExecutionSummary, executionDurationText, type ExecutionSummary } from '@/utils/execution-status';
 import { scheduledChatInput } from '@/utils/scheduled-chat-input';
 import { skillDraft } from '@/utils/skill-draft';
 import { useSkillTryEntry } from '@/hooks/use-skill-try-entry';
@@ -584,7 +588,7 @@ interface Artifact {
 }
 
 /** Output types that materialize as stream artifact cards. */
-const ARTIFACT_OUTPUT_TYPES = new Set(['html', 'image', 'file', 'code', 'query', 'expert_suite']);
+const ARTIFACT_OUTPUT_TYPES = new Set(['html', 'image', 'file', 'code', 'query', 'chart', 'expert_suite']);
 const hasArtifactOutputs = (execution?: { outputs?: Record<string, ExecutionOutput[]> }): boolean =>
   Object.values(execution?.outputs || {}).some(arr =>
     arr.some(
@@ -592,7 +596,7 @@ const hasArtifactOutputs = (execution?: { outputs?: Record<string, ExecutionOutp
         ARTIFACT_OUTPUT_TYPES.has(o.output_type) ||
         ((o.output_type === 'text' || o.output_type === 'markdown') &&
           typeof o.content === 'string' &&
-          envelopeEmbeddedOutputs(o.content).length > 0),
+          (envelopeEmbeddedOutputs(o.content).length > 0 || nativeChartsFromOutput(o).length > 0)),
     ),
   );
 
@@ -842,8 +846,15 @@ const Playground: NextPage = () => {
   const initializedTemplate = useRef<string | null>(null);
   const [selectedDashboardTemplate, setSelectedDashboardTemplate] = useState<string | null>(null);
   const { t, i18n } = useTranslation();
-  const { model, modelList, modelListLoading, setModel, setConvRunning, runningConvIds, addOptimisticConv, bumpDialogueList, unviewedResults, markConvCompleted, markConvViewed, clearConvAttention } =
+  const { model: defaultModel, modelList, modelListLoading, setConvRunning, runningConvIds, addOptimisticConv, bumpDialogueList, unviewedResults, markConvCompleted, markConvViewed, clearConvAttention } =
     useContext(ChatContext);
+  const routeConversationId = typeof router.query.id === 'string' ? router.query.id : '';
+  const [historyModel, setHistoryModel] = useState<{ id: string; model: string } | null>(null);
+  const { modelValue: model, setModelValue: setModel } = useConversationModel({
+    chatId: routeConversationId, scene: 'react-agent', defaultModel,
+    historyModel: historyModel?.id === routeConversationId ? historyModel.model : undefined,
+    availableModels: modelList,
+  });
   const [query, setQuery] = useState('');
   const suiteCommandMenuRef = useRef<SuiteCommandPopoverHandle>(null);
   const composerAnchorRef = useRef<HTMLDivElement>(null);
@@ -960,6 +971,7 @@ const Playground: NextPage = () => {
   // Chat messages state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const { usageReady, confirmUsageReady } = useConversationUsageReady(conversationId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // --- Session files (Task12): rail drafts + send snapshots ---------------
@@ -1205,6 +1217,7 @@ const Playground: NextPage = () => {
         stepThoughts: Record<string, string>;
         subAgents?: Record<string, SubAgentState>;
         subAgentArtifacts?: number;
+        executionSummary?: ExecutionSummary;
       }
     >
   >({});
@@ -1520,24 +1533,12 @@ const Playground: NextPage = () => {
       if (msg.role !== 'view' || !msg.id) continue;
       const exec = executionMap[msg.id];
       if (!exec || exec.steps.length === 0) continue;
-      const recordedSteps = recordedExecutionSteps(exec.steps);
-      const toolCalls = recordedSteps.filter(
-        s => s.action && s.action !== '__progress__' && s.action.toLowerCase() !== 'terminate',
-      ).length;
-      const rounds = recordedSteps.filter(step => step.action !== '__progress__').length;
+      const summary = summarizeExecution(exec.steps, exec.executionSummary);
+      const toolCalls = summary.tool_steps;
+      const rounds = summary.recorded_steps;
       const status = executionStatus(exec.steps, msg.thinking, msg.taskPlan, msg.executionStatus);
       const running = status === 'running';
-      const starts = exec.steps.map(s => s.startedAt).filter((v): v is number => typeof v === 'number');
-      const ends = exec.steps.map(s => s.endedAt).filter((v): v is number => typeof v === 'number');
-      let dur = '';
-      if (starts.length) {
-        const end = running || !ends.length ? Date.now() : Math.max(...ends);
-        const elapsed = end - Math.min(...starts);
-        dur =
-          elapsed >= 60000
-            ? `${Math.floor(elapsed / 60000)}m ${Math.round((elapsed % 60000) / 1000)}s`
-            : `${Math.max(1, Math.round(elapsed / 1000))}s`;
-      }
+      const dur = executionDurationText(exec.executionSummary);
       return {
         running,
         status,
@@ -1732,6 +1733,7 @@ const Playground: NextPage = () => {
     setSelectedKnowledge(null);
     setSelectedSkill(null);
     setPendingResourceRestore(null);
+    setHistoryModel(null);
     setSelectedFlow(null);
     selectedFlowRef.current = null;
     setSelectedConnectors([]);
@@ -2184,26 +2186,6 @@ const Playground: NextPage = () => {
     return `${label}_${index}.py`;
   };
 
-  const extractFileReferences = (
-    text: string,
-  ): Array<{ name: string; downloadable: boolean; size?: number; filePath?: string }> => {
-    const refs: Array<{ name: string; downloadable: boolean; size?: number; filePath?: string }> = [];
-    const filePattern = /[/\w\-.:]+\.(?:xlsx|xls|csv|py|json|txt|pdf|png|jpg|jpeg|html|md)/gi;
-    const matches = text.match(filePattern) || [];
-    const seen = new Set<string>();
-    matches.forEach(m => {
-      const name = m.split('/').pop() || m;
-      const lower = name.toLowerCase();
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        // Preserve full path if it looks like an absolute path
-        const filePath = m.startsWith('/') ? m : undefined;
-        refs.push({ name, downloadable: true, filePath });
-      }
-    });
-    return refs;
-  };
-
   const downloadArtifact = async (artifact: Artifact) => {
     const triggerBlobDownload = (blob: Blob, filename: string) => {
       const url = URL.createObjectURL(blob);
@@ -2388,6 +2370,14 @@ const Playground: NextPage = () => {
             }
           });
           stepOutputs.forEach((output, oIdx) => {
+            nativeChartsFromOutput(output).forEach((chart, chartIndex) => {
+              if (finalArtifacts.some(a => a.type === 'chart' && JSON.stringify(a.content) === JSON.stringify(chart))) return;
+              finalArtifacts.push({
+                id: `${messageId}-chart-${step.id}-${oIdx}-${chartIndex}`,
+                type: 'chart', name: chart.title || chart.describe || t('native_chart_title', 'Interactive chart'),
+                content: chart, createdAt: now, messageId, stepId: step.id, downloadable: false,
+              });
+            });
             if (output.output_type === 'code') {
               const codeStr = String(output.content || '').trim();
               const hash = codeStr.slice(0, 200);
@@ -2420,17 +2410,20 @@ const Playground: NextPage = () => {
                 });
               }
             } else if (output.output_type === 'file') {
+              const payload = generatedFileOutput(output);
+              if (!payload) return;
+              if (payload.file_path && finalArtifacts.some(a => a.type === 'file' && a.filePath === payload.file_path)) return;
               finalArtifacts.push({
                 id: `${messageId}-file-${step.id}-${oIdx}`,
                 type: 'file',
-                name: output.content?.name || output.content?.file_name || 'File',
-                content: output.content,
+                name: payload.name,
+                content: payload,
                 createdAt: now,
                 messageId,
                 stepId: step.id,
                 downloadable: true,
-                size: output.content?.size,
-                filePath: output.content?.file_path || output.content?.path,
+                size: payload.size,
+                filePath: payload.file_path,
               });
             } else if (output.output_type === 'html') {
               const htmlContent = reportArtifactContent(output.content);
@@ -2480,77 +2473,6 @@ const Playground: NextPage = () => {
             }
           });
 
-          // For bash steps, extract file paths from code/text outputs
-          // and create downloadable file artifacts
-          const WRITE_SCAN_ACTIONS = new Set([
-            'shell_interpreter',
-            'code_interpreter',
-            'bash',
-            'code',
-            'write',
-            'edit',
-          ]);
-          if (WRITE_SCAN_ACTIONS.has((step.action || '') as string)) {
-            // Match both absolute paths and relative filenames with extensions
-            const absPathPattern = /(?:\/[\w\-.]+)+\.\w{1,10}/g;
-            const relFilePattern = /(?:>|>>|\btee\b|\btouch\b)\s+([\w\-./ ]+\.\w{1,10})/g;
-            const seenFilePaths = new Set<string>();
-            // Scan tool outputs plus the step's own detail/observation text:
-            // pi write/edit results live there, not in execution.outputs.
-            const scanTexts: string[] = [];
-            stepOutputs.forEach(output => {
-              if (output.output_type === 'code' || output.output_type === 'text') {
-                scanTexts.push(String(output.content || ''));
-              }
-            });
-            const stepExtra = step as unknown as { detail?: string; observation?: string };
-            if (stepExtra.detail) scanTexts.push(String(stepExtra.detail));
-            if (stepExtra.observation) scanTexts.push(String(stepExtra.observation));
-            scanTexts.forEach(text => {
-              // Look for file creation patterns
-              const hasFileCreation =
-                /(?:>|>>|\btee\b|\bcat\b.*>|\bcp\b|\bmv\b|\btouch\b|\becho\b.*>|Successfully wrote\b|Wrote \d+ bytes)/.test(
-                  text,
-                );
-              if (hasFileCreation) {
-                const foundPaths: string[] = [];
-                // Extract absolute paths
-                const absMatches = text.match(absPathPattern) || [];
-                foundPaths.push(...absMatches);
-                // Extract relative paths after redirection operators
-                let relMatch;
-                while ((relMatch = relFilePattern.exec(text)) !== null) {
-                  const p = relMatch[1].trim();
-                  if (p && !p.startsWith('/')) foundPaths.push(p);
-                }
-                foundPaths.forEach(fp => {
-                  // Normalize: strip leading ./ if present
-                  const normalized = fp.replace(/^\.\//, '');
-                  const fileName = normalized.split('/').pop() || normalized;
-                  if (!seenFilePaths.has(fileName.toLowerCase())) {
-                    seenFilePaths.add(fileName.toLowerCase());
-                    const alreadyHasFile = finalArtifacts.some(
-                      a => (a.type === 'file' || a.type === 'image') && a.name.toLowerCase() === fileName.toLowerCase(),
-                    );
-                    if (!alreadyHasFile) {
-                      // Use the path as-is; backend resolves relative paths against pilot/tmp
-                      finalArtifacts.push({
-                        id: `${messageId}-shellfile-${step.id}-${fileName}`,
-                        type: 'file',
-                        name: fileName,
-                        content: { name: fileName, file_path: normalized },
-                        createdAt: now,
-                        messageId,
-                        stepId: step.id,
-                        downloadable: true,
-                        filePath: normalized,
-                      });
-                    }
-                  }
-                });
-              }
-            });
-          }
         });
       }
 
@@ -2585,7 +2507,26 @@ const Playground: NextPage = () => {
             (step.chunks || []).forEach((chunk, cIdx) => {
               const ot = chunk.output_type;
               const content = chunk.content;
-              if (ot === 'image' && typeof content === 'string') {
+              nativeChartsFromOutput({ output_type: ot, content }).forEach((chart, chartIndex) => {
+                if (finalArtifacts.some(a => a.type === 'chart' && JSON.stringify(a.content) === JSON.stringify(chart))) return;
+                finalArtifacts.push({
+                  id: `${messageId}-subagent-chart-${agent.agentId}-${sIdx}-${cIdx}-${chartIndex}`,
+                  type: 'chart', name: chart.title || chart.describe || t('native_chart_title', 'Interactive chart'),
+                  content: chart, createdAt: now, messageId, stepId: agent.agentId,
+                  sourceAgent: agent.name, downloadable: false,
+                });
+              });
+              if (ot === 'file') {
+                const payload = generatedFileOutput({ output_type: ot, content });
+                if (!payload || (payload.file_path && finalArtifacts.some(a => a.type === 'file' && a.filePath === payload.file_path))) return;
+                finalArtifacts.push({
+                  id: `${messageId}-subagent-file-${agent.agentId}-${sIdx}-${cIdx}`,
+                  type: 'file', name: payload.name, content: payload,
+                  size: payload.size, filePath: payload.file_path,
+                  createdAt: now, messageId, stepId: agent.agentId,
+                  sourceAgent: agent.name, downloadable: true,
+                });
+              } else if (ot === 'image' && typeof content === 'string') {
                 if (persistedArtifactUrls.has(content)) return;
                 const imgName = content.split('/').pop() || `image_${sIdx}_${cIdx}.png`;
                 finalArtifacts.push({
@@ -2617,26 +2558,6 @@ const Playground: NextPage = () => {
             });
           });
         }
-      }
-
-      if (summaryText) {
-        const fileRefs = extractFileReferences(summaryText);
-        fileRefs.forEach((ref, idx) => {
-          const alreadyExists = finalArtifacts.some(a => a.name.toLowerCase() === ref.name.toLowerCase());
-          if (!alreadyExists) {
-            finalArtifacts.push({
-              id: `${messageId}-fileref-${idx}`,
-              type: 'file',
-              name: ref.name,
-              content: { name: ref.name, file_path: ref.filePath },
-              createdAt: now,
-              messageId,
-              downloadable: ref.downloadable,
-              filePath: ref.filePath,
-              size: ref.size,
-            });
-          }
-        });
       }
 
       if (filePath) {
@@ -2991,7 +2912,7 @@ const Playground: NextPage = () => {
     overrideExtInfo?: Record<string, any>,
     overrideDashboardTemplate?: string | null,
   ) => {
-    if (pendingResourceRestore) {
+    if (historyLoading || pendingResourceRestore) {
       message.info(t('ui_loading_history'));
       return;
     }
@@ -3375,6 +3296,10 @@ const Playground: NextPage = () => {
           markConvCompleted(currentConvId, responseId);
         }
         if (taskEpochRef.current !== taskEpoch || conversationIdRef.current !== currentConvId) return;
+        if (payload.type === 'conversation.ready') {
+          if (payload.conversation_id === currentConvId) confirmUsageReady(currentConvId);
+          return;
+        }
         if (typeof payload.type === 'string' && payload.type.startsWith('dashboard.')) {
           if (acceptDashboardEvent(payload)) {
             setMessages(prev => applyDashboardGenerationToMessages(prev, responseId, payload));
@@ -3877,7 +3802,7 @@ const Playground: NextPage = () => {
               }
               return next;
             });
-            return { ...prev, [responseId]: { ...current, steps: nextSteps } };
+            return { ...prev, [responseId]: { ...current, steps: nextSteps, executionSummary: readExecutionSummary(payload.execution_summary) } };
           });
           setMessages(prev =>
             prev.map(msg => {
@@ -4484,6 +4409,7 @@ const Playground: NextPage = () => {
           });
 
           newExecutionMap[viewId] = {
+            executionSummary: readExecutionSummary(payload.execution_summary),
             steps,
             outputs,
             activeStepId: steps.length > 0 ? steps[steps.length - 1].id : null,
@@ -4757,6 +4683,8 @@ const Playground: NextPage = () => {
         conversationIdRef.current = convUid;
         setConversationId(convUid);
         restoreContextHistory(msgList, convUid);
+        confirmUsageReady(convUid);
+        setHistoryModel({ id: convUid, model: conversationModelFromHistory(msgList) });
         // Re-entering a RUNNING conversation: the server history only holds
         // flushed rounds, so the in-flight round (human + view pair and its
         // live execution state) is carried over from memory — without it the
@@ -5891,7 +5819,7 @@ const Playground: NextPage = () => {
 
                               {/* Model Selector with premium styling */}
                               <div className='model-selector-premium'>
-                                <ModelSelector onChange={val => setModel(val)} />
+                                <ModelSelector value={model} onChange={val => setModel(val)} />
                               </div>
                               <style
                                 dangerouslySetInnerHTML={{
@@ -5934,7 +5862,7 @@ const Playground: NextPage = () => {
                                 <ContextUsageBar used={0} budget={0} ratio={0} state='OK' known={false} variant='compact' />
                               )}
 
-                              <ConversationTokenBadge conversationId={conversationId} running={loading || (!!conversationId && runningConvIds.includes(conversationId))} />
+                              <ConversationTokenBadge conversationId={conversationId} ready={usageReady || messages.some(item => Boolean(item.flowRun))} running={loading || (!!conversationId && runningConvIds.includes(conversationId))} />
 
                               {/* Voice Button */}
                               <Tooltip title={t('voice_input')}>
@@ -6932,7 +6860,7 @@ const Playground: NextPage = () => {
 
                           {/* Model Selector with premium styling */}
                           <div className='model-selector-premium'>
-                            <ModelSelector onChange={val => setModel(val)} />
+                            <ModelSelector value={model} onChange={val => setModel(val)} />
                           </div>
                           <style
                             dangerouslySetInnerHTML={{

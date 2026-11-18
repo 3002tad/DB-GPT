@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { conversationTokenTotal, useConversationContext, useConversationTokens } from './use-conversation-meters';
+import { conversationTokenTotal, useConversationContext, useConversationTokens, useConversationUsageReady } from './use-conversation-meters';
 
 const api = vi.hoisted(() => ({ owner: 'analyst', read: vi.fn() }));
 vi.mock('@/utils/storage', () => ({ getUserId: () => api.owner }));
@@ -159,4 +159,54 @@ it('recovers from a first-turn 404 when conversation history becomes available',
   hook.rerender({ running: false });
   await waitFor(() => expect(hook.result.current.total).toBe(42));
   expect(hook.result.current.failed).toBe(false);
+});
+
+it('waits for confirmed persistence even through timers and focus, then reads unknown before actual usage', async () => {
+  vi.useFakeTimers();
+  api.read.mockResolvedValue([null, { source: 'provider', models: [] }]);
+  const hook = renderHook(({ ready }) => useConversationTokens('new', true, ready), { initialProps: { ready: false } });
+  await act(async () => { vi.advanceTimersByTime(30000); window.dispatchEvent(new Event('focus')); });
+  expect(api.read).not.toHaveBeenCalled();
+  expect(hook.result.current.total).toBeNull();
+  expect(hook.result.current.failed).toBe(false);
+  hook.rerender({ ready: true });
+  await act(async () => { await Promise.resolve(); });
+  expect(api.read).toHaveBeenCalledTimes(1);
+  expect(hook.result.current.total).toBeNull();
+  api.read.mockResolvedValue([null, { source: 'provider', models: [complete('a', 42)] }]);
+  await act(async () => { vi.advanceTimersByTime(10000); });
+  expect(hook.result.current.total).toBe(42);
+  hook.unmount();
+});
+
+it('binds readiness from a first stream/history and ignores old conversation or owner callbacks', () => {
+  const hook = renderHook(({ conv }: { conv: string | null }) => useConversationUsageReady(conv), { initialProps: { conv: null } as { conv: string | null } });
+  expect(hook.result.current.usageReady).toBe(false);
+  const firstStream = hook.result.current.confirmUsageReady;
+  hook.rerender({ conv: 'new' });
+  act(() => firstStream('new'));
+  expect(hook.result.current.usageReady).toBe(true);
+  const oldCallback = hook.result.current.confirmUsageReady;
+  hook.rerender({ conv: 'other' });
+  act(() => oldCallback('new'));
+  expect(hook.result.current.usageReady).toBe(false);
+  act(() => hook.result.current.confirmUsageReady('other'));
+  expect(hook.result.current.usageReady).toBe(true);
+  api.owner = 'admin';
+  hook.rerender({ conv: 'other' });
+  act(() => oldCallback('new'));
+  expect(hook.result.current.usageReady).toBe(false);
+  // History can confirm the newly loaded ID in the same React update as routing.
+  act(() => hook.result.current.confirmUsageReady('loaded'));
+  hook.rerender({ conv: 'loaded' });
+  expect(hook.result.current.usageReady).toBe(true);
+});
+
+it('cancels in-flight meter updates when readiness is revoked', async () => {
+  let finish!: (value: unknown) => void;
+  api.read.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const hook = renderHook(({ ready }) => useConversationTokens('chat', true, ready), { initialProps: { ready: true } });
+  hook.rerender({ ready: false });
+  await act(async () => finish([null, { source: 'provider', models: [complete('a', 999)] }]));
+  expect(hook.result.current.total).toBeNull();
 });

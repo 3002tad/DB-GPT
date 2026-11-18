@@ -3,7 +3,7 @@
 import json
 from typing import Any, Dict, Optional
 
-from dbgpt.agent.expand.actions.chart_action import ChartAction
+from dbgpt.agent.expand.actions.chart_action import ChartAction, _native_vis_chart_spec
 from dbgpt.agent.resource.database import RDBMSConnectorResource
 from dbgpt.agent.resource.tool.base import tool
 from dbgpt.core.interface.report_capture import (
@@ -56,6 +56,8 @@ def make_chart_query(react_state: Dict[str, Any], database_connector: Optional[A
             "Execute read-only SQL using DB-GPT's native interactive charts. "
             "Use for trends, comparisons, shares and distributions. Chart and SQL "
             "are captured together. Requires a selected data source. "
+            "The UI renders the returned chart directly; do not copy its raw JSON "
+            "or row data into the final answer. Explain the observed findings. "
             'Arguments: {"sql":"SELECT ...", "display_type":"response_line_chart", '
             '"thought":"chart description"}.'
         )
@@ -105,6 +107,7 @@ def make_chart_query(react_state: Dict[str, Any], database_connector: Optional[A
             )
         try:
             artifact_sink = react_state.get("_report_artifact_sink")
+            prior_ids = {item.artifact_id for item in artifact_sink.snapshot()} if artifact_sink else set()
             database_name = connector_database_name(database_connector, artifact_sink)
             resource = RDBMSConnectorResource(
                 name=database_name or "database",
@@ -153,12 +156,29 @@ def make_chart_query(react_state: Dict[str, Any], database_connector: Optional[A
                     },
                     ensure_ascii=False,
                 )
+            chart = _native_vis_chart_spec(result.view)
+            if chart is None:
+                # The native action's public result is also a structured payload.
+                payload = json.loads(result.content)
+                chart = {
+                    "renderer": "vis-db-chart", "type": payload["display_type"],
+                    "data": payload.get("data", []), "sql": payload["sql"],
+                    "title": "", "describe": payload.get("thought", ""),
+                }
+            if artifact_sink:
+                producers = [item for item in artifact_sink.snapshot()
+                             if item.artifact_id not in prior_ids and item.type == "chart"
+                             and item.status == "succeeded" and item.spec.get("sql") == normalized_sql]
+                if producers:
+                    chart["artifact_id"] = producers[-1].artifact_id
+                    chart["input_artifact_ids"] = producers[-1].input_artifact_ids
             return json.dumps(
                 {
+                    "success": True,
                     "chunks": [
                         {
-                            "output_type": "markdown",
-                            "content": result.view or result.content,
+                            "output_type": "chart",
+                            "content": chart,
                         }
                     ]
                 },

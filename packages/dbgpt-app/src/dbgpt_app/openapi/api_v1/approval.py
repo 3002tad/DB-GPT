@@ -697,6 +697,9 @@ INTENT_FALLBACK_BULLETS = [
     "radius yourself before deciding."
 ]
 INTENT_FALLBACK_BULLETS_ZH = ["意图分析不可用，请自行核对命令内容与影响范围后决策。"]
+INTENT_FALLBACK_BULLETS_VI = [
+    "Chưa phân tích được mục đích lệnh. Hãy xem toàn bộ nội dung và phạm vi tác động trước khi quyết định."
+]
 
 IntentAnalyzer = Callable[[str, dict], Awaitable[Optional[List[str]]]]
 
@@ -723,6 +726,15 @@ _INTENT_PROMPT_ZH = (
     "工具：{tool}\n参数：{args}"
 )
 
+_INTENT_PROMPT_VI = (
+    "Bạn là bộ phân tích mục đích lệnh. Với lời gọi công cụ dưới đây, trả về "
+    "3–5 ý bằng tiếng Việt, giải thích hành động, phạm vi tác động và hậu quả "
+    "để người dùng quyết định phê duyệt. Mỗi ý một câu theo thứ tự thực thi. "
+    "Đánh dấu từ mô tả rủi ro/tác động bằng **. Chỉ trả về JSON array các chuỗi. "
+    "Không khẳng định an toàn hoặc không có tác động khi dữ kiện chưa đủ.\n"
+    "Công cụ: {tool}\nTham số: {args}"
+)
+
 # ── Per-conversation UI locale ──────────────────────────────────────────────
 # The intent bullets are rendered verbatim in the approval dock, so they must
 # follow the *UI* language. The frontend sends its i18n locale with every chat
@@ -734,12 +746,14 @@ _CONV_LOCALE_MAX = 512
 
 
 def normalize_intent_locale(locale: Optional[str]) -> str:
-    """Map any locale tag (``zh-CN``, ``en_US``, …) onto ``zh``/``en``."""
+    """Map UI locale tags onto supported intent languages."""
     tag = (locale or "").strip().lower().replace("_", "-")
     if tag.startswith("zh"):
         return "zh"
     if tag.startswith("en"):
         return "en"
+    if tag.startswith("vi"):
+        return "vi"
     return DEFAULT_INTENT_LOCALE
 
 
@@ -764,10 +778,14 @@ def get_conv_locale(conv_id: Optional[str]) -> str:
 
 
 def intent_prompt(lang: str) -> str:
+    if lang == "vi":
+        return _INTENT_PROMPT_VI
     return _INTENT_PROMPT_ZH if lang == "zh" else _INTENT_PROMPT
 
 
 def intent_fallback_bullets(lang: str) -> List[str]:
+    if lang == "vi":
+        return list(INTENT_FALLBACK_BULLETS_VI)
     return list(INTENT_FALLBACK_BULLETS_ZH if lang == "zh" else INTENT_FALLBACK_BULLETS)
 
 

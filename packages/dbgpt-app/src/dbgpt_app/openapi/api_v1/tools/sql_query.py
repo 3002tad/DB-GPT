@@ -97,6 +97,9 @@ def make_sql_query(
             'Arguments: {"sql": "SELECT ..."}. Each query has a 30-second '
             "timeout. On an error, use the structured recovery hint to inspect "
             "schema or change the query; do not repeat a failed call unchanged."
+            " For a second aggregation level, aggregate in a subquery/CTE first; "
+            "do not nest aggregate calls at the same SELECT level. Valid aggregate "
+            "window expressions remain supported."
             " Preserve NULL groups in distributions and reconcile totals at the "
             "same grain/scope. Reuse sufficient prior successful artifacts; "
             "re-query when evidence or freshness requires it."
@@ -324,13 +327,27 @@ def make_sql_query(
             react_state.setdefault("_query_artifacts", {})[artifact_id] = chunks[0][
                 "content"
             ]
-            response = {
-                "artifact_id": artifact_id,
+            # Put the handoff before row previews so a persisted-output preview
+            # retains the direct loader instead of encouraging row copying.
+            response = {"artifact_id": artifact_id}
+            if artifact_id:
+                response["python_input"] = {
+                    "artifact_id": artifact_id,
+                    "load": f"df = sql_result_frame({artifact_id!r})",
+                    "catalog": "print(SQL_RESULT_CATALOG)",
+                    "hint": (
+                        "In the code tool, load this complete captured SQL result "
+                        "directly rather than copying preview rows into literals. "
+                        "The load records its source ID; comments alone do not. "
+                        "Keep the query's grain, scope and freshness limitations."
+                    ),
+                }
+            response.update({
                 "chunks": chunks,
                 "result_coverage": _result_coverage(
                     col_names, rows, preview_truncated=preview_truncated,
                 ),
-            }
+            })
             previous_artifact = successful_queries.get(sql_stripped)
             if previous_artifact:
                 response["prior_execution"] = {
@@ -410,6 +427,9 @@ def make_sql_query(
                 "SQL_UNDEFINED_TABLE" if sql_state == "42P01" or "does not exist" in error_text and "relation" in error_text else
                 "SQL_UNDEFINED_COLUMN" if sql_state == "42703" or "column" in error_text and "does not exist" in error_text else
                 "SQL_AMBIGUOUS_COLUMN" if sql_state == "42702" or "column reference" in error_text and "ambiguous" in error_text else
+                "SQL_GROUPING_ERROR" if sql_state == "42803" or any(text in error_text for text in (
+                    "aggregate function calls cannot be nested", "misuse of aggregate function", "must appear in the group by clause",
+                )) else
                 "SQL_QUERY_FAILED"
             )
             message = (
@@ -419,6 +439,15 @@ def make_sql_query(
                 else f"{code}: SQL execution failed: {e}"
             )
             recovery_hint = (
+                "Aggregate functions cannot be nested at the same SELECT level. "
+                "Compute the inner aggregate in a subquery/CTE at its intended grain, "
+                "then aggregate those named results in an outer SELECT. For a grouped "
+                "column error, group or aggregate the selected column at the requested "
+                "grain. Preserve DISTINCT keys, filters, NULL semantics and time scope; "
+                "summing group counts is not a global distinct count when groups overlap. "
+                "Window aggregates such as SUM(COUNT(*)) OVER (...) can be valid; "
+                "do not remove valid window logic or rerun unchanged failed SQL."
+                if code == "SQL_GROUPING_ERROR" else
                 "PostgreSQL UNION ORDER BY accepts output column names only. "
                 "Wrap the UNION in a subquery/CTE, then sort by the expression, "
                 "or project a sort_key in every branch and ORDER BY sort_key."

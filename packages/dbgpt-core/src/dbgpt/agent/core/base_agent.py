@@ -1580,20 +1580,26 @@ class ConversableAgent(Role, Agent):
                 )
             )
         if historical_dialogues:
-            # Always pass the full prior Q&A dialogue to the model (multi-turn
-            # follow-ups need the earlier turns), independent of whether memory
-            # fragments were also read. Even index = user, odd index = AI.
-            for i in range(len(historical_dialogues)):
-                if i % 2 == 0:
-                    message = historical_dialogues[i]
-                    message.role = ModelMessageRoleType.HUMAN
-                    agent_messages.append(message)
-                else:
-                    message = historical_dialogues[i]
-                    message.role = ModelMessageRoleType.AI
-                    agent_messages.append(message)
+            # Preserve full Q&A and known roles, independent of memory reads.
+            # Only legacy untyped lists fall back to alternating roles.
+            from ..expand.prompt_payload import project_history_roles
+
+            agent_messages.extend(project_history_roles(historical_dialogues))
 
         if memory_list:
+            if (
+                self.agent_context
+                and self.agent_context.enable_native_function_calling
+                and user_prompt == f"Question: {question}"
+            ):
+                # The current objective is pinned in the final user prompt.
+                # Do not repeat its identical memory copy on every model call.
+                memory_list = [
+                    m for m in memory_list if not (
+                        m.role == ModelMessageRoleType.HUMAN
+                        and m.content == f"Question: {question}"
+                    )
+                ]
             agent_messages.extend(memory_list)
 
         # Current user input information

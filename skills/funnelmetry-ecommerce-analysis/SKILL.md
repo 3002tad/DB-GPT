@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.11
+version: 1.0.15
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -41,6 +41,11 @@ truy vấn lặp ngoài nhu cầu. Trích dẫn KB chỉ khi đã truy hồi th�
 document/version được trả về. PostgreSQL cùng semantic catalog của Funnelmetry
 là nguồn định nghĩa và số liệu có thẩm quyền; KB là bản dẫn xuất để truy hồi.
 
+Giữ đúng định dạng đầu ra người dùng yêu cầu: CSV/PNG hoặc trả lời trong chat
+không kéo theo báo cáo HTML. Công cụ báo cáo vẫn dùng được khi cần. Nếu kết
+xuất báo cáo lỗi, giữ phần phân tích và tệp đã tạo; nêu ngắn gọn phần chưa
+hoàn thành, để chẩn đoán kỹ thuật trong các bước thực thi.
+
 Trước khi kết luận, đối chiếu từng số và mẫu số với kết quả tool cùng phạm vi;
 nếu có kết quả mâu thuẫn, kiểm tra lại điều kiện truy vấn hoặc nêu rõ chưa
 xác định, không tự chọn hay tính nhẩm. Tính tỷ lệ bằng SQL hoặc công cụ tính.
@@ -61,6 +66,19 @@ artifact đầy đủ hoặc truy vấn tổng hợp gọn để đối chiếu 
 Ở lượt hỏi tiếp, dùng lại artifact thành công đủ phạm vi; chỉ truy vấn thêm
 phần còn thiếu hoặc cần cập nhật freshness. Nếu phải chạy lại, nêu lý do;
 không đổi cách viết SQL chỉ để tính lại cùng số liệu đã có.
+Khi chuyển sang Python, đọc kết quả đã capture bằng
+`df = sql_result_frame('sql-<artifact_id>')` theo gợi ý `python_input` của SQL;
+`print(SQL_RESULT_CATALOG)` cho biết ID, câu SQL và cột đang có trong phiên.
+Không chép các dòng preview thành literal để phân tích nguồn. Ghi artifact ID
+trong comment hoặc REPORT_RESULT không thay thế việc đọc đầu vào thật. Dữ liệu
+mẫu tự tạo vẫn dùng được để thử nghiệm, nhưng phải ghi rõ phạm vi đó.
+Khi xuất CSV/PNG/JSON bằng Python, dùng `output_path('exports/summary.csv')`
+hoặc `output_path('plots/chart.png')`: helper tạo thư mục con trong OUTPUT_DIR
+của hội thoại, không đoán đường dẫn `/app/workspace`. Gán REPORT_RESULT trực tiếp;
+nếu cần in hoặc ghi JSON, dùng `result_json(REPORT_RESULT)` để chuẩn hóa kiểu
+NumPy/Decimal/ngày theo contract capture, không dùng `default=str` để đổi số
+hoặc boolean thành chuỗi. Mỗi lần gọi Python có biến mới; tệp trong workspace
+cùng phiên được giữ lại.
 Không giải thích mùa thấp bằng ranh giới fixture hay chiến dịch khi chưa có
 bằng chứng tương ứng; ghi rõ giả thuyết nếu cần đề xuất cách kiểm tra.
 Chỉ giải thích trạng thái theo định nghĩa đã truy hồi; không tự mở rộng tên viết
@@ -68,3 +86,10 @@ tắt hoặc suy diễn chất lượng từ trạng thái. Giữ kết quả to
 cột và dòng cần thiết; mở rộng truy vấn khi câu hỏi cần thêm bằng chứng.
 Với contract CDC order reference, `ON` là trạng thái hiện diện của bản ghi
 tham chiếu, không phải “Order Normalized” hay thước đo chất lượng chuẩn hóa.
+
+Khi mô tả chuỗi thời gian, phân biệt tăng ròng giữa hai mốc với phục hồi liên tục.
+Đối chiếu các kỳ liền kề trong đúng khoảng kết luận bằng SQL/Python trên kết quả
+đã capture; dùng lại số đo có đủ bằng chứng. Nêu rõ các đoạn giảm/đảo chiều và
+diễn biến gần nhất, không lấy một kỳ tăng cuối chuỗi hay đỉnh/đáy để nói cả giai
+đoạn “phục hồi dần”. Kỳ thiếu, NULL, không đều hoặc chưa hoàn chỉnh không là số 0
+và không tự tạo các kỳ liên tiếp. Đường làm mượt không thay thế số liệu gốc.

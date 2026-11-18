@@ -47,6 +47,7 @@ from .react_agent import (
     _REACT_WRITE_MEMORY_TEMPLATE,
     ReActAgent,
 )
+from .prompt_payload import NATIVE_TOOL_PROTOCOL, native_request_shape
 
 logger = logging.getLogger(__name__)
 
@@ -844,18 +845,10 @@ class ToolCallingReActAgent(ReActAgent):
         if prompt:
             llm_messages = _new_system_message(prompt) + llm_messages
         if llm_messages and llm_messages[0].get("role") == "system":
-            llm_messages[0]["content"] += (
-                "\nProvider-native function calling is enabled. Use the supplied "
-                "tool_calls functions for actions, with JSON arguments. "
-                "Before each group of tool calls, include a short public "
-                "progress message in the user's language explaining what "
-                "you are doing and what comes next. Keep private reasoning "
-                "in the thinking channel. "
-                "Write ordinary prose without Thought, Action, Action Input "
-                "or other ReAct protocol labels. "
-                "Do not return only reasoning or describe an intended tool call. "
-                "Call terminate with the final result when the task is complete."
-            )
+            if NATIVE_TOOL_PROTOCOL not in (llm_messages[0].get("content") or ""):
+                llm_messages[0]["content"] = (
+                    (llm_messages[0].get("content") or "") + "\n" + NATIVE_TOOL_PROTOCOL
+                )
         if (
             llm_messages
             and (getattr(self, "_report_repair_state", None) or {}).get(
@@ -966,6 +959,7 @@ class ToolCallingReActAgent(ReActAgent):
                     if stream_callback:
                         await stream_callback({**payload, "public_text_stream": True})
 
+                logger.info("Native request shape: %s", native_request_shape(llm_messages, tools))
                 response = await self.llm_client.create_with_output(
                     context=llm_messages[-1].pop("context", None),
                     messages=llm_messages,

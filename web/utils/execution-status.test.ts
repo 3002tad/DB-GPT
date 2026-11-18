@@ -1,7 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { executionStatus, interruptedAnswer, settleTaskPlan, settleExecutionSteps, recordedExecutionSteps } from './execution-status';
+import { executionStatus, interruptedAnswer, settleTaskPlan, settleExecutionSteps, recordedExecutionSteps, readExecutionSummary, summarizeExecution, executionDurationText } from './execution-status';
 
 describe('execution completion status', () => {
+  it('uses identical visible-step counts for live and deduplicated history', () => {
+    const steps = [
+      { id: 'todo', action: 'todowrite', status: 'done' },
+      { id: 'sql-error', action: 'sql_query', status: 'failed' },
+      { id: 'todo', action: 'todowrite', status: 'done' },
+      { id: 'sql', action: 'sql_query', status: 'done' },
+      { id: 'progress', action: '__progress__', status: 'done' },
+      { id: 'final', action: 'terminate', status: 'done' },
+    ];
+    expect(summarizeExecution(steps)).toEqual(summarizeExecution(recordedExecutionSteps(steps)));
+    expect(summarizeExecution(steps)).toEqual({ version: 1, recorded_steps: 3, tool_steps: 3 });
+  });
+
+  it('keeps the final server measurement through JSON reload and elapsed wall time', () => {
+    const final = { version: 1 as const, recorded_steps: 6, tool_steps: 5, duration_ms: 119999, duration_complete: true };
+    const reloaded = readExecutionSummary(JSON.parse(JSON.stringify(final)));
+    expect(summarizeExecution([], final)).toEqual(summarizeExecution([], reloaded));
+    expect(executionDurationText(final)).toBe('1m 59s');
+    expect(executionDurationText(reloaded)).toBe('1m 59s');
+    expect(executionDurationText({ ...final, duration_ms: 120000 })).toBe('2m 0s');
+    expect(executionDurationText({ ...final, duration_ms: 0 })).toBe('0s');
+  });
+
+  it('does not invent missing historical duration or label a checkpoint as complete timing', () => {
+    expect(executionDurationText(undefined)).toBe('');
+    expect(executionDurationText({ version: 1, recorded_steps: 1, tool_steps: 1, duration_ms: 5000, duration_complete: false })).toBe('');
+    expect(readExecutionSummary({ version: 1, recorded_steps: 1, tool_steps: 2 })).toBeUndefined();
+    expect(readExecutionSummary({ version: 1, recorded_steps: 1, tool_steps: 1, duration_ms: NaN })).toEqual({ version: 1, recorded_steps: 1, tool_steps: 1 });
+    expect(summarizeExecution([{ id: 'batch', action: 'parallel_tool', status: 'done' }]).tool_steps).toBe(1);
+  });
   it('does not turn an interrupted or failed final event into successful running tools', () => {
     const steps = [{ action: 'code', status: 'running' }, { action: 'sql', status: 'failed' }];
     expect(settleExecutionSteps(steps, 'interrupted').map(step => step.status)).toEqual(['failed', 'failed']);

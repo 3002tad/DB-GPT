@@ -53,7 +53,8 @@ SHARED_MODULE_ROUTES = {
         "DELETE": [rf"/api/v1/suites/{_ID}"],
     },
     "chat_execution": {
-        "GET": [r"/api/v1/chat/approval/(?:pending|log|session-mode)"],
+        "GET": [r"/api/v1/chat/approval/(?:pending|log|session-mode)",
+                rf"/api/v1/chat/approval/{_ID}/details"],
         "POST": [r"/api/v1/chat/sql/run", rf"/api/v1/chat/approval/{_ID}/resolve", r"/api/v1/chat/approval/session-mode"],
     },
     "reports": {

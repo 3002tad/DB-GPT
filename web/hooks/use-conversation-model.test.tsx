@@ -1,6 +1,8 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useConversationModel } from './use-conversation-model';
+import { conversationModelFromHistory } from '@/utils/conversation-model';
+import { useConversationContext } from './use-conversation-meters';
 
 const route = vi.hoisted(() => ({
   pathname: '/chat', asPath: '/chat?id=one&scene=chat_normal&model=old#answer',
@@ -8,6 +10,7 @@ const route = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 vi.mock('next/router', () => ({ useRouter: () => route }));
+vi.mock('@/utils/storage', () => ({ getUserId: () => 'analyst' }));
 beforeEach(() => {
   route.query = { id: 'one', scene: 'chat_normal', model: 'old', db_name: 'source', app_code: 'app' };
   route.replace.mockReset().mockResolvedValue(true);
@@ -63,4 +66,49 @@ it('keeps a selection usable if URL navigation fails, without unhandled rejectio
   const { result } = renderHook(() => useConversationModel(initial));
   await act(async () => result.current.setModelValue('selected'));
   expect(result.current.modelValue).toBe('selected');
+});
+
+it('restores a root Agent model and its server context after reload without rewriting the URL', () => {
+  delete route.query.model;
+  const messages = [{ role: 'view', order: 1, model_name: 'february', context: JSON.stringify({
+    type: 'react-agent', context_snapshots: { february: {
+      model: 'february', state: 'OK', used_tokens: 14600, max_tokens: 103616,
+      usage_percent: 14, layer: null, measured_at: 100,
+    } },
+  }) }];
+  const { result, rerender } = renderHook(({ loaded }) => {
+    const selection = useConversationModel({ chatId: 'one', scene: 'react-agent',
+      defaultModel: 'global', historyModel: loaded ? conversationModelFromHistory(messages) : '',
+      availableModels: ['global', 'february', 'april'] });
+    return { ...selection, ...useConversationContext('one', selection.modelValue) };
+  }, { initialProps: { loaded: false } });
+  act(() => result.current.restoreContextHistory(messages, 'one'));
+  rerender({ loaded: true });
+  expect(result.current.modelValue).toBe('february');
+  expect(result.current.contextStatus).toMatchObject({ model: 'february', usage_percent: 14, previous: true });
+  expect(route.replace).not.toHaveBeenCalled();
+  act(() => result.current.setModelValue('april'));
+  rerender({ loaded: true });
+  expect(result.current.modelValue).toBe('april');
+  expect(result.current.contextStatus).toBeNull();
+});
+
+it('waits for usable inventory, then falls back consistently if a historical model was removed', () => {
+  delete route.query.model;
+  const { result, rerender } = renderHook(({ availableModels }) => useConversationModel({
+    ...initial, historyModel: 'removed-model', availableModels,
+  }), { initialProps: { availableModels: [] as string[] } });
+  expect(result.current.modelValue).toBe('removed-model');
+  rerender({ availableModels: ['global', 'usable'] });
+  expect(result.current.modelValue).toBe('global');
+});
+
+it('does not overwrite a manual root selection when history and model inventory arrive late', () => {
+  delete route.query.model;
+  const { result, rerender } = renderHook(({ historyModel, availableModels }) => useConversationModel({
+    chatId: 'one', scene: 'react-agent', defaultModel: 'global', historyModel, availableModels,
+  }), { initialProps: { historyModel: '', availableModels: [] as string[] } });
+  act(() => result.current.setModelValue('april'));
+  rerender({ historyModel: 'february', availableModels: ['global', 'february', 'april'] });
+  expect(result.current.modelValue).toBe('april');
 });

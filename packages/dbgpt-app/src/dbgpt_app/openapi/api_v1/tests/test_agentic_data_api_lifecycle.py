@@ -175,7 +175,7 @@ async def test_closing_stream_cancels_and_awaits_agent_task(monkeypatch) -> None
     )
 
     stream = agentic_data_api._react_agent_stream(
-        SimpleNamespace(ext_info={"harness_engine": "dbgpt"})
+        SimpleNamespace(conv_uid="closing-test", ext_info={"harness_engine": "dbgpt"})
     )
     assert await anext(stream) == "data: first\n\n"
 
@@ -220,7 +220,7 @@ async def test_runtime_failure_emits_structured_final_and_done(
         {
             "type": "final",
             "protocol_version": 2,
-            "content": "抱歉，回答生成过程中发生错误，请重试。",
+            "content": "The answer could not be completed. Please try again.",
             "citations": [],
         },
         {"type": "done"},

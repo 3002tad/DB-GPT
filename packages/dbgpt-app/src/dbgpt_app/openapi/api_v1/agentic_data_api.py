@@ -91,8 +91,9 @@ from .public_progress import (
     react_public_intention,
 )
 from .react_final import AgentFinalAnswer, FinalAnswerAssembler
-from .execution_fallback import execution_copy, unfinished_message, missing_report_message
+from .execution_fallback import execution_copy, unfinished_message, report_failure_answer
 from .react_history import ReactHistoryCheckpoint, save_history_view
+from .execution_summary import TurnDuration, summarize_execution
 from .context_snapshot import capture_context_snapshot, snapshot_payload
 from .conversation_resources import resource_context_snapshot
 from .react_prompt import build_react_prompt_template
@@ -1598,6 +1599,8 @@ def _build_react_history_payload(
     financial_report: Optional[Dict[str, Any]] = None,
     context_snapshots: Optional[Dict[str, Any]] = None,
     resource_context: Optional[Dict[str, Any]] = None,
+    model_name: Optional[str] = None,
+    execution_timing: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Serialize the persisted react-agent history payload (version 2).
 
@@ -1615,6 +1618,7 @@ def _build_react_history_payload(
         "final_content": final_content,
         "citations": citations or [],
         "steps": steps,
+        "execution_summary": summarize_execution(steps, execution_timing),
         "task_plan": task_plan,
         "generated_images": generated_images,
         "sub_agents": sub_agents,
@@ -1635,6 +1639,8 @@ def _build_react_history_payload(
         value["financial_report"] = financial_report
     if context_snapshots:
         value["context_snapshots"] = snapshot_payload(context_snapshots)
+    if model_name:
+        value["model_name"] = model_name
     if resource_context is not None:
         value["resource_context"] = resource_context_snapshot(resource_context)
     return json.dumps(value, ensure_ascii=False)
@@ -1876,6 +1882,8 @@ def _react_terminal_events(
     if isinstance(history.get("task_plan"), list):
         final_payload["task_plan"] = history["task_plan"]
         final_payload["todo_meta"] = task_plan_meta(history["task_plan"])
+    if isinstance(history.get("execution_summary"), dict):
+        final_payload["execution_summary"] = history["execution_summary"]
     return (
         _sse_event(final_payload),
         _sse_event({"type": "done"}),
@@ -2354,6 +2362,7 @@ async def _react_agent_stream_impl(
     from dbgpt_serve.agent.agents.db_gpts_memory import MetaDbGptsMessageMemory
     from dbgpt_serve.conversation.serve import Serve as ConversationServe
 
+    turn_duration = TurnDuration()
     step = 0
     user_input = dialogue.user_input
     if not isinstance(user_input, str):
@@ -3883,6 +3892,9 @@ async def _react_agent_stream_impl(
         message_storage=conv_serve.message_storage,
     )
     storage_conv.save_to_storage()
+    # The client allocates the ID before this row exists. Telemetry reads must
+    # wait for persistence; they still enforce normal conversation ownership.
+    yield _sse_event({"type": "conversation.ready", "conversation_id": conv_id})
     storage_conv.start_new_round()
     # Load the full conversation history (user question + agent final answer)
     # before appending the current round, then pass it as historical_dialogues
@@ -3896,24 +3908,9 @@ async def _react_agent_stream_impl(
         if react_state.get("_report_checkpoint_path")
         else storage_conv.get_history_message()
     )
-    for _msg in history_messages:
-        if _msg.type == "human":
-            historical_dialogues.append(AgentMessage(content=_msg.content))
-        elif _msg.type == "ai":
-            historical_dialogues.append(AgentMessage(content=_msg.content))
-        elif _msg.type == "view":
-            # view 消息存的是 history_payload(JSON)，提取 final_content 作为 AI 回答
-            _content = _msg.content
-            try:
-                _payload = (
-                    json.loads(_content) if isinstance(_content, str) else _content
-                )
-                if isinstance(_payload, dict):
-                    _content = _payload.get("final_content") or ""
-            except Exception:
-                pass
-            if _content:
-                historical_dialogues.append(AgentMessage(content=_content))
+    from .history_projection import react_history_dialogues
+
+    historical_dialogues = react_history_dialogues(history_messages)
     storage_conv.add_user_message(user_input)
     if history_checkpoint is not None:
         history_checkpoint.bind(
@@ -3928,8 +3925,10 @@ async def _react_agent_stream_impl(
                 sub_agents=[],
                 input_files=input_files_snapshot,
                 execution_status=status,
+                execution_timing=turn_duration.snapshot(terminal=status != "running"),
                 context_snapshots=react_state.get("_context_snapshots"),
                 resource_context=dialogue.ext_info or {},
+                model_name=dialogue.model_name,
             ),
         )
         history_checkpoint.flush(force=True)
@@ -4147,8 +4146,9 @@ Follow the loaded skill within the user's requested deliverables. Use the suppli
 native function schemas for tool names and complete JSON arguments; wait for actual
 results before drawing conclusions. Other registered tools remain available.
 For a short question, use only necessary queries and call terminate with the final
-answer once evidence is sufficient. Do not generate a report unless requested by
-the task or skill. For a complex task (3+ steps), use todowrite with the full list,
+answer once evidence is sufficient. Generate a report when it is a requested
+deliverable; generic skill instructions do not add extra output formats.
+For a complex task (3+ steps), use todowrite with the full list,
 one item in_progress, and update completed/next items together at transitions.
 
 {skill_prompt_context}
@@ -4575,7 +4575,11 @@ or missing values, or when an observed anomaly affects its conclusion. Reuse
 available artifacts and do not recalculate completed work. Keep sub-agent goals
 narrow and within the user's requested period. Query timeouts require inspecting
 the plan and indexes and changing the SQL; never repeat the unchanged query.
-After partial results, finish only missing requested deliverables, then report.
+After partial results, finish only missing requested deliverables, then return
+them in the requested format. CSV/PNG exports or a chat analysis do not imply an
+additional HTML report. Report tools remain available when the task calls for
+them. If an optional render fails, preserve completed requested outputs and
+explain the limitation briefly; leave raw diagnostics in the execution trace.
 Within this turn reuse successful schema, coverage and query observations for
 the same source, parameters and observation time. Query again if freshness,
 changed inputs, a failed result or an explicit user request requires it; never
@@ -4812,9 +4816,11 @@ or substitute a textual summary for a requested report.
     if react_state.get("_report_pending_html"):
         received.content += (
             "\nPending HTML and source artifacts were restored. The report subagent owns rendering. "
-            "Call generate_report(instructions=[title, required sections, recommendation count]); "
+            "If a report remains part of the current request, call "
+            "generate_report(instructions=[title, required sections, recommendation count]); "
             "it reads the evidence manifest, renders the template spec, and repairs the latest errors. "
-            "Do not call html_interpreter directly or hand-write HTML. "
+            "Do not call html_interpreter directly or hand-write HTML. A saved draft "
+            "does not add a report requirement to a new CSV/PNG or chat-only request. "
             "Read the saved HTML with read_file: "
             + react_state["_report_pending_path"]
             + ". Rendering error to repair: "
@@ -4825,7 +4831,8 @@ or substitute a textual summary for a requested report.
     elif react_state.get("_report_resume_analysis"):
         received.content += (
             "\nExisting execution artifacts were restored. First inspect them with report_evidence_manifest. "
-            "Complete only the missing user-requested analysis, then generate the report. "
+            "Complete only the missing user-requested deliverables. Generate a report "
+            "only if it is still part of the current request. "
             "Do not rerun completed work. Original request: "
             + str(react_state.get("_report_original_request") or "")
             + "\nExecution progress: "
@@ -4988,9 +4995,11 @@ or substitute a textual summary for a requested report.
             input_files=input_files_snapshot,
             dashboard_refs=react_state.get("dashboard_refs", []),
             execution_status=status,
+            execution_timing=turn_duration.snapshot(terminal=status != "running"),
             financial_report=financial_report,
             context_snapshots=react_state.get("_context_snapshots"),
             resource_context=dialogue.ext_info or {},
+            model_name=dialogue.model_name,
             suite_reference=suite_reference,
             suite_binding=suite_binding_snapshot,
         )
@@ -5747,6 +5756,17 @@ or substitute a textual summary for a requested report.
                     execution_copy(requested_locale)["recovered"] + " "
                     + execution_copy(requested_locale)["main_interrupted"] + ": " + str(e)[:1000]
                 )
+        if (
+            react_state.get("_report_html_attempted")
+            or react_state.get("_report_generation_requested")
+        ) and not _has_rendered_html_presentation(react_state.get("_report_presentation")):
+            err_msg = report_failure_answer(
+                err_msg,
+                requested_locale,
+                react_state.get("_report_agent_failure")
+                or react_state.get("_report_html_error")
+                or str(e),
+            )
         fail_running_subagent_history(subagent_history)
         error_answer = AgentFinalAnswer(content=err_msg)
         error_answer = await _finalize_turn_report_persistence(
@@ -5758,6 +5778,7 @@ or substitute a textual summary for a requested report.
             react_state=react_state,
         )
         error_payload = _build_react_history_payload(
+            execution_timing=turn_duration.snapshot(terminal=True),
             final_content=err_msg,
             steps=history_steps,
             task_plan=react_state.get("financial_plan") or list(_todo_list),
@@ -5774,6 +5795,7 @@ or substitute a textual summary for a requested report.
             dashboard_generation_failure=incomplete,
             context_snapshots=react_state.get("_context_snapshots"),
             resource_context=dialogue.ext_info or {},
+            model_name=dialogue.model_name,
         )
         terminal_events = _react_terminal_events(
             storage_conv,
@@ -5888,8 +5910,9 @@ or substitute a textual summary for a requested report.
             or react_state.get("_report_html_error")
             or execution_copy(requested_locale)["report_unfinished"]
         )
-        report_message = missing_report_message(requested_locale, report_error)
-        final_content = final_content + "\n" + report_message if stopped else report_message
+        final_content = report_failure_answer(
+            final_content, requested_locale, report_error
+        )
     if artifact_sink is not None:
         final_answer_assembler.observe_artifacts(
             artifact_sink.snapshot(),
@@ -5949,6 +5972,7 @@ or substitute a textual summary for a requested report.
 
     # Persist AI reply with structured history payload
     history_payload = _build_react_history_payload(
+        execution_timing=turn_duration.snapshot(terminal=True),
         final_content=final_answer.content,
         steps=history_steps,
         task_plan=react_state.get("financial_plan") or list(_todo_list),
@@ -5965,6 +5989,7 @@ or substitute a textual summary for a requested report.
         dashboard_generation_failure=incomplete,
         context_snapshots=react_state.get("_context_snapshots"),
         resource_context=dialogue.ext_info or {},
+        model_name=dialogue.model_name,
     )
     terminal_events = _react_terminal_events(
         storage_conv,
@@ -6483,6 +6508,26 @@ async def approval_resolve(
     return Result.succ(
         {"success": True, "approval_id": approval_id, "decision": decision}
     )
+
+
+@router.get("/v1/chat/approval/{approval_id}/details", response_model=Result)
+async def approval_details(
+    approval_id: str,
+    user_token: UserRequest = Depends(get_user_from_headers),
+):
+    """Return complete arguments only to the pending call's conversation owner."""
+    from .approval import approval_center
+
+    pending = approval_center.get(approval_id)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    _require_pipeline_chat_owner(pending.conv_id, user_token.user_id if user_token else None)
+    return Result.succ({
+        "approval_id": pending.approval_id,
+        "tool": pending.tool,
+        "arguments": pending.args,
+        "status": pending.status,
+    })
 
 
 @router.get("/v1/chat/approval/pending", response_model=Result)

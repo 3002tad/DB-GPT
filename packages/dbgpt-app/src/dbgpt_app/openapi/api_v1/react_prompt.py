@@ -6,6 +6,7 @@ import re
 from dbgpt.core import PromptTemplate
 
 from .tools.financial_tools import FINANCIAL_AGENT_PROMPT
+from .trend_guidance import TREND_GUIDANCE
 
 REGISTERED_TOOLS_PROMPT = """
 ## Available Tools Description
@@ -60,6 +61,7 @@ def build_react_prompt_template(
         "execute_skill_script_file", "run_skill_script"
     )
     sections = [workflow_prompt]
+    sections.append(TREND_GUIDANCE)
     sections.append(
         "Use only supplied functions. If a needed capability is absent and "
         "tool_search is available, discover it before calling it. Discovery "

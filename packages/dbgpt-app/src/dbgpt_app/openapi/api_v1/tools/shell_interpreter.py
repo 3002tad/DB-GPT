@@ -11,6 +11,7 @@ from dbgpt_sandbox.sandbox.execution_layer.base import ExecutionStatus
 
 from ._execution import run_code
 from .code_interpreter import build_execution_env, conversation_work_dir
+from .generated_files import generated_file_chunks, snapshot_generated_files
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,8 @@ def make_shell_interpreter(react_state: Dict[str, Any]):
 
         sandbox_work_dir = conversation_work_dir(react_state)
         os.makedirs(sandbox_work_dir, exist_ok=True)
+        files_before = snapshot_generated_files(sandbox_work_dir)
+        producer_status = "failed"
 
         output_text = ""
         try:
@@ -58,8 +61,10 @@ def make_shell_interpreter(react_state: Dict[str, Any]):
             )
 
             if result.status == ExecutionStatus.SUCCESS:
+                producer_status = "succeeded"
                 output_text = result.output or ""
             elif result.status == ExecutionStatus.TIMEOUT:
+                producer_status = "timed_out"
                 output_text = "Execution timed out (30s limit)"
             else:
                 output_text = result.error or "Unknown execution error"
@@ -173,6 +178,7 @@ def make_shell_interpreter(react_state: Dict[str, Any]):
                         "shell_interpreter: image post-processing failed: %s", e
                     )
 
+        chunks.extend(generated_file_chunks(sandbox_work_dir, files_before, producer_status))
         return json.dumps({"chunks": chunks}, ensure_ascii=False)
 
     return bash

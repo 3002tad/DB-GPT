@@ -114,7 +114,12 @@ def make_tool_search(
                 },
             )
         return json.dumps(
-            {"tools": results, "available_next_round": True}, ensure_ascii=False
+            {"tools": results, "available_next_round": bool(results),
+             "recovery_hint": (
+                 "Use the returned native parameter schema on the next round; do not reuse guessed arguments."
+                 if results else
+                 "No permitted tool matched. Search a canonical name or a different capability; do not invoke an invented tool."
+             )}, ensure_ascii=False
         )
 
     return tool_search

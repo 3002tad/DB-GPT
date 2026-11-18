@@ -97,6 +97,20 @@ export function useConversationContext(conversationId: string | null, model: str
 
 export interface TokenTotal { total: number | null; complete: boolean; calls: number }
 
+/** A client-generated ID alone is not proof that the server has stored a chat. */
+export function useConversationUsageReady(conversationId: string | null) {
+  const owner = getUserId();
+  const scope = JSON.stringify([owner, conversationId]);
+  const active = useRef(scope);
+  active.current = scope;
+  const [confirmed, setConfirmed] = useState<string | null>(null);
+  const confirmUsageReady = useCallback((id: string) => {
+    const target = JSON.stringify([owner, id]);
+    if (owner && id && (active.current === target || active.current === scope)) setConfirmed(target);
+  }, [owner, scope]);
+  return { usageReady: Boolean(owner && conversationId && confirmed === scope), confirmUsageReady };
+}
+
 /** Sum provider aggregates once, never SSE deltas or parent trace spans. */
 export function conversationTokenTotal(usage: ConversationUsage | null): TokenTotal {
   if (!usage || usage.source !== 'provider' || !usage.models.length) return { total: null, complete: false, calls: 0 };
@@ -117,22 +131,20 @@ export function conversationTokenTotal(usage: ConversationUsage | null): TokenTo
   return { total: known ? total : null, complete: known && complete && calls > 0, calls };
 }
 
-export function useConversationTokens(conversationId: string | null, running: boolean) {
+export function useConversationTokens(conversationId: string | null, running: boolean, ready = true) {
   const owner = getUserId();
   const scope = JSON.stringify([owner, conversationId]);
   const [result, setResult] = useState<{ scope: string; usage: ConversationUsage | null; failed: boolean } | null>(null);
   useEffect(() => {
-    if (!conversationId || !owner) return;
+    if (!conversationId || !owner || !ready) return;
     let cancelled = false;
     let pending = false;
     const refresh = async () => {
       if (pending) return;
       pending = true;
       try {
-        // This is background telemetry, not the chat request. A new conversation
-        // ID can be visible before its first history row is persisted (404).
-        // Keep the meter unknown and retry on the existing schedule; do not
-        // surface telemetry failures through the global request-error toast.
+        // Read only after server persistence is confirmed. Background telemetry
+        // errors must not surface through the global request-error toast.
         const response = await getConversationUsage(conversationId);
         const data = response.data.success ? response.data.data : null;
         if (!cancelled) setResult({ scope, usage: data || null, failed: !data });
@@ -152,7 +164,7 @@ export function useConversationTokens(conversationId: string | null, running: bo
       window.clearTimeout(trailing);
       window.removeEventListener('focus', refresh);
     };
-  }, [scope, conversationId, owner, running]);
+  }, [scope, conversationId, owner, running, ready]);
   const current = result?.scope === scope ? result : null;
   return { ...conversationTokenTotal(current?.usage || null), failed: current?.failed || false };
 }

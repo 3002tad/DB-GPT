@@ -14,6 +14,7 @@ from dbgpt.agent.skill.arguments import (
     skill_arguments_failure,
 )
 from dbgpt_serve.session_file.domain import SessionFileStatus
+from .generated_files import generated_file_chunks, snapshot_generated_files
 
 
 def _capture_script_identity(script_path):
@@ -365,6 +366,7 @@ def make_execute_skill_script_file(react_state: Dict[str, Any]):
                 PILOT_PATH, "tmp", cid, "executions", uuid.uuid4().hex
             )
             os.makedirs(out_dir, exist_ok=True)
+            files_before = snapshot_generated_files(out_dir)
 
             real_file_path = react_state.get("file_path")
             if real_file_path and args:
@@ -499,6 +501,13 @@ def make_execute_skill_script_file(react_state: Dict[str, Any]):
                 )
                 if result_obj.get("success") is False and not script_error:
                     script_error = "Skill script execution failed"
+                # Image chunks are already published by the skill adapter.
+                chunks.extend(
+                    chunk for chunk in generated_file_chunks(
+                        out_dir, files_before, "failed" if script_error else "succeeded"
+                    ) if Path(chunk["content"]["file_path"]).suffix.lower()
+                    not in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+                )
 
                 # Skill scripts are a real Python execution boundary just like
                 # code_interpreter.  Capturing them here keeps reports generated

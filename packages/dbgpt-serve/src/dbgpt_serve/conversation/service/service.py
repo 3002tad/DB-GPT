@@ -16,6 +16,7 @@ from ...feedback.api.endpoints import get_service
 from ..api.schemas import MessageVo, ServeRequest, ServerResponse
 from ..config import SERVE_SERVICE_COMPONENT_NAME, ServeConfig
 from ..models.models import ServeDao, ServeEntity
+from .history_model import history_message_model
 
 
 class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
@@ -243,7 +244,7 @@ class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
                         msg.get_view_markdown_text(file_serve.replace_uri)
                     ),
                     order=msg.round_index,
-                    model_name=self.config.default_model,
+                    model_name=history_message_model(msg),
                     feedback=feedback,
                 )
             )

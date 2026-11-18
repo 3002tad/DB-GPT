@@ -224,8 +224,8 @@ export function envelopeReadableText(text: string): string | null {
 /** html/image payloads embedded in envelopes, as synthetic outputs. */
 export function envelopeEmbeddedOutputs(
   text: string,
-): { type: 'html' | 'image' | 'expert_suite' | 'file' | 'query'; content: any }[] {
-  const found: { type: 'html' | 'image' | 'expert_suite' | 'file' | 'query'; content: any }[] = [];
+): { type: 'html' | 'image' | 'expert_suite' | 'file' | 'query' | 'chart'; content: any }[] {
+  const found: { type: 'html' | 'image' | 'expert_suite' | 'file' | 'query' | 'chart'; content: any }[] = [];
   for (const envelope of extractEnvelopeObjects(text)) {
     for (const chunk of envelope.chunks || []) {
       if (!chunk || typeof chunk !== 'object') continue;
@@ -238,6 +238,8 @@ export function envelopeEmbeddedOutputs(
             title: chunk.title || chunk.content?.title || envelope.title || 'Report',
           },
         });
+      } else if (chunk.output_type === 'chart' && chunk.content?.renderer === 'vis-db-chart') {
+        found.push({ type: 'chart', content: chunk.content });
       } else if (chunk.output_type === 'image' && chunk.content != null) {
         found.push({ type: 'image', content: chunk.content });
       } else if (chunk.output_type === 'expert_suite' && chunk.content?.artifact_id) {

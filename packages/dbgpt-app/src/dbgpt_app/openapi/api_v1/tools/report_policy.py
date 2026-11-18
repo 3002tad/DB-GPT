@@ -22,8 +22,13 @@ class TraceableReportPolicy:
         if not self.enabled:
             return ""
         opening = (
-            "Finish analysis, then call generate_report; its dedicated agent owns "
-            "the template, evidence bindings and repairs."
+            "This capability is available, not a required phase of every analysis. "
+            "Match the user's requested deliverables: a chat answer, SQL result, "
+            "CSV export or PNG/chart does not require an additional HTML report. "
+            "Use generate_report when a report is part of the requested task; "
+            "its dedicated agent owns the template, evidence bindings and repairs. "
+            "A skill's generic report workflow does not override the user's format "
+            "or explicit exclusions. Keep all supplied analytical tools available."
         )
         bindings = (
             "Bind every KPI, table, figure and numeric conclusion to its producer "
@@ -46,7 +51,10 @@ class TraceableReportPolicy:
             "code only for missing_calculation from "
             "REPORT_CALCULATION_INPUTS, print JSON, then resume generate_report. "
             "Draft HTML is a preview; only status=completed means completion. "
-            "Stop when retryable=false."
+            "Stop repair when retryable=false. A failed optional report does not "
+            "erase completed analysis or exports: return available requested "
+            "results with their evidence and a brief delivery limitation. "
+            "Keep renderer diagnostics in the execution trace, not the final answer."
         )
 
 

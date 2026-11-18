@@ -6,7 +6,6 @@ never interpolates a path literal, so adversarial display names or paths
 cannot inject code.
 """
 
-import hashlib
 import json
 import logging
 import os
@@ -31,6 +30,10 @@ from dbgpt_sandbox.sandbox.execution_layer.base import ExecutionStatus
 
 from ._execution import run_code
 from ._sandbox_capture import capture_helper_source
+from .generated_files import (
+    generated_file_chunks,
+    snapshot_generated_files as _workspace_files,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,30 +50,6 @@ def conversation_work_dir(react_state: Dict[str, Any]) -> str:
 
     conv_id = react_state.get("conv_id") or "default"
     return os.path.join(PILOT_PATH, "tmp", conv_id)
-
-
-def _file_digest(path: Path) -> str:
-    """Hash file content so container copies do not look like fresh outputs."""
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _workspace_files(directory: str) -> Dict[str, Tuple[int, str]]:
-    """Snapshot user outputs by content, not by container-copy mtime."""
-    root = Path(directory)
-    files = {}
-    for path in root.rglob("*"):
-        if ".report-executions" in path.relative_to(root).parts or not path.is_file():
-            continue
-        try:
-            stat = path.stat()
-            files[str(path)] = (stat.st_size, _file_digest(path))
-        except (FileNotFoundError, OSError):
-            continue
-    return files
 
 
 async def _run_python_file(
@@ -215,9 +194,14 @@ def make_code_interpreter(
             "Use this tool when you need to run Python code to process data, "
             "generate charts, or perform calculations. "
             "For SQL evidence captured in this conversation, use the injected "
-            "SQL_RESULTS list or sql_result_frame(index) instead of reconnecting "
-            "to or scanning for the database. Each item has artifact_id, sql, "
-            "columns, rows, row_count and truncated; index -1 is the latest query. "
+            "sql_result_frame('sql-<artifact_id>') to load a captured result "
+            "directly; do not retype its rows into literals. "
+            "print(SQL_RESULT_CATALOG) lists available IDs, SQL, columns and "
+            "row counts without marking those datasets as read. "
+            "sql_result_frame(index) also works; -1 is the latest successful SQL, "
+            "which may have a different shape from an earlier query. "
+            "SQL_RESULTS remains available with artifact_id, sql, columns, rows, "
+            "row_count and truncated. Do not reconnect or scan for the database. "
             "Do not import db_gpt_tools: it is not a runtime module. SQL_RESULTS "
             "and sql_result_frame are already available globals. For finer time "
             "grains, query actual rows or aggregates first; monthly totals cannot "
@@ -227,6 +211,13 @@ def make_code_interpreter(
             "(a JSON-compatible dict/list). Convert DataFrames to "
             "{columns: [...], rows: frame.to_dict(orient='records')}. "
             "REPORT_RESULT is captured separately from printed progress. "
+            "OUTPUT_DIR (also PLOT_DIR) is the existing conversation workspace. "
+            "Use output_path('exports/summary.csv') for CSV/JSON/PNG outputs; "
+            "it creates parent directories there. Do not guess /app/workspace. "
+            "Assign REPORT_RESULT directly; capture normalizes NumPy scalars "
+            "and typed values. If JSON text is needed, use "
+            "result_json(REPORT_RESULT) instead of json.dumps or default=str. "
+            "Each call starts fresh Python variables; workspace files persist. "
             'Parameters: {{"code": "python code string"}}'
         )
     )
@@ -284,17 +275,22 @@ def make_code_interpreter(
             f"exec({capture_helper_source()!r}, _report_capture.__dict__)",
             'PLOT_DIR = os.environ["PLOT_DIR"]',
             "os.makedirs(PLOT_DIR, exist_ok=True)",
+            "OUTPUT_DIR = PLOT_DIR",
+            "def output_path(filename):",
+            "    return _report_capture.prepare_output_path(OUTPUT_DIR, filename)",
+            "result_json = _report_capture.result_json",
             'FILE_PATH = os.environ.get("FILE_PATH") or None',
             'FILES_JSON = os.environ.get("FILES_JSON") or None',
             'SQL_RESULTS_PATH = os.environ.get("SQL_RESULTS_PATH") or None',
-            "SQL_RESULTS = []",
+            "_sql_datasets = []",
             "if SQL_RESULTS_PATH:",
             '    with open(SQL_RESULTS_PATH, encoding="utf-8") as _sql_results_file:',
-            "        SQL_RESULTS = _report_capture.TrackedSQLResults(",
-            "            json.load(_sql_results_file),",
-            '            os.environ["SQL_INPUT_TRACE_PATH"])',
-            "def sql_result_frame(index=-1):",
-            "    dataset = SQL_RESULTS[index]",
+            "        _sql_datasets = json.load(_sql_results_file)",
+            "SQL_RESULTS = _report_capture.TrackedSQLResults(",
+            '    _sql_datasets, os.environ["SQL_INPUT_TRACE_PATH"])',
+            "SQL_RESULT_CATALOG = SQL_RESULTS.catalog()",
+            "def sql_result_frame(index=-1, *, artifact_id=None):",
+            "    dataset = SQL_RESULTS.select(artifact_id if artifact_id is not None else index)",
             '    return pd.DataFrame(dataset["rows"], columns=dataset["columns"])',
         ]
         preamble = "\n".join(preamble_lines) + "\n"
@@ -482,9 +478,10 @@ def make_code_interpreter(
                 }
             )
 
+        files_after = _workspace_files(work_dir)
         changed_files = {
             path
-            for path, signature in _workspace_files(work_dir).items()
+            for path, signature in files_after.items()
             if files_before.get(path) != signature
         }
         image_paths = [
@@ -512,6 +509,12 @@ def make_code_interpreter(
         # successful producer and must not be advertised for report use.
         captured_images = (
             publish_generated_images(image_paths) if status == "succeeded" else []
+        )
+        published_paths = {image["source_path"] for image in captured_images}
+        chunks.extend(
+            chunk for chunk in generated_file_chunks(
+                work_dir, files_before, status, after=files_after
+            ) if chunk["content"]["file_path"] not in published_paths
         )
         for image in captured_images:
             chunks.append({"output_type": "image", "content": image["uri"]})
@@ -605,11 +608,11 @@ def make_code_interpreter(
         if all_images:
             locale = str(react_state.get("_ui_locale") or "en")
             image_heading = (
-                "Ảnh đã tạo (dùng các URL này khi tạo HTML):"
+                "Ảnh đã tạo (URL đã công bố):"
                 if locale.startswith("vi") else
-                "已生成的图片URL（在生成HTML时请使用这些URL）:"
+                "已生成的图片（已发布的 URL）:"
                 if locale.startswith("zh") else
-                "Generated images (use these URLs when creating HTML):"
+                "Generated images (published URLs):"
             )
             img_summary = image_heading + "\n" + "\n".join(
                 f"  - {url}" for url in all_images
@@ -620,10 +623,33 @@ def make_code_interpreter(
         lineage = list(dict.fromkeys(sql_input_artifact_ids))
         error_code = None if success else (
             "PYTHON_EXECUTION_TIMEOUT" if status == "timed_out" else
+            "PYTHON_OUTPUT_PATH_INVALID" if "PYTHON_OUTPUT_PATH_INVALID" in (error_text or artifact_error or "") else
+            "PYTHON_OUTPUT_DIRECTORY_MISSING" if "Cannot save file into a non-existent directory" in (error_text or artifact_error or "") else
+            "PYTHON_RESULT_SERIALIZATION_FAILED" if any(message in (error_text or artifact_error or "") for message in (
+                "is not JSON serializable", "unsupported artifact value:",
+                "artifact mappings require string keys",
+            )) else
+            "PYTHON_SQL_INPUT_NOT_FOUND" if "SQL_RESULT_NOT_FOUND" in (error_text or artifact_error or "") else
+            "PYTHON_SQL_INPUT_SELECTOR_INVALID" if "SQL_RESULT_SELECTOR_INVALID" in (error_text or artifact_error or "") else
             "PYTHON_IMPORT_ERROR" if "ModuleNotFoundError" in (error_text or artifact_error or "") else
             "PYTHON_EXECUTION_FAILED"
         )
         recovery_hint = (
+            "Use output_path('exports/summary.csv') or output_path('plots/chart.png'); "
+            "OUTPUT_DIR/PLOT_DIR already exists for this conversation and the helper "
+            "creates child directories. Do not guess a global /app/workspace or "
+            "rerun completed SQL to fix an output location."
+            if error_code in {"PYTHON_OUTPUT_PATH_INVALID", "PYTHON_OUTPUT_DIRECTORY_MISSING"} else
+            "Assign REPORT_RESULT directly; it is normalized at capture. For JSON "
+            "text use result_json(REPORT_RESULT), which preserves NumPy booleans "
+            "and numbers and typed Decimal/date values without default=str. "
+            "Keep dictionary keys as strings and convert DataFrames to explicit "
+            "columns/records. Preserve prior SQL artifacts instead of rerunning them."
+            if error_code == "PYTHON_RESULT_SERIALIZATION_FAILED" else
+            "Inspect print(SQL_RESULT_CATALOG); select the exact artifact ID with "
+            "sql_result_frame('sql-...'). Only this owner's conversation artifacts "
+            "are available. Query missing data with sql_query; do not invent rows."
+            if error_code in {"PYTHON_SQL_INPUT_NOT_FOUND", "PYTHON_SQL_INPUT_SELECTOR_INVALID"} else
             "Use SQL_RESULTS or sql_result_frame(index), which are injected globals; "
             "db_gpt_tools is not installed. Inspect imports and available inputs "
             "before retrying. Do not substitute invented source records."
@@ -636,9 +662,19 @@ def make_code_interpreter(
                 "INPUT_LINEAGE_UNCAPTURED: this computation has no captured input "
                 "artifact references. It may be a standalone calculation or literal "
                 "example; do not present it as observed datasource statistics. "
-                "Use SQL_RESULTS/sql_result_frame or captured source files for "
-                "data-grounded analysis."
+                "Use df = sql_result_frame('sql-<artifact_id>') or captured source "
+                "files for data-grounded analysis. print(SQL_RESULT_CATALOG) lists "
+                "the available SQL inputs; artifact IDs in comments or literal "
+                "REPORT_RESULT fields do not establish a source read."
             )})
+            if sql_results:
+                recovery_hint = (
+                    "The calculation succeeded but has no captured inputs. For "
+                    "source analysis, load the intended SQL result with "
+                    "sql_result_frame(artifact_id='sql-...') and recompute the "
+                    "dependent values. Inspect SQL_RESULT_CATALOG for IDs and "
+                    "columns; do not rerun the SQL just to obtain these rows."
+                )
         return json.dumps({
             "success": success, "execution_status": status, "error_code": error_code,
             "recovery_hint": recovery_hint,

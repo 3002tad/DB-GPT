@@ -145,7 +145,8 @@ async def test_agent_tools_surface_setup_failure_without_local_execution(
     monkeypatch.setattr(_execution.RuntimeFactory, "create", create)
     state = {"conv_id": "container-error"}
     if subagent:
-        tool = make_react_tools(state)[tool_name]
+        native_name = {"code_interpreter": "code", "shell_interpreter": "bash"}[tool_name]
+        tool = make_react_tools(state)[native_name]
     else:
         factory = (
             make_code_interpreter
@@ -344,7 +345,7 @@ async def test_main_and_subagent_python_analyze_upload_and_return_image(
     source.write_text("sales\n2\n3\n")
     state = {"conv_id": "analysis", "file_path": str(source)}
     tool = (
-        make_react_tools(state)["code_interpreter"]
+        make_react_tools(state)["code"]
         if subagent
         else make_code_interpreter(state)
     )
@@ -389,7 +390,7 @@ async def test_main_and_subagent_shell_use_configured_factory(
     monkeypatch.setattr(_execution.RuntimeFactory, "create", create)
     state = {"conv_id": "shell"}
     tool = (
-        make_react_tools(state)["shell_interpreter"]
+        make_react_tools(state)["bash"]
         if subagent
         else make_shell_interpreter(state)
     )

@@ -13,7 +13,7 @@
 export const resolveImageUrl = (src: string): string => {
   if (!src) return src;
   if (/^https?:\/\//.test(src)) return src;
-  if (src.startsWith('/images/')) {
+  if (src.startsWith('/images/') || src.startsWith('/api/v1/chat/harness/artifact-file?') || src.startsWith('/api/v1/agent/files/download?')) {
     const base = process.env.API_BASE_URL || '';
     return base ? `${base}${src}` : src;
   }

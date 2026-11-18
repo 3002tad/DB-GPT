@@ -22,6 +22,8 @@ from dbgpt.util.configure import DynConfig
 from ...core import ModelMessageRoleType
 from .actions.react_action import ReActAction, Terminate
 
+from .prompt_payload import NATIVE_TOOL_PROTOCOL
+
 logger = logging.getLogger(__name__)
 
 _REACT_DEFAULT_GOAL = """Answer the following questions or solve the tasks by \
@@ -36,13 +38,7 @@ You are a {{ role }}, {% if name %}named {{ name }}. {% endif %}\
 task. The maximum number of steps you can take is {{ max_steps }}.
 Do not output an empty string!
 {% if native_function_calling %}
-# RESPONSE FORMAT #
-Use the supplied native functions for actions, with JSON arguments.
-Before calling functions, write a short public progress message in ordinary prose.
-Do not emit Thought, Action, Action Input or other ReAct protocol labels.
-Use intention for a short public explanation;
-keep private reasoning in the thinking channel.
-When the task is complete, call terminate with the final answer in output.
+""" + NATIVE_TOOL_PROTOCOL + """
 {% else %}
 {{ action_space }}
 # WEB RESEARCH #
@@ -88,8 +84,10 @@ you are not allowed to generate it.)
 You MUST NOT repeat any action already listed above as ✅ completed.
 Pick the NEXT action that has NOT been done yet to make progress toward the final goal.
 {% endif %}
+{% if not native_function_calling %}
 Please Solve this task:
 {{ question }}\
+{% endif %}
 Please answer in the same language as the user's question.
 The current time is: {{ now_time }}.
 """

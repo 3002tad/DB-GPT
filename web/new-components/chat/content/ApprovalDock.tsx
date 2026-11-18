@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useFunnelmetryIdentity } from '@/app/funnelmetry-identity';
 import type { PendingApproval } from '@/utils/react-sse-parser';
+import { GET } from '@/client/api';
 
 export interface ApprovalDockProps {
   approvals: PendingApproval[];
@@ -44,6 +45,24 @@ const ApprovalCard: React.FC<{
 }> = ({ approval, onResolve }) => {
   const { t } = useTranslation();
   const [scope, setScope] = useState('once');
+  const [fullArgs, setFullArgs] = useState<Record<string, unknown> | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState(false);
+  const loadDetails = async () => {
+    if (fullArgs) { setDetailsOpen(value => !value); return; }
+    setLoadingDetails(true);
+    setDetailsError(false);
+    try {
+      const response = await GET(`/api/v1/chat/approval/${encodeURIComponent(approval.approval_id)}/details`);
+      const data = response.data;
+      if (!data.success || data.data?.approval_id !== approval.approval_id || !data.data?.arguments
+        || typeof data.data.arguments !== 'object' || Array.isArray(data.data.arguments)) throw new Error('Unavailable');
+      setFullArgs(data.data.arguments);
+      setDetailsOpen(true);
+    } catch { setDetailsError(true); }
+    finally { setLoadingDetails(false); }
+  };
   const { integrated, role } = useFunnelmetryIdentity();
   const canApproveGlobally = !integrated || role === 'super_admin';
 
@@ -76,9 +95,20 @@ const ApprovalCard: React.FC<{
         </span>
       </div>
       <div className='p-4'>
-        <pre className='whitespace-pre-wrap break-all rounded-lg border border-[#efefeb] bg-[#f6f6f2] p-3 font-mono text-[12px] leading-[1.7] dark:border-[#33353b] dark:bg-[#17181c]'>
+        <pre className='max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-[#efefeb] bg-[#f6f6f2] p-3 font-mono text-[12px] leading-[1.7] dark:border-[#33353b] dark:bg-[#17181c]'>
           {approval.args_preview}
         </pre>
+        <button type='button' disabled={loadingDetails} onClick={loadDetails} aria-expanded={detailsOpen}
+          className='mt-2 text-xs text-blue-600 dark:text-blue-400 disabled:opacity-50'>
+          {t(loadingDetails ? 'approval_details_loading' : detailsOpen ? 'approval_details_hide' : 'approval_details_show')}
+        </button>
+        {detailsError && <p role='alert' className='mt-2 text-xs text-red-600'>{t('approval_details_error')}</p>}
+        {detailsOpen && fullArgs && <div className='mt-2 max-h-80 overflow-auto rounded-lg border p-3'>
+          {Object.entries(fullArgs).map(([key, value]) => <div key={key} className='mb-3'>
+            <div className='text-xs font-semibold'>{key}</div>
+            <pre className='whitespace-pre-wrap break-words font-mono text-xs'>{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre>
+          </div>)}
+        </div>}
         {approval.intent && approval.intent.length > 0 ? (
           <ul className='mt-3 space-y-1.5'>
             {approval.intent.map((b, i) => (
@@ -141,14 +171,17 @@ const ApprovalCard: React.FC<{
           >
             {SCOPE_VALUES.filter(v => v !== 'always' || canApproveGlobally).map(v => (
               <option key={v} value={v}>
-                {t(`approval_scope_${v}`)} {v}
+                {t(`approval_scope_${v}`)}
               </option>
             ))}
           </select>
         </div>
+        {(approval.tool === 'code' || approval.tool === 'code_interpreter') && (
+          <div className='mt-2 text-xs text-gray-500'>{t('approval_code_scope_hint')}</div>
+        )}
         {scope !== 'once' && approval.memory_key && (
           <div className='mt-2 text-[12px] text-gray-400 dark:text-gray-500'>
-            {t('approval_remember_hint', { key: approval.memory_key })}
+            {t(approval.tool === 'code' || approval.tool === 'code_interpreter' ? 'approval_code_remember_hint' : 'approval_remember_hint', { key: approval.memory_key })}
           </div>
         )}
       </div>

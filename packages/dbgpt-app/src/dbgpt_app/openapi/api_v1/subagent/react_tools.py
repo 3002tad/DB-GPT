@@ -43,6 +43,7 @@ from ..tools.knowledge_retrieve import (
     make_knowledge_retrieve as make_shared_knowledge_retrieve,
 )
 from ..tools.shell_interpreter import make_shell_interpreter
+from ..tools.generated_files import generated_file_chunks, snapshot_generated_files
 from ..tools.sql_query import make_sql_query as make_shared_sql_query
 
 CFG = Config()
@@ -329,6 +330,7 @@ def make_react_tools(
             cid = react_state.get("conv_id") or "default"
             out_dir = os.path.join(PILOT_PATH, "tmp", cid)
             os.makedirs(out_dir, exist_ok=True)
+            files_before = snapshot_generated_files(out_dir)
             # Auto-inject the correct file path from react_state into args.
             # The LLM sometimes corrupts the uploaded file path (e.g. changing
             # 'dbgpt-app' to 'dbgpt_app'), so we override any file-path-like
@@ -452,6 +454,13 @@ def make_react_tools(
                                 react_state["ratio_data"] = ratio_data
                             except Exception:
                                 pass
+                chunks.extend(
+                    chunk for chunk in generated_file_chunks(
+                        out_dir, files_before,
+                        "failed" if result_obj.get("success") is False or result_obj.get("error") else "succeeded",
+                    ) if os.path.splitext(chunk["content"]["file_path"])[1].lower()
+                    not in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+                )
                 return json.dumps({"chunks": chunks}, ensure_ascii=False)
             except (json.JSONDecodeError, KeyError):
                 return result_str

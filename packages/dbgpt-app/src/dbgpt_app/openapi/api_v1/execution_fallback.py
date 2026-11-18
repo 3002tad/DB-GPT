@@ -1,5 +1,7 @@
 """Localized user-facing messages for an unfinished Agent execution."""
 
+import re
+
 _COPY = {
     "vi": {
         "unfinished": "Tác vụ chưa hoàn thành",
@@ -14,6 +16,8 @@ _COPY = {
         "invalid_final": "Tác vụ chưa hoàn thành: mô hình chưa trả về kết quả cuối hợp lệ. Hãy xem các bước thực thi.",
         "report_missing": "Chưa tạo được báo cáo phân tích HTML",
         "report_unfinished": "Chưa hoàn tất kết xuất báo cáo",
+        "report_binding": "Một số mục trong báo cáo chưa có liên kết bằng chứng hợp lệ.",
+        "report_review": "Chi tiết lỗi được giữ trong các bước thực thi. Hãy dùng lại kết quả đã có khi tiếp tục.",
         "main_incomplete": "Luồng chính chưa gửi kết quả hoàn chỉnh",
         "thinking": "Đang suy luận", "skill_phase": "Nạp kỹ năng",
         "tool_unfinished": "Quá trình kết thúc trước khi công cụ trả về kết quả",
@@ -29,6 +33,8 @@ _COPY = {
         "resume_other": "On continuation, reuse existing artifacts and complete only the missing analysis or report.",
         "invalid_final": "Task incomplete: the model did not return a valid final result. Review the execution steps.",
         "report_missing": "The HTML analysis report was not generated", "report_unfinished": "Report rendering did not finish",
+        "report_binding": "Some report items do not have valid evidence bindings.",
+        "report_review": "Full diagnostics remain in the execution steps. Reuse existing results when continuing.",
         "main_incomplete": "The main flow did not submit a complete result",
         "thinking": "Thinking", "skill_phase": "Loading skill",
         "tool_unfinished": "Execution ended before the tool reported a result",
@@ -44,6 +50,8 @@ _COPY = {
         "resume_other": "继续时应复用现有产物，只补充缺失分析和报告。",
         "invalid_final": "任务未完成：模型未返回有效的最终结果，请查看执行步骤。",
         "report_missing": "HTML 分析报告未生成", "report_unfinished": "报告渲染未完成",
+        "report_binding": "报告中的部分内容尚未关联有效证据。",
+        "report_review": "完整诊断保留在执行步骤中，继续时请复用已有结果。",
         "main_incomplete": "主流程未提交完整结果",
         "thinking": "思考中", "skill_phase": "加载技能",
         "tool_unfinished": "执行提前结束，未收到工具完成结果",
@@ -69,11 +77,54 @@ def unfinished_message(locale: str, status: str, completed=(), remaining=(), par
         if values:
             lines.append(f"{copy[key]}: " + "; ".join(str(value) for value in values))
     if status == "failed" and error:
-        lines.append(f"{copy['reason']}: {str(error)[:1000]}")
+        reason = str(error)
+        if _REPORT_ERROR.search(reason):
+            reason = _public_report_reason(locale, reason)
+        lines.append(f"{copy['reason']}: {reason[:1000]}")
     lines.append(copy["recovered"] if recovered else copy["resume_skill" if skill_creator else "resume_other"])
     return "\n".join(lines)
 
 
 def missing_report_message(locale: str, reason: str) -> str:
     copy = execution_copy(locale)
-    return f"{copy['report_missing']}. {copy['reason']}: {reason}"
+    return (
+        f"{copy['report_missing']}. {_public_report_reason(locale, reason)} "
+        f"{copy['saved']} {copy['report_review']}"
+    )
+
+
+_REPORT_ERROR = re.compile(r"\b(?:REPORT|HTML)_[A-Z][A-Z0-9_]*\s*:")
+
+
+def _public_report_reason(locale: str, reason: str) -> str:
+    """Never copy HTML, target JSON, paths or arbitrary exception text to a final."""
+    copy = execution_copy(locale)
+    if "REPORT_TARGET_BINDING_REQUIRED" in str(reason):
+        return copy["report_binding"]
+    return copy["report_unfinished"] + "."
+
+
+def report_failure_answer(content: str, locale: str, reason: str) -> str:
+    """Retain the analytical answer while separating failed report delivery.
+
+    Raw tool diagnostics remain in history steps/checkpoints. A diagnostic block
+    is not an analytical paragraph; preserve only preceding complete paragraphs.
+    This presentation helper does not mark reports or other deliverables ready.
+    """
+    text = content.strip()
+    marker = _REPORT_ERROR.search(text)
+    diagnostic_start = marker.start() if marker else (
+        text.find(str(reason)) if reason else -1
+    )
+    if diagnostic_start >= 0:
+        prefix = text[:diagnostic_start]
+        if prefix.endswith("\n\n"):
+            text = prefix.strip()
+        elif "\n\n" in prefix:
+            text = prefix.rsplit("\n\n", 1)[0].strip()
+        else:
+            text = ""
+    if text.startswith(tuple(copy["report_missing"] for copy in _COPY.values())):
+        text = ""
+    notice = missing_report_message(locale, reason)
+    return f"{text}\n\n{notice}" if text else notice

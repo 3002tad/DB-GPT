@@ -32,6 +32,9 @@ import DashboardArtifactPreview from '@/new-components/dashboard/DashboardArtifa
 import { isFinancialReportReference } from '@/new-components/financial-analysis/agent-artifact';
 
 import { downloadArtifact } from './ArtifactCards';
+import { artifactFileUrl, artifactImageUrl, IMAGE_FILE, TEXT_FILE } from './artifact-file';
+import GeneratedFilePreview from './GeneratedFilePreview';
+import NativeChartArtifact from './NativeChartArtifact';
 import { resolveHtmlImageUrls, resolveImageUrl } from './image-url';
 import QueryArtifactBlock from './QueryArtifactBlock';
 import SuiteArtifactCard from './SuiteArtifactCard';
@@ -84,7 +87,7 @@ function textOf(artifact: RailArtifact): string | null {
 function typeIcon(type: string, name: string) {
   const ext = extOf(name);
   if (type === 'query') return <FileExcelOutlined className='text-green-600' />;
-  if (type === 'image') return <PictureOutlined className='text-blue-500' />;
+  if (type === 'image' || IMAGE_FILE.test(name)) return <PictureOutlined className='text-blue-500' />;
   if (type === 'skill') return <FolderOutlined className='text-amber-500' />;
   if (MD_EXTS.has(ext)) return <FileMarkdownOutlined className='text-blue-500' />;
   if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') return <FileExcelOutlined className='text-green-600' />;
@@ -110,9 +113,9 @@ function typeLabel(type: string, name: string, tr: TrFn): string {
 
 /** Wide report glyph for gallery thumbnails (mockup gitem style). */
 function ThumbGlyph({ artifact }: { artifact: RailArtifact }) {
-  if (artifact.type === 'image') {
+  if (artifact.type === 'image' && artifactImageUrl(artifact)) {
     return (
-      <img src={resolveImageUrl(String(artifact.content))} alt={artifact.name} className='w-full h-full object-cover' />
+      <img src={resolveImageUrl(artifactImageUrl(artifact)!)} alt={artifact.name} className='w-full h-full object-cover' />
     );
   }
   if (artifact.type === 'skill') {
@@ -211,10 +214,16 @@ function PreviewBody({ artifact, onPreview }: { artifact: RailArtifact; onPrevie
   if (artifact.type === 'query' && artifact.content) {
     return <QueryArtifactBlock payload={artifact.content} fileName={`query_${artifact.id.slice(-8)}`} />;
   }
+  if (artifact.type === 'chart') return <NativeChartArtifact content={artifact.content} />;
+  if ((artifact.type === 'file' || artifact.type === 'image') && text == null && (IMAGE_FILE.test(artifact.name) || TEXT_FILE.test(artifact.name))) {
+    return <GeneratedFilePreview key={artifact.id} artifact={artifact} />;
+  }
   if (artifact.type === 'image') {
+    const url = artifactImageUrl(artifact);
+    if (!url) return <div role='alert'>{t('ui_file_unavailable', 'File unavailable')}</div>;
     return (
       <img
-        src={resolveImageUrl(String(artifact.content))}
+        src={resolveImageUrl(url)}
         alt={artifact.name}
         className='max-w-full rounded-lg border border-[#e6e6e2] dark:border-[#2a2925]'
       />
@@ -331,7 +340,7 @@ function BundlePreview({ artifact }: { artifact: RailArtifact }) {
   );
   const process = items.filter(item => !outputs.includes(item));
   const downloadable = (item: RailArtifact) =>
-    item.type !== 'query' && (isFinancialReportReference(item.content) || textOf(item) != null || item.type === 'code');
+    item.type !== 'query' && (isFinancialReportReference(item.content) || textOf(item) != null || item.type === 'code' || !!artifactFileUrl(item) || !!artifactImageUrl(item));
   const open = (item: RailArtifact) => {
     setSelectedId(item.id);
     setTab('preview');
