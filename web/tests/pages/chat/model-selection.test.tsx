@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useContext } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import Chat, { ChatContentContext } from './index';
+import Chat, { ChatContentContext } from '@/pages/chat';
 
 const fixture = vi.hoisted(() => ({
   query: { id: 'native-app', scene: 'chat_normal', model: 'qwen3.5-plus-2026-02-15' } as Record<string, string>,

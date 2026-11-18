@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import i18n from '@/app/i18n';
-import Evaluation from './index';
+import Evaluation from '@/pages/evaluation';
 
 const api = vi.hoisted(() => ({ upload: vi.fn(), storage: vi.fn() }));
 vi.mock('@/client/api', () => {

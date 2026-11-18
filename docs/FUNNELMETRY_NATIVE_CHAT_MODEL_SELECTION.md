@@ -36,7 +36,7 @@ router failure does not interrupt the active reply.
 parameter/hash preservation, reload/navigation, history/default fallback, scope
 changes and rejected navigation.
 
-`web/pages/chat/model-selection.test.tsx` renders the native page with fixture
+`web/tests/pages/chat/model-selection.test.tsx` renders the native page with fixture
 API/transport boundaries. It checks the selected model in the actual page's
 request, new versus historical messages, App refresh and stale history races.
 It does not invoke a paid LLM or certify deployed provider usage. Native App

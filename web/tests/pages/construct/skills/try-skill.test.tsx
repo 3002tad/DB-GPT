@@ -16,7 +16,7 @@ vi.mock('@/utils/ctx-axios', () => ({ default: {
   } })),
 } }));
 
-import Skills from './index';
+import Skills from '@/pages/construct/skills';
 
 describe('skill detail try button', () => {
   it('opens the composer with the actual selected skill name', async () => {

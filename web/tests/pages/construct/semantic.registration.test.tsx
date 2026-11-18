@@ -1,7 +1,7 @@
 import i18n from '@/app/i18n';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import SemanticCenter from './semantic';
+import SemanticCenter from '@/pages/construct/semantic';
 
 const state = vi.hoisted(() => ({ query: {} as Record<string, string>, status: 'missing', sync: vi.fn() }));
 vi.mock('next/router', () => ({ useRouter: () => ({ query: state.query, push: vi.fn(), replace: vi.fn() }) }));

@@ -39,7 +39,7 @@ and query credentials still determine actual execution access.
   real SQLite metadata registry and FastAPI routes; removal, retention of table
   and semantic rows, unaffected source, missing-source sync, unknown registry and
   registration returning without a fabricated sync timestamp.
-- `web/pages/construct/semantic.registration.test.tsx`: real list/detail UI with
+- `web/tests/pages/construct/semantic.registration.test.tsx`: real list/detail UI with
   API fixtures, localized warnings and action availability.
 
 These are targeted regressions, not a live source reconnection or deployment
