@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.10
+version: 1.0.11
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -48,6 +48,19 @@ Mỗi tỷ lệ cần kèm tử số, mẫu số và cùng dataset/khoảng th�
 bằng tool rồi mới đưa số vào câu trả lời hoặc nội dung tiến độ; trước đó chỉ
 nêu truy vấn dự kiến, không ghi “đã chạy”. Nếu truy vấn lỗi, sửa và đối chiếu
 artifact thành công; không dùng SQL lỗi hoặc kết quả tự đoán để dẫn chứng.
+Khi trình bày phân bố theo nhóm, giữ riêng nhóm SQL NULL, chuỗi rỗng và các
+giá trị raw; không gộp chúng thành “khác” hay bỏ khỏi bảng mà không nói rõ.
+Nếu chỉ trình bày nhóm người dùng yêu cầu hoặc top-N, ghi rõ đây là tập con;
+mẫu số vẫn theo phạm vi đã chọn, không tự đổi sang tổng các nhóm hiển thị.
+Đối chiếu tổng nhóm với tổng cùng grain, bộ lọc và khoảng thời gian bằng SQL
+hoặc tool khi cần kết luận coverage; không cộng các subtotal/total chồng lấn.
+COUNT(cột) bỏ NULL, còn COUNT(*) đếm dòng: chọn đúng theo grain và mẫu số.
+Dấu hiệu result_coverage của sql_query chỉ mô tả các dòng được trả về, không
+chứng nhận coverage của bảng nguồn hoặc lịch sử. Nếu preview bị cắt, dùng
+artifact đầy đủ hoặc truy vấn tổng hợp gọn để đối chiếu trước khi kết luận.
+Ở lượt hỏi tiếp, dùng lại artifact thành công đủ phạm vi; chỉ truy vấn thêm
+phần còn thiếu hoặc cần cập nhật freshness. Nếu phải chạy lại, nêu lý do;
+không đổi cách viết SQL chỉ để tính lại cùng số liệu đã có.
 Không giải thích mùa thấp bằng ranh giới fixture hay chiến dịch khi chưa có
 bằng chứng tương ứng; ghi rõ giả thuyết nếu cần đề xuất cách kiểm tra.
 Chỉ giải thích trạng thái theo định nghĩa đã truy hồi; không tự mở rộng tên viết

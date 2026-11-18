@@ -31,7 +31,7 @@ const TabContent: React.FC<{ apps: IApp[]; loading: boolean; refresh: () => void
     // 原生应用跳转
     if (data.team_mode === 'native_app') {
       const { chat_scene = '' } = data.team_context;
-      const [, res] = await apiInterceptors(newDialogue({ chat_mode: chat_scene }));
+      const [, res] = await apiInterceptors(newDialogue({ chat_mode: chat_scene, app_code: data.app_code }));
       if (res) {
         setCurrentDialogInfo?.({
           chat_scene: res.chat_mode,
@@ -48,7 +48,7 @@ const TabContent: React.FC<{ apps: IApp[]; loading: boolean; refresh: () => void
       }
     } else {
       // 自定义应用
-      const [, res] = await apiInterceptors(newDialogue({ chat_mode: 'chat_agent' }));
+      const [, res] = await apiInterceptors(newDialogue({ chat_mode: 'chat_agent', app_code: data.app_code }));
       if (res) {
         setCurrentDialogInfo?.({
           chat_scene: res.chat_mode,

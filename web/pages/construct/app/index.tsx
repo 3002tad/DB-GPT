@@ -143,7 +143,7 @@ export default function AppContent() {
     // 原生应用跳转
     if (app.team_mode === 'native_app') {
       const { chat_scene = '' } = app.team_context;
-      const [, res] = await apiInterceptors(newDialogue({ chat_mode: chat_scene }));
+      const [, res] = await apiInterceptors(newDialogue({ chat_mode: chat_scene, app_code: app.app_code }));
       if (res) {
         setCurrentDialogInfo?.({
           chat_scene: res.chat_mode,
@@ -160,7 +160,7 @@ export default function AppContent() {
       }
     } else {
       // 自定义应用
-      const [, res] = await apiInterceptors(newDialogue({ chat_mode: 'chat_agent' }));
+      const [, res] = await apiInterceptors(newDialogue({ chat_mode: 'chat_agent', app_code: app.app_code }));
       if (res) {
         setCurrentDialogInfo?.({
           chat_scene: res.chat_mode,

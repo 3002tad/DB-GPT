@@ -9,6 +9,7 @@ import { MessagePart, ReasoningPart, ToolPart } from '@/new-components/chat/cont
 import { AgentCitation, AgentFinalAnswer, decodeFinalEvent, decodeHistoryAnswer } from '@/utils/react-agent-final';
 import { ReActSSEState, SSEQuestionAskedEvent, createReActSSEState, parseSSELine } from '@/utils/react-sse-parser';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import i18n from '@/app/i18n';
 
 export interface ReActAgentRequest {
   user_input: string;
@@ -188,7 +189,15 @@ export function useReActAgent(options: UseReActAgentOptions = {}): UseReActAgent
             'Content-Type': 'application/json',
             Accept: 'text/event-stream',
           },
-          body: JSON.stringify(request),
+          body: JSON.stringify({
+            ...request,
+            ext_info: {
+              ...request.ext_info,
+              // Embedded KB chat and other native consumers share this transport.
+              // Explicit caller preference wins; read current UI locale per send.
+              locale: request.ext_info?.locale || i18n.resolvedLanguage || i18n.language || 'vi',
+            },
+          }),
           signal: abortControllerRef.current.signal,
         });
 

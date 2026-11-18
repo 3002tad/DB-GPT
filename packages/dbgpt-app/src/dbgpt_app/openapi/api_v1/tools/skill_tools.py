@@ -8,6 +8,11 @@ from typing import Any, Dict
 
 from dbgpt.agent.resource.tool.base import tool
 from dbgpt.agent.skill.manage import normalize_script_file_name
+from dbgpt.agent.skill.arguments import (
+    SkillArgumentsError,
+    normalize_script_arguments,
+    skill_arguments_failure,
+)
 from dbgpt_serve.session_file.domain import SessionFileStatus
 
 
@@ -314,9 +319,15 @@ def make_execute_skill_script_file(react_state: Dict[str, Any]):
         CFG = Config()
 
         try:
+            args, argv = normalize_script_arguments(args, argv)
             script_file_name = normalize_script_file_name(script_file_name)
-            if args and argv is not None:
-                raise ValueError("Use either args (JSON) or argv (CLI), not both")
+            if args is not None and argv is not None:
+                raise SkillArgumentsError("Use either args (JSON) or argv (CLI), not both")
+            if input_artifact_ids is not None and (
+                not isinstance(input_artifact_ids, list)
+                or not all(isinstance(value, str) for value in input_artifact_ids)
+            ):
+                raise SkillArgumentsError("input_artifact_ids must be a list of strings")
             sink = react_state.get("_report_artifact_sink")
             sm = get_skill_manager(CFG.SYSTEM_APP)
             resolve_path = getattr(sm, "_get_skill_path", None)
@@ -564,6 +575,8 @@ def make_execute_skill_script_file(react_state: Dict[str, Any]):
                 )
             except (json.JSONDecodeError, KeyError):
                 return result_str
+        except SkillArgumentsError as error:
+            return skill_arguments_failure(error)
         except Exception as e:
             return json.dumps(
                 {
@@ -597,10 +610,14 @@ def make_run_skill_script(react_state: Dict[str, Any]):
         script_name: str | None = None,
     ) -> str:
         check_skill_scope(react_state, skill_name)
+        try:
+            args, argv = normalize_script_arguments(args, argv)
+            if args is not None and argv is not None:
+                raise SkillArgumentsError("Use either args or argv, not both")
+        except SkillArgumentsError as error:
+            return skill_arguments_failure(error)
         if bool(script_file_name) == bool(script_name):
             raise ValueError("Provide exactly one script_file_name or script_name")
-        if args is not None and argv is not None:
-            raise ValueError("Use either args or argv, not both")
         if script_file_name:
             return await file_runner(
                 skill_name, script_file_name, args, input_artifact_ids, argv

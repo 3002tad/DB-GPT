@@ -1,5 +1,9 @@
 // Vietnamese copy for modules added by the upstream integration.
 const upstreamVi = {
+  artifact_bundle_meta: 'Xem trước và tải xuống · {{count}} tệp',
+  artifact_open: 'Mở',
+  artifact_bundle_files: 'Tệp',
+  artifact_bundle_select: 'Chọn tệp để xem trước',
   ui_knowledge_general: 'Tổng quát',
   ui_knowledge_financial: 'Báo cáo tài chính',
   ui_request_error: 'Yêu cầu thất bại',

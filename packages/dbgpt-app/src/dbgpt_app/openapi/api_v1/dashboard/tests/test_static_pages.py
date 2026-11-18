@@ -1,4 +1,4 @@
-"""Direct navigation to exported Dashboard pages must work with Python hosting."""
+"""Direct navigation to exported dynamic pages works with Python hosting."""
 
 from types import SimpleNamespace
 
@@ -20,6 +20,8 @@ def static_client(tmp_path, monkeypatch):
         "dashboards/[id]/index.html": "dashboard editor",
         "dashboard-share/[token]/index.html": "published dashboard",
         "share/[token]/index.html": "conversation share",
+        "construct/scheduled-tasks/index.html": "scheduled task list",
+        "construct/scheduled-tasks/[taskId]/index.html": "scheduled task detail",
     }.items():
         page = web / relative
         page.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +54,7 @@ def static_client(tmp_path, monkeypatch):
         ("/dashboards/saved-dashboard", "dashboard editor"),
         ("/dashboard-share/fixed-token", "published dashboard"),
         ("/share/conversation-token", "conversation share"),
+        ("/construct/scheduled-tasks/task-123", "scheduled task detail"),
     ],
 )
 def test_direct_exported_page_navigation(static_client, route, expected, suffix):
@@ -65,6 +68,7 @@ def test_direct_exported_page_navigation(static_client, route, expected, suffix)
 def test_dashboard_static_routes_preserve_list_and_api(static_client):
     client, _ = static_client
     assert client.get("/dashboards/").text == "dashboard list"
+    assert client.get("/construct/scheduled-tasks/").text == "scheduled task list"
     response = client.get("/api/v1/dashboards/saved-dashboard")
     assert response.status_code == 200
     assert response.json() == {"id": "saved-dashboard"}
@@ -76,6 +80,7 @@ def test_dashboard_static_routes_preserve_list_and_api(static_client):
         ("/dashboards/new/", "dashboards/new/index.html"),
         ("/dashboards/saved-dashboard/", "dashboards/[id]/index.html"),
         ("/dashboard-share/fixed-token/", "dashboard-share/[token]/index.html"),
+        ("/construct/scheduled-tasks/task-123/", "construct/scheduled-tasks/[taskId]/index.html"),
     ],
 )
 def test_missing_exported_dashboard_page_is_404(static_client, route, relative):

@@ -36,6 +36,8 @@ import ApprovalDock from '@/new-components/chat/content/ApprovalDock';
 import ArtifactCards, { StreamArtifact } from '@/new-components/chat/content/ArtifactCards';
 import ArtifactRail from '@/new-components/chat/content/ArtifactRail';
 import ContextUsageBar from '@/new-components/chat/content/ContextUsageBar';
+import ConversationTokenBadge from '@/new-components/chat/content/ConversationTokenBadge';
+import { useConversationContext } from '@/hooks/use-conversation-meters';
 import ManusLeftPanel, {
   ExecutionStep as ManusExecutionStep,
   StepType,
@@ -104,6 +106,7 @@ import axios from '@/utils/ctx-axios';
 import { executionStatus } from '@/utils/execution-status';
 import { scheduledChatInput } from '@/utils/scheduled-chat-input';
 import { skillDraft } from '@/utils/skill-draft';
+import { useSkillTryEntry } from '@/hooks/use-skill-try-entry';
 import { createSummaryPresentation, type SummaryPresentation } from '@/utils/final-presentation';
 import { downloadQueryCsv } from '@/utils/query-export';
 import { decodeFinalEvent, decodeHistoryAnswer, type AgentCitation } from '@/utils/react-agent-final';
@@ -1637,20 +1640,7 @@ const Playground: NextPage = () => {
       messages.some(msg => msg.role === 'view' && !msg.thinking && !!msg.context?.trim()),
     markConvViewed,
   );
-  const [contextStatus, setContextStatus] = useState<{
-    state: 'OK' | 'WARNING' | 'ERROR';
-    used_tokens: number;
-    max_tokens: number;
-    usage_percent: number;
-    layer: string | null;
-    model?: string;
-    context_window?: number;
-    reserved_tokens?: number;
-    window_source?: string;
-  } | null>(null);
-  useEffect(() => {
-    setContextStatus(null);
-  }, [model]);
+  const { contextStatus, setContextStatus, restoreContextHistory, markPrevious: markContextPrevious } = useConversationContext(conversationId, model);
   const [pendingQuestion, setPendingQuestion] = useState<{
     request_id: string;
     conv_id: string;
@@ -1883,7 +1873,7 @@ const Playground: NextPage = () => {
   };
 
   // Fetch Skills/DBGPTs list
-  const { data: skillsList, loading: _loadingSkills } = useRequest(async () => {
+  const { data: allSkills, loading: _loadingSkills } = useRequest(async () => {
     try {
       const response = await axios.get<unknown, { success: boolean; data: unknown[] }>(`${process.env.API_BASE_URL ?? ''}/api/v1/skills/list`);
       // ctx-axios interceptor returns response.data directly
@@ -1906,7 +1896,7 @@ const Playground: NextPage = () => {
                       ? '💬'
                       : '⚡',
         })) as Skill[];
-        return skills.filter(skill => !DASHBOARD_INTERNAL_SKILLS.has(skill.name));
+        return skills;
       }
       return [];
     } catch (e) {
@@ -1914,6 +1904,10 @@ const Playground: NextPage = () => {
       return [];
     }
   });
+  const skillsList = useMemo(
+    () => allSkills?.filter(skill => !DASHBOARD_INTERNAL_SKILLS.has(skill.name)),
+    [allSkills],
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1990,6 +1984,15 @@ const Playground: NextPage = () => {
     setSelectedSkill({ id: 'dashboard-builder', name: 'dashboard-builder', description: '', type: 'official' });
     setQuery(entry.prompt);
   }, [router.isReady, router.query, resetTaskSession]);
+
+  useSkillTryEntry({
+    ready: router.isReady,
+    requested: router.query.try_skill,
+    skills: allSkills,
+    select: setSelectedSkill,
+    updateDraft: setQuery,
+    unavailable: () => { message.error(t('error_occurred') as string); },
+  });
 
   useEffect(() => {
     const lastView = [...messages].reverse().find(msg => msg.role === 'view');
@@ -3043,8 +3046,8 @@ const Playground: NextPage = () => {
 
     const taskEpoch = taskEpochRef.current;
 
-    // The previous request's ratio is not a measurement of this request.
-    setContextStatus(null);
+    // Keep the last measurement, explicitly labelled as previous until a new event.
+    markContextPrevious();
     cancelSummaryPresentation();
 
     let finalQuery = inputQuery;
@@ -3415,7 +3418,8 @@ const Playground: NextPage = () => {
             context_window: payload.context_window,
             reserved_tokens: payload.reserved_tokens,
             window_source: payload.window_source,
-          });
+            measured_at: payload.measured_at,
+          }, { conversationId: currentConvId, model });
           return;
         }
         if (
@@ -4169,6 +4173,7 @@ const Playground: NextPage = () => {
           chat_mode: 'chat_flow',
           select_param: flowUid,
           user_input: flowQuery,
+          ext_info: selectedDb ? { database_name: selectedDb.db_name } : undefined,
           model_name: model,
           temperature: 0.6,
           max_new_tokens: 4000,
@@ -4699,6 +4704,7 @@ const Playground: NextPage = () => {
         if (historyRequestRef.current !== requestVersion || taskEpochRef.current !== taskEpoch) return;
         conversationIdRef.current = convUid;
         setConversationId(convUid);
+        restoreContextHistory(msgList, convUid);
         // Re-entering a RUNNING conversation: the server history only holds
         // flushed rounds, so the in-flight round (human + view pair and its
         // live execution state) is carried over from memory — without it the
@@ -5867,12 +5873,16 @@ const Playground: NextPage = () => {
                                   contextWindow={contextStatus.context_window}
                                   reservedTokens={contextStatus.reserved_tokens}
                                   windowSource={contextStatus.window_source}
+                                  previous={contextStatus.previous}
+                                  measuredAt={contextStatus.measured_at}
                                   variant='compact'
                                   className='mr-0.5'
                                 />
                               ) : (
                                 <ContextUsageBar used={0} budget={0} ratio={0} state='OK' known={false} variant='compact' />
                               )}
+
+                              <ConversationTokenBadge conversationId={conversationId} running={loading || (!!conversationId && runningConvIds.includes(conversationId))} />
 
                               {/* Voice Button */}
                               <Tooltip title={t('voice_input')}>

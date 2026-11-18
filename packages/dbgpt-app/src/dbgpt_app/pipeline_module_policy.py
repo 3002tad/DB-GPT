@@ -61,11 +61,15 @@ SHARED_MODULE_ROUTES = {
         "POST": [rf"/api/v1/reports/{_ID}/runs/{_ID}/render-observations"],
     },
     "dashboard": {
-        "GET": [rf"{_DASH}/(?:versions(?:/{_ID})?|revisions|operations|annotations|audit|cover)",
+        "GET": [rf"{_DASH}/(?:versions(?:/{_ID})?|revisions|operations|annotations|audit|cover|publications|live-share)",
                 rf"/api/v1/dashboard-catalog/{_ID}/(?:features|source)"],
         "POST": [rf"{_DASH}/(?:assistant-task|resolve-target|operations|collaboration-ticket|query-logic|annotation-intents|annotations(?:/apply-batch|/{_ID}/(?:generate|apply|reject))?|versions/{_ID}/restore|revisions/{_ID}/restore)",
-                 rf"/api/v1/dashboard-catalog/{_ID}/(?:preview|generate|adapt)"],
+                 rf"/api/v1/dashboard-catalog/{_ID}/(?:preview|generate|adapt)",
+                 rf"{_DASH}/(?:publish|live-share|publications/[0-9]+/rotate)"],
         "PUT": [rf"{_DASH}/cover"],
+        # Publication is object-authorized by DashboardService. Both workspace
+        # roles may publish their own dashboards and revoke/rotate their links.
+        "DELETE": [rf"{_DASH}/live-share", rf"{_DASH}/publications/[0-9]+"],
     },
     "knowledge": {
         "GET": [rf"{_KB}/(?:git/sync-status|wiki/(?:status|pages(?:/[^\\]{{1,1024}})?|tree|index|revisions/[^\\]{{1,1024}}|graph|search))",

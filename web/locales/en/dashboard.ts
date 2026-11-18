@@ -1,5 +1,8 @@
 // Chinese source copy is used as a stable translation key for dashboard UI.
 const DashboardEn: Record<string, string> = {
+  '调整左侧编辑栏宽度': 'Resize the left editor pane',
+  '调整右侧设置与 SQL 栏宽度': 'Resize the right settings and SQL pane',
+  '拖动调整宽度；双击恢复；方向键微调': 'Drag to resize; double-click to reset; use arrow keys to adjust',
   '请修改看板计划：': 'Please revise the dashboard plan: ',
   分享链接无效或已失效: 'This share link is invalid or has expired',
   发布快照筛选失败: 'Could not filter the published snapshot',

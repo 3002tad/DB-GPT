@@ -164,6 +164,19 @@ def mount_static_files(app: FastAPI, param: ApplicationConfig):
             return FileResponse(dashboard_share_html, media_type="text/html")
         raise HTTPException(status_code=404, detail="Page not found")
 
+    scheduled_task_html = os.path.join(
+        static_file_path, "construct", "scheduled-tasks", "[taskId]", "index.html"
+    )
+
+    @app.get("/construct/scheduled-tasks/{task_id}")
+    @app.get("/construct/scheduled-tasks/{task_id}/")
+    async def _scheduled_task_page_fallback(task_id: str):
+        # This serves only the exported page shell. The browser still loads
+        # task data through the authenticated, owner-scoped scheduler API.
+        if os.path.isfile(scheduled_task_html):
+            return FileResponse(scheduled_task_html, media_type="text/html")
+        raise HTTPException(status_code=404, detail="Page not found")
+
     app.mount("/", StaticFiles(directory=static_file_path, html=True), name="static")
 
     app.mount(

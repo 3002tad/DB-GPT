@@ -151,6 +151,7 @@ async def dialogue_new(
     user_id: str = None,
     sys_code: str = None,
     http_request: Request = None,
+    service: Service = Depends(get_service),
 ):
     actor = _pipeline_actor(http_request)
     if actor:
@@ -165,7 +166,7 @@ async def dialogue_new(
         user_name=user_name,
         sys_code=sys_code,
     )
-    return Result.succ(res)
+    return Result.succ(service.create_empty_conversation(res))
 
 
 @router.post(

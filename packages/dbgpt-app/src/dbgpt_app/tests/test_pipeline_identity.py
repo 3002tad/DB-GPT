@@ -290,7 +290,7 @@ def test_initial_policy_grants_only_reviewed_roles_methods_and_endpoints():
     assert allowed(analyst, "PUT", "/api/v1/dashboards/dashboard_1")
     assert allowed(analyst, "POST", "/api/v1/dashboards/dashboard_1/refresh")
     assert allowed(analyst, "POST", "/api/v1/dashboards/dashboard_1/widgets/widget_1/preview")
-    assert not allowed(analyst, "POST", "/api/v1/dashboards/dashboard_1/publish")
+    assert allowed(analyst, "POST", "/api/v1/dashboards/dashboard_1/publish")
     assert allowed(admin, "GET", "/api/v2/serve/model/providers")
     assert allowed(admin, "PUT", "/api/v2/serve/model/providers/config")
     assert not allowed(analyst, "GET", "/api/v2/serve/model/providers")

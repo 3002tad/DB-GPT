@@ -47,6 +47,7 @@ export type SceneResponse = {
 export type NewDialogueParam = {
   chat_mode: string;
   model?: string;
+  app_code?: string;
 };
 
 export type ChatHistoryResponse = IChatDialogueMessageSchema[];

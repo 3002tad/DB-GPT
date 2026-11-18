@@ -6,6 +6,11 @@ from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from dbgpt.component import BaseComponent, ComponentType, SystemApp
 
+from .arguments import (
+    SkillArgumentsError,
+    normalize_script_arguments,
+    skill_arguments_failure,
+)
 from .base import SkillBase, SkillMetadata, SkillType
 from .parameters import SkillParameters
 
@@ -992,6 +997,10 @@ __name__ = "__main__"
         import asyncio
         import os
 
+        try:
+            args, argv = normalize_script_arguments(args, argv)
+        except SkillArgumentsError as error:
+            return skill_arguments_failure(error)
         args = args or {}
 
         skill_path = self._get_skill_path(skill_name)

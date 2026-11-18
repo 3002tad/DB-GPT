@@ -130,6 +130,25 @@ class PipelineIdentityMiddleware:
             return await self._reject(send, 403)
         if scope["type"] != "http" or not protected:
             return await self.app(scope, receive, send)
+        # These two native read operations use a revocable publication token
+        # instead of a Pipeline session. Validation/expiry/revocation remain in
+        # DashboardService / LiveShareService; no management route is public.
+        public_snapshot = re.fullmatch(
+            r"/api/v1/public/dashboards/[A-Za-z0-9_-]{1,128}",
+            scope.get("path", ""),
+        )
+        public_filter = re.fullmatch(
+            r"/api/v1/public/dashboards/[A-Za-z0-9_-]{1,128}/filter",
+            scope.get("path", ""),
+        )
+        if ((scope.get("method") == "GET" and public_snapshot)
+                or (scope.get("method") == "POST" and public_filter)):
+            public_scope = dict(scope)
+            public_scope["headers"] = [
+                (name, value) for name, value in scope.get("headers", [])
+                if name.lower() not in (b"user-id", b"x-user-id", b"x-user-role")
+            ]
+            return await self.app(public_scope, receive, send)
         headers = scope.get("headers", [])
         client = scope.get("client")
         forwarded = {b"forwarded", b"x-forwarded-for", b"x-real-ip", b"cf-connecting-ip"}

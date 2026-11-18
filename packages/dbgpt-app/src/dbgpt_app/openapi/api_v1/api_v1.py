@@ -671,6 +671,7 @@ async def chat_completions(
                 span_id=root_tracer.get_current_span_id(),
                 chat_mode=dialogue.chat_mode,
                 chat_param=dialogue.select_param,
+                extra={"database_name": (dialogue.ext_info or {}).get("database_name")},
                 user_name=dialogue.user_name,
                 sys_code=dialogue.sys_code,
                 app_code=dialogue.app_code,

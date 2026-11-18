@@ -93,6 +93,7 @@ from .public_progress import (
 from .react_final import AgentFinalAnswer, FinalAnswerAssembler
 from .execution_fallback import execution_copy, unfinished_message, missing_report_message
 from .react_history import ReactHistoryCheckpoint, save_history_view
+from .context_snapshot import capture_context_snapshot, snapshot_payload
 from .react_prompt import build_react_prompt_template
 from .subagent.dispatcher import DISPATCH_PROMPT_SECTION, make_dispatch_tool
 from .subagent.history import (
@@ -1594,6 +1595,7 @@ def _build_react_history_payload(
     dashboard_generation_failure: Optional[Dict[str, Any]] = None,
     execution_status: Optional[str] = None,
     financial_report: Optional[Dict[str, Any]] = None,
+    context_snapshots: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Serialize the persisted react-agent history payload (version 2).
 
@@ -1629,6 +1631,8 @@ def _build_react_history_payload(
         value["execution_status"] = execution_status
     if financial_report:
         value["financial_report"] = financial_report
+    if context_snapshots:
+        value["context_snapshots"] = snapshot_payload(context_snapshots)
     return json.dumps(value, ensure_ascii=False)
 
 
@@ -3914,6 +3918,7 @@ async def _react_agent_stream_impl(
                 sub_agents=[],
                 input_files=input_files_snapshot,
                 execution_status=status,
+                context_snapshots=react_state.get("_context_snapshots"),
             ),
         )
         history_checkpoint.flush(force=True)
@@ -4822,7 +4827,13 @@ or substitute a textual summary for a requested report.
 
     # Wire up context-management status events into the SSE stream.
     async def _context_status_callback(status: Dict[str, Any]) -> None:
-        await stream_queue.put({"type": "context.status", **status})
+        snapshot = capture_context_snapshot(status, dialogue.model_name)
+        if snapshot:
+            react_state.setdefault("_context_snapshots", {})[snapshot["model"]] = snapshot
+        await stream_queue.put({
+            "type": "context.status", **status,
+            **({"model": snapshot["model"], "measured_at": snapshot["measured_at"]} if snapshot else {}),
+        })
 
     agent.init_context_management(
         config=context_budget,
@@ -4967,6 +4978,7 @@ or substitute a textual summary for a requested report.
             dashboard_refs=react_state.get("dashboard_refs", []),
             execution_status=status,
             financial_report=financial_report,
+            context_snapshots=react_state.get("_context_snapshots"),
             suite_reference=suite_reference,
             suite_binding=suite_binding_snapshot,
         )
@@ -5029,6 +5041,10 @@ or substitute a textual summary for a requested report.
             ):
                 yield _sse_event(chunk)
         elif event_type in ("context.status", "model.progress"):
+            if event_type == "context.status" and history_checkpoint is not None:
+                # A measurement is emitted per model call/compaction, not per
+                # token. Persist before forwarding so reload can read it now.
+                history_checkpoint.flush(force=True)
             # Forward context-management status to frontend as-is.
             yield _sse_event(event)
         elif event_type in ("question.asked", "question.replied", "question.rejected"):
@@ -5735,6 +5751,7 @@ or substitute a textual summary for a requested report.
             report_status=error_answer.report_status,
             dashboard_refs=react_state.get("dashboard_refs", []),
             dashboard_generation_failure=incomplete,
+            context_snapshots=react_state.get("_context_snapshots"),
         )
         terminal_events = _react_terminal_events(
             storage_conv,
@@ -5919,6 +5936,7 @@ or substitute a textual summary for a requested report.
         report_status=final_answer.report_status,
         dashboard_refs=react_state.get("dashboard_refs", []),
         dashboard_generation_failure=incomplete,
+        context_snapshots=react_state.get("_context_snapshots"),
     )
     terminal_events = _react_terminal_events(
         storage_conv,

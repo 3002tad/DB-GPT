@@ -61,6 +61,26 @@ class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
     def create(self, request: REQ) -> RES:
         raise NotImplementedError()
 
+    def create_empty_conversation(self, request: ServerResponse) -> ServerResponse:
+        """Persist the owner/header before the client can request history.
+
+        The native message storage will update this same conversation on the
+        first turn. No model call or placeholder message is needed.
+        """
+        conversation = StorageConversation(
+            conv_uid=request.conv_uid,
+            chat_mode=request.chat_mode,
+            user_name=request.user_name,
+            sys_code=request.sys_code,
+            app_code=request.app_code,
+            summary="",
+            conv_storage=self.conv_storage,
+            message_storage=self.message_storage,
+            load_message=False,
+        )
+        conversation.save_to_storage()
+        return request
+
     @property
     def conv_storage(self) -> StorageInterface:
         """The conversation storage, store the conversation items."""

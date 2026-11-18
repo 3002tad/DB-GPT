@@ -68,6 +68,7 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const [embedded, setEmbedded] = useState(false);
 
   const router = useRouter();
+  const isPublicShare = router.pathname.startsWith('/share') || router.pathname.startsWith('/dashboard-share');
 
   // 登录检测
   const handleAuth = async () => {
@@ -113,8 +114,11 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Publication tokens authorize these pages independently of a workspace
+    // session. Do not trigger a failed login request or clear stored identity.
+    if (isPublicShare) return;
     handleAuth();
-  }, []);
+  }, [isPublicShare]);
 
   useEffect(() => {
     const framed = window.self !== window.top && integrated;
@@ -147,7 +151,6 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
     }
   }, [embedded, isLogin, router.pathname]);
 
-  const isPublicShare = router.pathname.startsWith('/share') || router.pathname.startsWith('/dashboard-share');
   if (!isLogin && !isPublicShare) {
     return authError ? <div role='alert' style={{ padding: 24 }}>{authError}</div> : null;
   }
@@ -204,8 +207,10 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function MyApp({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const publicView = router.pathname.startsWith('/share') || router.pathname.startsWith('/dashboard-share');
   return (
-    <ChatContextProvider>
+    <ChatContextProvider publicView={publicView}>
       <NewTaskProvider>
         <CssWrapper>
           <LayoutWrapper>

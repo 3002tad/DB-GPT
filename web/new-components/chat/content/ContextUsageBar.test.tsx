@@ -8,6 +8,12 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: locale }) }));
 afterEach(() => { cleanup(); locale.language = 'zh'; });
 
 describe('ContextUsageBar', () => {
+  it('labels restored measurements as previous instead of the next prompt', () => {
+    locale.language = 'vi';
+    render(<ContextUsageBar used={200} budget={1000} ratio={0.2} state='OK' variant='compact' previous measuredAt={1770000000000} />);
+    expect(screen.getByRole('button').textContent).toContain('lượt trước');
+    expect(screen.getByRole('tooltip').textContent).toContain('không phải prompt tiếp theo');
+  });
   it('shows an explicit unknown state instead of a fabricated zero', () => {
     locale.language = 'vi';
     render(<ContextUsageBar used={0} budget={0} ratio={0} state='OK' known={false} variant='compact' />);

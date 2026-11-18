@@ -23,6 +23,8 @@ export interface ContextUsageBarProps {
   reservedTokens?: number;
   windowSource?: string;
   known?: boolean;
+  previous?: boolean;
+  measuredAt?: number;
 }
 
 const STATE_COLORS: Record<string, { bar: string; bg: string; text: string; ring: string; label: string }> = {
@@ -74,6 +76,8 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
   reservedTokens,
   windowSource,
   known = true,
+  previous = false,
+  measuredAt,
 }) => {
   const { i18n } = useTranslation();
   const zh = i18n.language?.startsWith('zh');
@@ -82,7 +86,7 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
     return <span
       role='status'
       className='rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 dark:border-slate-600 dark:text-slate-300'
-      title={vi ? 'Chưa có số đo cho lượt hiện tại. Sẽ cập nhật khi Agent chuẩn bị gọi model; tải lại lịch sử không khôi phục số đo cũ.' : zh ? '当前尚无上下文测量；模型调用前更新，历史记录不会恢复旧测量。' : 'No measurement for this run yet. Updates before model calls; reloading history does not restore old measurements.'}
+      title={vi ? 'Chưa có số đo cho model trong phiên này. Sẽ cập nhật khi Agent chuẩn bị gọi model.' : zh ? '当前会话模型尚无测量；模型调用前更新。' : 'No measurement for this conversation/model yet. Updates before model calls.'}
     >{vi ? 'Ngữ cảnh · chờ đo' : zh ? '上下文 · 待测量' : 'Context · awaiting measurement'}</span>;
   }
   const sources: Record<string, string> = {
@@ -131,7 +135,7 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
               className='transition-[stroke-dashoffset] duration-500'
             />
           </svg>
-          <span className='text-xs whitespace-nowrap'>{vi ? 'Ngữ cảnh' : zh ? '上下文' : 'Context'} ~{Math.round(pct)}%</span>
+          <span className='text-xs whitespace-nowrap'>{vi ? 'Ngữ cảnh' : zh ? '上下文' : 'Context'} ~{Math.round(pct)}%{previous ? (vi ? ' · lượt trước' : zh ? ' · 上次' : ' · previous') : ''}</span>
         </button>
         <div
           role='tooltip'
@@ -156,6 +160,10 @@ const ContextUsageBar: React.FC<ContextUsageBarProps> = ({
           <div className='mt-1 text-[11px] text-white/60'>
             {sources[windowSource || 'fallback'] || sources.model_metadata}
           </div>
+          {previous && <div className='mt-1 text-[11px] text-white/60'>
+            {vi ? 'Số đo lượt trước; không phải prompt tiếp theo' : zh ? '上次测量，并非下次提示的用量' : 'Previous measurement, not the next prompt'}
+            {measuredAt && Number.isFinite(measuredAt) ? ` · ${new Date(measuredAt).toLocaleString(vi ? 'vi-VN' : zh ? 'zh-CN' : 'en-US')}` : ''}
+          </div>}
           {compactLayer && (
             <div className='mt-1 text-[11px] text-white/60'>
               {vi ? 'Đã nén: ' : zh ? '已压缩：' : 'Compacted: '}

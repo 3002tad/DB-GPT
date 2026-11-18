@@ -66,8 +66,11 @@ export const postScenes = () => {
   return POST<null, Array<SceneResponse>>('/api/v1/chat/dialogue/scenes');
 };
 export const newDialogue = (data: NewDialogueParam) => {
+  const params = new URLSearchParams({ chat_mode: data.chat_mode });
+  if (data.model) params.set('model_name', data.model);
+  if (data.app_code) params.set('app_code', data.app_code);
   return POST<NewDialogueParam, IChatDialogueSchema>(
-    `/api/v1/chat/dialogue/new?chat_mode=${data.chat_mode}&model_name=${data.model}`,
+    `/api/v1/chat/dialogue/new?${params.toString()}`,
     data,
   );
 };

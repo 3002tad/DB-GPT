@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type HTMLAttributes } from 'react';
+import { dashboardText as dt, useDashboardTranslation } from './dashboard-i18n';
 
 const STORAGE_KEY = 'dbgpt-dashboard-pane-widths-v1';
 const DEFAULTS = { components: 218, assistant: 320, visual: 304, query: 420 };
@@ -19,6 +20,7 @@ export function useDashboardPaneResize({
   rightVisible: boolean;
   compact: boolean;
 }) {
+  useDashboardTranslation();
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1280);
   const [widths, setWidths] = useState(DEFAULTS);
@@ -112,12 +114,12 @@ export function useDashboardPaneResize({
       role: 'separator',
       tabIndex: 0,
       'aria-orientation': 'vertical',
-      'aria-label': side === 'left' ? '调整左侧编辑栏宽度' : '调整右侧设置与 SQL 栏宽度',
+      'aria-label': side === 'left' ? dt('调整左侧编辑栏宽度') : dt('调整右侧设置与 SQL 栏宽度'),
       'aria-controls': side === 'left' ? leftId : rightId,
       'aria-valuemin': min,
       'aria-valuemax': max,
       'aria-valuenow': width,
-      title: '拖动调整宽度；双击恢复；方向键微调',
+      title: dt('拖动调整宽度；双击恢复；方向键微调'),
       style: side === 'left' ? { left: left - 5 } : { right: right - 5 },
       onPointerDown: event => {
         if (event.button !== 0) return;

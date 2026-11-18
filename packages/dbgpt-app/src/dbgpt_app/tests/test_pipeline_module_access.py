@@ -81,13 +81,27 @@ class ModuleRoutesTest(unittest.TestCase):
             for method, path in [
                 ("DELETE", "/api/v1/chat/completions"),
                 ("POST", "/api/v1/not-reviewed"),
-                ("POST", "/api/v1/dashboards/d1/publish"),
+                ("PUT", "/api/v1/dashboards/d1/publish"),
                 ("GET", "/api/v1/dashboards/../other/cover"),
             ]:
                 self.assertFalse(authorize_pipeline_request(
                     PipelineActor(id="alice", role=role),
                     {"method": method, "path": path},
                 ))
+
+    def test_publication_lifecycle_is_available_to_workspace_roles(self):
+        for role in ("analyst", "super_admin", "unknown"):
+            for method, suffix in (
+                ("POST", "publish"), ("GET", "live-share"),
+                ("POST", "live-share"), ("DELETE", "live-share"),
+                ("GET", "publications"), ("POST", "publications/1/rotate"),
+                ("DELETE", "publications/1"),
+            ):
+                with self.subTest(role=role, method=method, suffix=suffix):
+                    self.assertEqual(role != "unknown", authorize_pipeline_request(
+                        PipelineActor(id="alice", role=role),
+                        {"method": method, "path": f"/api/v1/dashboards/d1/{suffix}"},
+                    ))
 
 
 class ModuleHandlerTest(unittest.TestCase):
@@ -129,6 +143,25 @@ class ModuleHandlerTest(unittest.TestCase):
             with self.assertRaises(HTTPException) as error:
                 _require_pipeline_chat_access(dialogue)
             self.assertEqual(403, error.exception.status_code)
+
+    def test_flow_completion_forwards_selected_database(self):
+        from dbgpt_app.openapi.api_v1 import api_v1
+
+        dialogue = api_v1.ConversationVo(
+            conv_uid="flow-binding", chat_mode="chat_flow", select_param="flow1",
+            model_name="test", user_input="SELECT COUNT(*) FROM funnelmetry_demo.sessions",
+            ext_info={"database_name": "funnelmetry_handoff"},
+        )
+        flow_service = Mock()
+        with patch.object(api_v1, "_require_pipeline_chat_access"), \
+             patch.object(api_v1, "user_recent_app_dao"):
+            asyncio.run(api_v1.chat_completions(
+                dialogue, flow_service, SimpleNamespace(user_id="analyst")
+            ))
+        flow_id, request = flow_service.chat_stream_flow_str.call_args.args
+        self.assertEqual("flow1", flow_id)
+        self.assertEqual({"database_name": "funnelmetry_handoff"}, request.extra)
+        self.assertEqual("analyst", request.user_name)
 
     def test_resource_picker_shows_only_approved_database(self):
         from dbgpt_app.openapi.api_v1 import api_v1

@@ -4,6 +4,9 @@ import { dashboardHelpVi } from './dashboard-help';
 
 /** Translations for built-in dashboard copy not yet migrated to i18next keys. */
 export const viUiText: Record<string, string> = {
+  'Resize the left editor pane': 'Điều chỉnh độ rộng khung soạn thảo bên trái',
+  'Resize the right settings and SQL pane': 'Điều chỉnh độ rộng khung thiết lập và SQL bên phải',
+  'Drag to resize; double-click to reset; use arrow keys to adjust': 'Kéo để đổi độ rộng; nhấp đúp để khôi phục; dùng phím mũi tên để điều chỉnh',
   'Scheduled task created': 'Đã tạo tác vụ theo lịch',
   'Saved and enabled. View execution status in task details.': 'Đã lưu và bật. Xem trạng thái thực thi trong chi tiết tác vụ.',
   'View task and execution history': 'Xem tác vụ và lịch sử thực thi',

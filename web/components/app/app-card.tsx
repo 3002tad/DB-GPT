@@ -22,7 +22,7 @@ const { confirm } = Modal;
 
 export default function AppCard(props: IProps) {
   const { updateApps, app, handleEdit, activeKey } = props;
-  const { model } = useContext(ChatContext);
+  const { model, setCurrentDialogInfo } = useContext(ChatContext);
   const router = useRouter();
 
   const { setAgent: setAgentToChat } = useContext(ChatContext);
@@ -68,8 +68,12 @@ export default function AppCard(props: IProps) {
   };
 
   const handleChat = async () => {
-    const [, res] = await apiInterceptors(newDialogue({ chat_mode: 'chat_agent' }));
+    const chatMode = app.team_mode === 'native_app' ? app.team_context.chat_scene || '' : 'chat_agent';
+    const [, res] = await apiInterceptors(newDialogue({ chat_mode: chatMode, app_code: app.app_code }));
     if (res) {
+      const binding = { chat_scene: chatMode, app_code: app.app_code };
+      setCurrentDialogInfo?.(binding);
+      localStorage.setItem('cur_dialog_info', JSON.stringify(binding));
       // 原生应用跳转
       if (app.team_mode === 'native_app') {
         const { chat_scene = '' } = app.team_context;

@@ -41,6 +41,30 @@ def _supports_bounded_query(connector: Any) -> bool:
     )
 
 
+def _result_coverage(columns, rows, *, preview_truncated: bool) -> Dict[str, Any]:
+    """Describe returned rows only; never certify source or cohort coverage."""
+    null_cells = [
+        {"column_index": i, "column": name,
+         "null_result_rows": sum(i < len(row) and row[i] is None for row in rows)}
+        for i, name in enumerate(columns)
+    ]
+    return {
+        "scope": "returned_result_only",
+        "returned_rows": len(rows),
+        "preview_truncated": preview_truncated,
+        "null_columns": [cell for cell in null_cells if cell["null_result_rows"]],
+        "interpretation_hint": (
+            "Preserve NULL and empty-string groups separately when summarizing. "
+            "These counts describe returned rows, not source records or sessions. "
+            "For a full distribution, reconcile disjoint groups against a total "
+            "with the same grain, filters and time window. Label requested subsets "
+            "or top-N as partial; do not silently change the denominator. "
+            "Reuse sufficient successful artifacts; query only missing evidence "
+            "or changed freshness. This is advisory, not a quality gate."
+        ),
+    }
+
+
 def make_sql_query(
     react_state: Dict[str, Any],
     database_connector: Optional[Any],
@@ -52,6 +76,7 @@ def make_sql_query(
     call_count = 0
     schema_cache: Dict[str, Any] = {}
     empty_schema_discoveries = 0
+    successful_queries: Dict[str, str] = {}
     limit_description = (
         f" Dashboard planning allows at most {max_calls} discovery calls; "
         "after that, use the collected observations and call plan_dashboard."
@@ -71,6 +96,9 @@ def make_sql_query(
             'Arguments: {"sql": "SELECT ..."}. Each query has a 30-second '
             "timeout. On an error, use the structured recovery hint to inspect "
             "schema or change the query; do not repeat a failed call unchanged."
+            " Preserve NULL groups in distributions and reconcile totals at the "
+            "same grain/scope. Reuse sufficient prior successful artifacts; "
+            "re-query when evidence or freshness requires it."
             + limit_description
         )
     )
@@ -246,7 +274,9 @@ def make_sql_query(
             separator = "| " + " | ".join(["---"] * len(col_names)) + " |"
             md_rows = []
             for row in rows[:50]:
-                md_rows.append("| " + " | ".join(str(v) for v in row) + " |")
+                md_rows.append("| " + " | ".join(
+                    "NULL" if v is None else str(v) for v in row
+                ) + " |")
             table = "\n".join([header, separator] + md_rows)
             if not result:
                 table = "查询返回空结果。"
@@ -256,6 +286,9 @@ def make_sql_query(
             # Cap total output size so a single wide query can't blow out the
             # LLM context window. The full result remains available via the
             # ToolResultStorage persistence layer if it exceeds the threshold.
+            preview_truncated = len(rows) > 50 or (
+                max_output_chars is not None and len(table) > max_output_chars
+            )
             if max_output_chars is not None and len(table) > max_output_chars:
                 table = (
                     table[:max_output_chars]
@@ -293,7 +326,24 @@ def make_sql_query(
             response = {
                 "artifact_id": artifact_id,
                 "chunks": chunks,
+                "result_coverage": _result_coverage(
+                    col_names, rows, preview_truncated=preview_truncated,
+                ),
             }
+            previous_artifact = successful_queries.get(sql_stripped)
+            if previous_artifact:
+                response["prior_execution"] = {
+                    "artifact_id": previous_artifact,
+                    "same_sql": True,
+                    "reexecuted": True,
+                    "hint": (
+                        "This SQL already succeeded in this tool session. Reuse "
+                        "the earlier artifact if scope and freshness suffice; "
+                        "the current result is a fresh execution, not a cache hit."
+                    ),
+                }
+            if sql_stripped in successful_queries or len(successful_queries) < 16:
+                successful_queries[sql_stripped] = artifact_id
             if broad_schema_query and not rows:
                 response["schema_discovery_empty"] = True
                 response["recovery_hint"] = (

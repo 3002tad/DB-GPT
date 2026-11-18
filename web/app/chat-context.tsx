@@ -102,7 +102,10 @@ const ChatContext = createContext<IChatContext>({
   clearConvAttention: () => {},
 });
 
-const ChatContextProvider = ({ children }: { children: React.ReactElement }) => {
+const ChatContextProvider = ({ children, publicView = false }: {
+  children: React.ReactElement;
+  publicView?: boolean;
+}) => {
   const attention = useConversationAttention(getUserId() || '');
   const searchParams = useSearchParams();
   const chatId = searchParams?.get('id') ?? '';
@@ -132,13 +135,13 @@ const ChatContextProvider = ({ children }: { children: React.ReactElement }) => 
     },
     // Model workers register asynchronously after the server starts accepting
     // requests; retry so an early page load still picks up the usable models.
-    { retryCount: 5, retryInterval: 3000 },
+    { ready: !publicView, retryCount: 5, retryInterval: 3000 },
   );
 
   // Refresh the usable model list when models are connected/disconnected or
   // enabled/disabled elsewhere (e.g. the model config page).
   useEffect(() => {
-    const handler = () => refreshModelList();
+    const handler = () => { if (!publicView) refreshModelList(); };
     const storageHandler = (e: StorageEvent) => {
       if (e.key === MODELS_CHANGED_EVENT) handler();
     };
@@ -148,7 +151,7 @@ const ChatContextProvider = ({ children }: { children: React.ReactElement }) => 
       window.removeEventListener(MODELS_CHANGED_EVENT, handler);
       window.removeEventListener('storage', storageHandler);
     };
-  }, [refreshModelList]);
+  }, [refreshModelList, publicView]);
 
   // 获取管理员列表
   const { run: queryAdminListRun } = useRequest(
@@ -164,11 +167,11 @@ const ChatContextProvider = ({ children }: { children: React.ReactElement }) => 
   );
 
   useEffect(() => {
-    if (getUserId()) {
+    if (!publicView && getUserId()) {
       queryAdminListRun();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryAdminListRun, getUserId()]);
+  }, [queryAdminListRun, getUserId(), publicView]);
 
   useEffect(() => {
     setMode(getDefaultTheme());

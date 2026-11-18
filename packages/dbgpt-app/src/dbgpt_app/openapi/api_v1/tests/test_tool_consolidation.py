@@ -119,5 +119,7 @@ async def test_unified_file_runner_retains_arguments_and_lineage(monkeypatch):
     )
     with pytest.raises(ValueError, match="exactly one"):
         await run("registered", "script.py", script_name="inline")
-    with pytest.raises(ValueError, match="either"):
-        await run("registered", "script.py", args={}, argv=[])
+    rejected = json.loads(await run("registered", "script.py", args={}, argv=[]))
+    assert rejected["success"] is False
+    assert rejected["error_code"] == "SKILL_ARGUMENTS_INVALID"
+    assert "either" in rejected["chunks"][0]["content"]

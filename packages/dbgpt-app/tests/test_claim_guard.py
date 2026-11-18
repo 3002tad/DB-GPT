@@ -385,6 +385,14 @@ class ClaimScopeRegressionTests(unittest.TestCase):
         self.assertIn("retained for review", guarded)
         self.assertEqual(issues, ["review_required:conversion_claim"])
 
+    def test_vietnamese_review_note_preserves_english_source_content(self):
+        answer = "Conversion rate measures effectiveness."
+        guarded, issues = guard_final_claims(answer, [], "vi-VN")
+        self.assertIn(answer, guarded)
+        self.assertIn("Một số diễn giải được giữ lại", guarded)
+        self.assertNotIn("Some interpretations are retained", guarded)
+        self.assertEqual(issues, ["review_required:conversion_claim"])
+
 
 if __name__ == "__main__":
     unittest.main()

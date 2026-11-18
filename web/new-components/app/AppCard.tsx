@@ -12,7 +12,7 @@ const languageMap = {
 };
 
 const AppCard: React.FC<{ data: IApp }> = ({ data }) => {
-  const { setAgent: setAgentToChat, model } = useContext(ChatContext);
+  const { setAgent: setAgentToChat, model, setCurrentDialogInfo } = useContext(ChatContext);
   const router = useRouter();
   return (
     <Card
@@ -20,8 +20,12 @@ const AppCard: React.FC<{ data: IApp }> = ({ data }) => {
       hoverable
       bordered={false}
       onClick={async () => {
-        const [, res] = await apiInterceptors(newDialogue({ chat_mode: 'chat_agent' }));
+        const chatMode = data.team_mode === 'native_app' ? data.team_context.chat_scene || '' : 'chat_agent';
+        const [, res] = await apiInterceptors(newDialogue({ chat_mode: chatMode, app_code: data.app_code }));
         if (res) {
+          const binding = { chat_scene: chatMode, app_code: data.app_code };
+          setCurrentDialogInfo?.(binding);
+          localStorage.setItem('cur_dialog_info', JSON.stringify(binding));
           // 原生应用跳转
           if (data.team_mode === 'native_app') {
             const { chat_scene = '' } = data.team_context;

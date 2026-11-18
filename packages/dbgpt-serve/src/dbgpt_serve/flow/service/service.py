@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from copy import deepcopy
 from typing import AsyncIterator, Dict, List, Optional, Tuple, cast
 
 import schedule
@@ -662,7 +663,7 @@ class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
         """
         incremental = request.incremental
         try:
-            task = await self._get_callable_task(flow_uid)
+            task = await self._get_callable_task(flow_uid, request)
             return await safe_chat_with_dag_task(task, request)
         except HTTPException as e:
             return ModelOutput(error_code=1, text=e.detail, incremental=incremental)
@@ -692,7 +693,7 @@ class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
         except Exception:
             queue = None
         try:
-            task = await self._get_callable_task(flow_uid)
+            task = await self._get_callable_task(flow_uid, request)
             dag_stream = safe_chat_stream_with_dag_task(task, request, incremental)
             async for output in _merge_step_events(dag_stream, queue, incremental):
                 yield output
@@ -712,6 +713,7 @@ class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
     async def _get_callable_task(
         self,
         flow_uid: str,
+        request: Optional[CommonLLMHttpRequestBody] = None,
     ) -> BaseOperator:
         """Return the callable task.
 
@@ -725,6 +727,46 @@ class Service(BaseService[ServeEntity, ServeRequest, ServerResponse]):
         flow = self.get({"uid": flow_uid})
         if not flow:
             raise HTTPException(status_code=404, detail=f"Flow {flow_uid} not found")
+        database_name = (request.extra or {}).get("database_name") if request else None
+        if getattr(flow, "flow_format", "awel") == "taskflow":
+            from ..taskflow.bindings import (
+                bind_taskflow_datasource,
+                taskflow_datasources,
+            )
+
+            try:
+                source = bind_taskflow_datasource(flow.taskflow_source, database_name)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
+            if os.getenv("DBGPT_PIPELINE_IDENTITY_URL", "").strip():
+                from dbgpt_app.pipeline_datasource import PipelineDataSourcePolicy
+
+                policy = PipelineDataSourcePolicy(CFG.local_db_manager)
+                actor = request.user_name if request else None
+                if any(
+                    not policy.can_query(actor, name)
+                    for name in taskflow_datasources(source)
+                ):
+                    raise HTTPException(
+                        status_code=403, detail="Data source is unavailable"
+                    )
+            if database_name is not None:
+                # The deployed DAG is shared between conversations. Compile a
+                # private copy so another concurrent run cannot inherit this DB.
+                bound_flow = deepcopy(flow)
+                bound_flow.taskflow_source = source
+                self._maybe_compile_taskflow(bound_flow)
+                dag = await blocking_func_to_async(
+                    self._system_app, self._flow_factory.build, bound_flow
+                )
+                if len(dag.leaf_nodes) != 1:
+                    raise ValueError("Chat Flow just support one leaf node in dag")
+                return cast(BaseOperator, dag.leaf_nodes[0])
+        elif database_name is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Datasource overrides require a TaskFlow flow",
+            )
         dag_id = flow.dag_id
         if not dag_id or dag_id not in self.dag_manager.dag_map:
             raise HTTPException(

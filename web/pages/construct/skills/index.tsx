@@ -2,6 +2,8 @@ import MarkDownContext from '@/new-components/common/MarkdownContext';
 import { officialSkillDescription } from '@/new-components/skills/official-skill-descriptions';
 import ConstructLayout from '@/new-components/layout/Construct';
 import axios from '@/utils/ctx-axios';
+import { skillTryRoute } from '@/utils/skill-try';
+import { useRouter } from 'next/router';
 import {
   CloseOutlined,
   CloudUploadOutlined,
@@ -94,6 +96,7 @@ function toAntTreeData(node: TreeNode): DataNode {
 
 function Skills() {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const [searchValue, setSearchValue] = useState('');
   const [officialOnly, setOfficialOnly] = useState(false);
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>({});
@@ -463,7 +466,14 @@ function Skills() {
             </Tag>
           </div>
           <div className='flex items-center gap-2'>
-            <Button type='default' size='small'>
+            <Button
+              type='default'
+              size='small'
+              disabled={!selectedSkill}
+              onClick={() => {
+                if (selectedSkill) void router.push(skillTryRoute(selectedSkill.name));
+              }}
+            >
               {t('skills_try_btn')}
             </Button>
             <EllipsisOutlined className='p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer' />
