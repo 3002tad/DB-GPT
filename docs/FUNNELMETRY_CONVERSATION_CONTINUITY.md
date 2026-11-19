@@ -368,3 +368,21 @@ SQL/Python results (not as historical measurements from the reference shop):
 The original DEEP18-14 case specifically requires naming the Jun→Jul→Aug→Sep
 declines before the October rebound. The actual values must come from its
 captured data; the synthetic values above must never be substituted for them.
+
+## Confirmed clarification scope
+
+Question-tool answers are retained separately from the rolling tool transcript.
+Only answered pairs are recorded; rejected, timed-out and empty answers do not
+become decisions. Server history snapshots carry `user_decisions` on progress,
+error and final paths. Older histories recover only structured question-tool
+recaps, never model prose. No new table or localStorage cache is required.
+
+Native calls receive one compact chronological projection in system context.
+Explicit later corrections and the current user request take precedence.
+Repinning replaces the previous projection instead of accumulating copies.
+The final review instruction checks period, ranking criterion, top-N and grain;
+it is behavioral guidance, not a claim that model compliance is guaranteed.
+
+Terminal turns leave unfinished plan objectives pending with an explanation;
+they are not inferred completed from a successful SQL read, or cancelled merely
+to remove them from the completion denominator. The user can continue the task.

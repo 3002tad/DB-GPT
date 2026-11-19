@@ -1,0 +1,3 @@
+# semantic-linking
+
+Resolve business terms, metrics and candidate tables before querying. Use semantic_search_metrics and semantic_get_metric for published definitions and exact integer versions. Use semantic_search_business and semantic_get_metadata for aliases, fields, enums and freshness. Ordinary semantic_search retrieves KB descriptions. Verify missing physical details against the selected database when necessary; do not invent a published definition. Keep source citations and limitations, use actual join keys and grain, and reuse matching metadata already returned. Read the [runtime playbook](../../prompts/query-playbook.md).

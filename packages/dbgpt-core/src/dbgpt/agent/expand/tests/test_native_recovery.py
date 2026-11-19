@@ -105,7 +105,9 @@ class NativeRecoveryTest(unittest.TestCase):
         self.assertEqual(message.content, "Action: sql_query")
 
     def test_native_retry_repair_omits_empty_assistant(self):
-        state = {"_native_retry_requires_tool_call": True}
+        state = {"_native_retry_requires_tool_call": True, "_user_decisions": [
+            {"pairs": [{"question": "Period and ranking?", "answer": "Q3/2026; top 20 by order count"}]}
+        ]}
         captured = {}
 
         async def create_with_output(**kwargs):
@@ -137,6 +139,8 @@ class NativeRecoveryTest(unittest.TestCase):
         self.assertEqual(captured["tool_choice"], "auto")
         self.assertIn("previous action was rejected", captured["messages"][-1]["content"])
         self.assertNotIn("", [m.get("content") for m in captured["messages"]])
+        self.assertIn("Q3/2026; top 20 by order count", captured["messages"][0]["content"])
+        self.assertEqual(1, captured["messages"][0]["content"].count("Confirmed user clarification answers"))
 
     def test_selected_model_remains_pinned_on_retry(self):
         class FakeAgent:

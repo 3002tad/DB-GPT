@@ -143,6 +143,24 @@ class SuiteCommandTest(unittest.TestCase):
         for document in binding.loaded_documents:
             if "content" in document:
                 self.assertIn(document["content"].strip(), block)
+
+    def test_query_locale_uses_real_bound_skill_and_linked_reference_paths(self):
+        for language in ("vi", "en"):
+            binding = self.make_binding("db-query")
+            bind_command(binding, "/nl2sql")
+            original = build_sop_block(binding)
+            localized = build_sop_block(binding, locale=language)
+            self.assertNotRegex(localized, r"[\u4e00-\u9fff]")
+            self.assertEqual(localized.count("# Smart Data Query: runtime playbook"), 1)
+            self.assertIn("# nl2sql-precision", localized)
+            self.assertIn("# readonly-guardrails", localized)
+            self.assertLess(len(localized), len(original))
+            self.assertIsNone(binding.violation("sql_query"))
+            self.assertIsNotNone(binding.violation("bash"))
+            projection = command_binding_event(binding)["prompt_projection"]
+            self.assertEqual(language, projection["locale"])
+            self.assertEqual(hashlib.sha256(localized.encode("utf-8")).hexdigest(), projection["sha256"])
+            self.assertTrue(all(d["path"].endswith(".en.md") for d in projection["documents"]))
         self.assertIn(
             "prompts/query-playbook.md",
             {doc["path"] for doc in binding.loaded_documents},
@@ -244,7 +262,10 @@ class SuiteCommandTest(unittest.TestCase):
 
     def test_turn_selection_is_not_sticky_and_typed_commands_resolve(self):
         service = SimpleNamespace(
-            registry=SimpleNamespace(current_pin=lambda _: ("db-query", "1.1.0"))
+            registry=SimpleNamespace(
+                current_pin=lambda _: ("db-query", "1.1.0"),
+                record_switch=Mock(),
+            )
         )
         for ext, text, expected in (
             ({"suite_command": "/schema"}, "orders", "/schema"),

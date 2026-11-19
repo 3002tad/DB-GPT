@@ -1,0 +1,3 @@
+# result-export
+
+Export actual successful query results using available export tools. Preserve column labels, units, currency, filter/time scope, source and metric version references. Apply masking and authorization; request required approvals for sensitive or large exports. Verify the returned artifact/file reference before offering a download. A preview, skill load or export request is not proof that a file exists. Explain failures and partial/truncated results; never invent a link. Keep reusable SQL and provenance with the result. Read the [runtime playbook](../../prompts/query-playbook.md).

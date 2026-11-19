@@ -9,6 +9,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from dbgpt_app.openapi.api_v1.context_snapshot import capture_context_snapshot, snapshot_payload
+from dbgpt_app.openapi.api_v1.conversation_resources import resource_context_snapshot
+from dbgpt_app.openapi.api_v1.execution_summary import summarize_execution
 from dbgpt_app.openapi.api_v1.react_history import ReactHistoryCheckpoint, save_history_view
 from dbgpt_app.openapi.api_v1.task_progress import sync_task_plan_steps
 from dbgpt_app.tests.test_native_conversation_lifecycle import NativeConversationLifecycleTest
@@ -30,6 +32,16 @@ def payload(snapshots=None, status="running"):
         final_content="Fixture answer", steps=[], task_plan=[], generated_images=[],
         sub_agents=[], input_files=[], execution_status=status, context_snapshots=snapshots,
     )
+
+
+class DecisionHistoryTest(unittest.TestCase):
+    def test_actual_history_builder_persists_confirmed_answers_without_model_parsing(self):
+        decisions = [{"request_id": "q-1", "pairs": [{"question": "Period?", "answer": "Q3/2026"}]}]
+        saved = json.loads(builder()(
+            final_content="Partial", steps=[], task_plan=[], generated_images=[],
+            sub_agents=[], input_files=[], user_decisions=decisions,
+        ))
+        self.assertEqual(decisions, saved["user_decisions"])
 
 
 class SnapshotNormalizationTest(unittest.IsolatedAsyncioTestCase):

@@ -1,0 +1,3 @@
+# readonly-guardrails
+
+Execute data retrieval using the platform's registered read-only SQL tools and current database identity. Respect authorization, masking, row-level rules, timeouts, result limits and scan-cost approvals. Never use shell, writes or DDL to bypass an execution restriction. Report an approval or denial honestly. Read actual filters and schema rather than inventing controls. Preview bounded results and inspect errors; repair only the failing query component. Do not claim SQL was validated, approved or executed without the corresponding tool evidence. Read the [runtime playbook](../../prompts/query-playbook.md).

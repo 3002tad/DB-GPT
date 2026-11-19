@@ -863,6 +863,17 @@ class ToolCallingReActAgent(ReActAgent):
                 "question, call terminate with an evidence-based answer."
             )
         state = getattr(self, "_report_repair_state", None)
+        from .decision_context import decision_context, pin_decision_context
+
+        confirmed_scope = decision_context(state)
+        if confirmed_scope:
+            # System messages survive rolling-memory/context compaction.
+            if llm_messages and llm_messages[0].get("role") == "system":
+                llm_messages[0]["content"] = pin_decision_context(
+                    llm_messages[0].get("content") or "", state
+                )
+            else:
+                llm_messages = _new_system_message(pin_decision_context("", state)) + llm_messages
         is_report_author = (
             state is not None
             and self.not_null_agent_context.gpts_app_code == "react_agent_report"

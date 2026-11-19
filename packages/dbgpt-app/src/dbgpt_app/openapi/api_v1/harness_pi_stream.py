@@ -1135,7 +1135,7 @@ def _build_pi_prompt(
 
         _suite_binding = get_conv_suite(dialogue.conv_uid or "")
         if _suite_binding is not None:
-            base = f"{base}\n\n—\n{build_sop_block(_suite_binding).strip()}"
+            base = f"{base}\n\n—\n{build_sop_block(_suite_binding, locale=ext_info.get('locale', 'vi')).strip()}"
     except Exception:
         logger.debug("pi harness: suite SOP not appended", exc_info=True)
     return base

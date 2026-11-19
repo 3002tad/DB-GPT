@@ -4,6 +4,24 @@ import re
 from typing import Any, Dict, List
 
 
+def pause_unfinished_tasks(tasks: List[Dict[str, Any]], locale: str) -> bool:
+    """End running indicators without claiming unfinished objectives succeeded.
+
+    Keep these tasks in the denominator. Marking them cancelled would make a
+    partial result appear 100% complete in task_plan_meta and the task card.
+    """
+    changed = False
+    for task in tasks:
+        if task.get("status") in {"pending", "in_progress"}:
+            task.update(status="pending", detail=(
+                "Chưa được xác nhận hoàn thành khi lượt xử lý kết thúc."
+                if locale.startswith("vi") else
+                "Not confirmed completed before this turn ended."
+            ))
+            changed = True
+    return changed
+
+
 def complete_delivery_task(
     tasks: List[Dict[str, Any]],
     *,

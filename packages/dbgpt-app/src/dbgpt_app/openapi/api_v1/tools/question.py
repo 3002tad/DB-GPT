@@ -246,6 +246,9 @@ def make_question(react_state: Dict[str, Any], stream_callback: Callable):
             }
             for i, q in enumerate(parsed_questions)
         ]
+        from ..user_decisions import remember_answers
+
+        remember_answers(react_state, pairs, pq.request_id)
         return json.dumps(
             {
                 "chunks": [

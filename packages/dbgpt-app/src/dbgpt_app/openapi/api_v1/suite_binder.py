@@ -115,6 +115,7 @@ class SuiteBinding:
     command_error: str = ""
     package_format: str = "scenario-suite"
     loaded_documents: list = field(default_factory=list)
+    prompt_projection: Dict[str, Any] = field(default_factory=dict)
 
     def violation(self, tool_name: str) -> Optional[str]:
         """Return a blocking observation when the tool breaks suite rules."""
@@ -390,6 +391,7 @@ def command_binding_event(binding: SuiteBinding) -> Dict[str, Any]:
         "command_error": binding.command_error or None,
         "semantic_status": binding.semantic_status,
         "package_format": binding.package_format,
+        "prompt_projection": binding.prompt_projection or None,
         "documents": [
             {key: value for key, value in doc.items() if key != "content"}
             for doc in binding.loaded_documents
@@ -541,8 +543,13 @@ def resolve_binding_for_turn(dialogue: Any) -> Optional[SuiteBinding]:
         return None
 
 
-def build_sop_block(binding: SuiteBinding) -> str:
+def build_sop_block(binding: SuiteBinding, locale: str = "zh") -> str:
     """SOP section prepended to the system prompt (dbgpt) / turn prompt (pi)."""
+    binding.prompt_projection = {}
+    if str(locale).startswith(("vi", "en")):
+        from .suite_prompt_locale import localized_sop_block
+
+        return localized_sop_block(binding, locale)
     header = (
         f"\n\n## 场景套件 SOP（{binding.name}@{binding.version}）\n"
         "以下是本套件的行事规程，优先于你的通用习惯；与用户请求冲突时先说明边界：\n"

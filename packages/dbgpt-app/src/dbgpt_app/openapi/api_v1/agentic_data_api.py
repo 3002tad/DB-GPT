@@ -1598,6 +1598,7 @@ def _build_react_history_payload(
     execution_status: Optional[str] = None,
     financial_report: Optional[Dict[str, Any]] = None,
     context_snapshots: Optional[Dict[str, Any]] = None,
+    user_decisions: Optional[List[Dict[str, Any]]] = None,
     resource_context: Optional[Dict[str, Any]] = None,
     model_name: Optional[str] = None,
     execution_timing: Optional[Dict[str, Any]] = None,
@@ -1637,6 +1638,8 @@ def _build_react_history_payload(
         value["execution_status"] = execution_status
     if financial_report:
         value["financial_report"] = financial_report
+    if user_decisions:
+        value["user_decisions"] = user_decisions
     if context_snapshots:
         value["context_snapshots"] = snapshot_payload(context_snapshots)
     if model_name:
@@ -3909,7 +3912,9 @@ async def _react_agent_stream_impl(
         else storage_conv.get_history_message()
     )
     from .history_projection import react_history_dialogues
+    from .user_decisions import restore_answers
 
+    restore_answers(react_state, storage_conv.get_history_message())
     historical_dialogues = react_history_dialogues(history_messages)
     storage_conv.add_user_message(user_input)
     if history_checkpoint is not None:
@@ -3927,6 +3932,7 @@ async def _react_agent_stream_impl(
                 execution_status=status,
                 execution_timing=turn_duration.snapshot(terminal=status != "running"),
                 context_snapshots=react_state.get("_context_snapshots"),
+                user_decisions=react_state.get("_user_decisions"),
                 resource_context=dialogue.ext_info or {},
                 model_name=dialogue.model_name,
             ),
@@ -4625,7 +4631,7 @@ explanation is a hypothesis unless queried evidence establishes that cause.
     # --- Suite binder (T3): resolve the scenario-suite pin and prepend SOP ---
     try:
         if suite_binding is not None:
-            workflow_prompt = build_sop_block(suite_binding) + workflow_prompt
+            workflow_prompt = build_sop_block(suite_binding, locale=requested_locale) + workflow_prompt
             suite_binding_snapshot = command_binding_event(suite_binding)
             yield _sse_event(suite_binding_snapshot)
     except Exception:
@@ -4998,6 +5004,7 @@ or substitute a textual summary for a requested report.
             execution_timing=turn_duration.snapshot(terminal=status != "running"),
             financial_report=financial_report,
             context_snapshots=react_state.get("_context_snapshots"),
+            user_decisions=react_state.get("_user_decisions"),
             resource_context=dialogue.ext_info or {},
             model_name=dialogue.model_name,
             suite_reference=suite_reference,
@@ -5794,6 +5801,7 @@ or substitute a textual summary for a requested report.
             dashboard_refs=react_state.get("dashboard_refs", []),
             dashboard_generation_failure=incomplete,
             context_snapshots=react_state.get("_context_snapshots"),
+            user_decisions=react_state.get("_user_decisions"),
             resource_context=dialogue.ext_info or {},
             model_name=dialogue.model_name,
         )
@@ -5955,6 +5963,13 @@ or substitute a textual summary for a requested report.
         if react_state.get("_report_delivery_completed"):
             reconcile_report_delivery(_todo_list, react_state)
         complete_delivery_task(_todo_list, summary_delivered=True)
+    # A terminal turn must not leave the UI pretending that analysis is running.
+    # Preserve completed work; unfinished objectives are not inferred completed.
+    unfinished_plan = react_state.get("financial_plan") or _todo_list
+    from .task_progress import pause_unfinished_tasks
+
+    if pause_unfinished_tasks(unfinished_plan, requested_locale):
+        yield _sse_event({"type": "plan.update", "tasks": list(unfinished_plan)})
     from .tools.analysis_lineage import source_lineage_notice
 
     lineage_notice = source_lineage_notice(artifact_sink, requested_locale)
@@ -5988,6 +6003,7 @@ or substitute a textual summary for a requested report.
         dashboard_refs=react_state.get("dashboard_refs", []),
         dashboard_generation_failure=incomplete,
         context_snapshots=react_state.get("_context_snapshots"),
+        user_decisions=react_state.get("_user_decisions"),
         resource_context=dialogue.ext_info or {},
         model_name=dialogue.model_name,
     )

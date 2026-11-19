@@ -1,6 +1,6 @@
 {
   "name": "db-query",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "displayNameCn": "智能取数",
   "displayName": "Smart Data Query",
   "descriptionEn": "Turn natural-language questions into validated, read-only SQL. Use authoritative metric definitions, table scopes and default filters, preview results with source references, and export data with masking and approval controls.",

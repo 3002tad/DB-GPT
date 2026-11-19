@@ -1,0 +1,3 @@
+# metric-definition
+
+Resolve the requested metric using published definitions and versions. Identify numerator, denominator, entity grain, time field/window, filters, units, currency and permitted dimensions. Ask about ambiguous business definitions rather than silently replacing them. Read exact metadata before applying it; distinguish provisional calculations from published metrics. Never equate CDC current-state order facts with observed conversion or paid revenue. Do not aggregate mixed currencies or multiply facts through joins. Cite definition IDs/versions and source quality. Read the [runtime playbook](../../prompts/query-playbook.md).
