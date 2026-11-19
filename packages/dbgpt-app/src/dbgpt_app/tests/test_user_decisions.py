@@ -23,6 +23,19 @@ progress = load("task_progress", BASE / "task_progress.py")
 
 
 class DecisionContextTest(unittest.TestCase):
+    def test_final_delivery_closes_only_the_delivered_summary(self):
+        for text, kind in (("Tổng hợp kết quả xu hướng tháng", None), ("任意标题", "final_response")):
+            tasks = [{"content": "Compute", "status": "completed"},
+                     {"content": text, "status": "pending", **({"kind": kind} if kind else {})}]
+            self.assertTrue(progress.complete_delivery_task(tasks, summary_delivered=True))
+            self.assertEqual(["completed", "completed"], [t['status'] for t in tasks])
+        tasks = [{"content": "Compute", "status": "pending"},
+                 {"content": "Tổng hợp kết quả xu hướng tháng", "status": "pending"}]
+        self.assertFalse(progress.complete_delivery_task(tasks, summary_delivered=True))
+        self.assertEqual(2, sum(t['status'] == 'pending' for t in tasks))
+        self.assertFalse(progress.complete_delivery_task(
+            [{"content": "Tổng hợp dữ liệu từ SQL", "status": "pending"}], summary_delivered=True))
+
     def test_confirmed_scope_round_trip_keeps_a_later_return_to_an_earlier_choice(self):
         state = {}
         for index, answer in enumerate(("Q2", "Q3", "Q2")):

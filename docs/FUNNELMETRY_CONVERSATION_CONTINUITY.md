@@ -386,3 +386,74 @@ it is behavioral guidance, not a claim that model compliance is guaranteed.
 Terminal turns leave unfinished plan objectives pending with an explanation;
 they are not inferred completed from a successful SQL read, or cancelled merely
 to remove them from the completion denominator. The user can continue the task.
+
+The backend no longer advances analysis tasks from words in thoughts, tool
+counts or mentions of the next task. Explicit `todowrite` updates own analysis
+progress. A task may use `kind=final_response` for final chat delivery, not data
+collection, calculations, file exports or report generation. Successful final
+delivery reconciles that task and emits a plan update before persisting history.
+For older plans, narrowly recognized final-summary labels (including Vietnamese)
+can reconcile the single remaining pending task; unrelated pending analysis is
+never inferred complete. Task completion does not certify analytical claims.
+
+## Generated chart delivery
+
+In Pipeline identity mode, persisted `/images/<name>` URLs are internally routed
+to `/api/v1/chat/generated-image/<name>`. GET/HEAD require the normal verified
+actor via cookie or Bearer and ownership of the image. A per-image index is
+written before emitting live image chunks; old images fall back to structured
+image evidence in that actor's stored conversation history. A URL merely quoted
+in user prose does not grant access. Files outside the generated-image root,
+directory listings and non-image files remain unavailable. No public static
+image directory is opened and no image bytes enter model prompts.
+
+Image responses are private/non-cacheable with nosniff and sandbox CSP. Failure
+to write the derived ownership index does not abort analytical execution; history
+is the fallback. A later owner cannot overwrite the first index entry. Source
+verification covers authenticated rendering, other-owner rejection, traversal,
+native history recovery and GET/HEAD responses. Live/browser acceptance is still
+required after deploying this change.
+
+Final answers replace unambiguous inline local `plots/...` image paths only with
+actual generated URLs returned in this turn; code fences and ambiguous/missing
+filenames are retained. Trend guidance distinguishes partial weeks, half-month
+descriptive differences and statistical tests, while keeping tools/thinking
+available. These instructions require a new model evaluation for acceptance.
+
+## Follow-up evidence inventory and result reuse
+
+Conversational ReAct prepends a bounded inventory of successful captures from
+earlier turns in the same owner/conversation, using the existing EvidenceCatalog
+and SessionArtifactSink. No new database or result-row copy is created. The
+initial metadata payload is bounded to approximately 6,500 characters with
+total/shown/omitted counts. SQL/Python captures take priority over incidental
+file/reference captures. No result blob is read to build this prompt.
+
+Entries contain artifact/run IDs, capture time, logical database, columns,
+row count, SQL excerpt/hash, input artifact IDs and saved scalar field labels.
+Recorded grain, scope, time window, parameters, quality and semantic version
+are included only when captured. Unknown scope remains unknown; SQL excerpts
+and producer labels are not certified business definitions. Capture time does
+not establish source freshness. Different sources, periods, filters or grains
+can require new queries; monthly totals cannot provide daily observations.
+
+`session_evidence` is available at the start of ordinary analytical turns and
+through suite filtering unless explicitly denied. It searches/paginates all
+successful captures, including entries omitted from the prompt. An artifact ID
+exposes saved scalar coordinates; `read_values=true` reads the integrity-checked
+original result without a source query. Each scalar page reads its blob once,
+retains producer/authority labels and reports corrupt/missing results. SQL
+tables remain accessible through Python `sql_result_frame(artifact_id)` when
+authorized. Other artifact entries are locators for their native tools.
+
+The tool is scoped by the existing owner/session catalog, with no caller-supplied
+owner or conversation. It exposes no blob URI/private path or connection secret.
+Inventory contents are data, not executable instructions. Capture failure leaves
+analysis tools available. Constrained modes lacking this tool, including a
+greeting-only turn, receive no instructions to call it. This change covers
+conversational ReAct, not the separate Pi harness.
+
+Reuse is an informed Agent choice, not a SQL cache or execution gate. No prior
+narrative becomes evidence and no old observation is silently refreshed. Source
+regression and read-only real-catalog checks pass; model behavior and token
+savings require evaluation after deployment.

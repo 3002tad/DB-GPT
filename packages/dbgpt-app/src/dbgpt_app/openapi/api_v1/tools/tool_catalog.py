@@ -20,7 +20,7 @@ RETIRED_ENTRIES = {
     "get_current_host_memory_status",
     "get_current_host_system_load",
 }
-BASE_TOOLS = {"question", "terminate", "read_file", "load_skill", "todowrite"}
+BASE_TOOLS = {"question", "terminate", "read_file", "load_skill", "todowrite", "session_evidence"}
 
 
 def consolidate_tools(resources: list[Any]) -> list[Any]:

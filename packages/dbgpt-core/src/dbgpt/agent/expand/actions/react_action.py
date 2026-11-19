@@ -517,8 +517,10 @@ class ReActAction(ToolAction):
                 action=name,
                 content=(
                     'sql_query requires a non-empty SQL string. Retry with '
-                    'Action: sql_query followed by Action Input: '
-                    '{"sql":"SELECT ..."}. Do not invent missing SQL.'
+                    'one JSON object {"sql":"SELECT ..."}. For independent '
+                    'queries make separate tool calls, not a JSON array in one '
+                    'call. In native mode use the supplied function schema; '
+                    'omit XML and Action/Action Input wrappers. Do not invent missing SQL.'
                 ),
             )
         # Log resolved args for html_interpreter before execution

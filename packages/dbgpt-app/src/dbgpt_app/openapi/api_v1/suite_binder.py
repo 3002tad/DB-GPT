@@ -50,7 +50,7 @@ SUITE_TOOL_ALIASES = {
 #: Conversational + loop-control utilities every suite keeps, even under a
 #: strict allowlist.  ``terminate`` is the ReAct loop's end-of-turn tool:
 #: blocking it would leave the agent unable to finish, so it is always allowed.
-IMPLICIT_ALLOW = {"question", "todowrite", "terminate", "tool_search"}
+IMPLICIT_ALLOW = {"question", "todowrite", "terminate", "tool_search", "session_evidence"}
 
 SEMANTIC_DEGRADED_WATERMARK = (
     "⚠️ 语义层未就绪：本次基于表摘要/原始 schema 取数（水位线：无指标口径 / "

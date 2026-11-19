@@ -23,6 +23,9 @@ def make_todowrite(
             "Each todo has: content (brief description), "
             "status (pending | in_progress | completed | cancelled), "
             "priority (high | medium | low). "
+            "Optionally set kind='final_response' only for delivering the final "
+            "chat explanation; never for data collection, calculations, exports "
+            "or report generation. Mark analysis complete only after tools succeed. "
             "Rules: only ONE task in_progress at a time; mark tasks completed "
             "immediately after finishing; do NOT use for single trivial tasks. "
             "IMPORTANT: You MUST call todowrite again after EACH task completes "
@@ -48,6 +51,7 @@ def make_todowrite(
                             "content": str(item.get("content", "")),
                             "status": str(item.get("status", "pending")),
                             "priority": str(item.get("priority", "medium")),
+                            **({"kind": "final_response"} if item.get("kind") == "final_response" else {}),
                         }
                     )
         except Exception:

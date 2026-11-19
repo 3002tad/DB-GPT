@@ -124,10 +124,19 @@ class PipelineIdentityMiddleware:
         protected = path == "/api" or path.startswith("/api/")
         if scope["type"] == "websocket" and protected:
             return await self._dashboard_socket(scope, receive, send)
-        # User-generated images are served outside /api and have no owner
-        # check. Keep them inaccessible until an authenticated route exists.
+        # Preserve persisted /images URLs, but send them through the same
+        # authentication and owner-scoped handler as the API image route.
         if scope["type"] == "http" and (path == "/images" or path.startswith("/images/")):
-            return await self._reject(send, 403)
+            from .openapi.api_v1.generated_images import IMAGE_NAME
+
+            name = scope.get("path", "").removeprefix("/images/")
+            if scope.get("method") not in ("GET", "HEAD") or not IMAGE_NAME.fullmatch(name):
+                return await self._reject(send, 403)
+            path = "/api/v1/chat/generated-image/" + name
+            from urllib.parse import quote
+
+            scope = dict(scope, path=path, raw_path=quote(path, safe="/").encode("ascii"))
+            protected = True
         if scope["type"] != "http" or not protected:
             return await self.app(scope, receive, send)
         # These two native read operations use a revocable publication token

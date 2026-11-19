@@ -33,6 +33,10 @@ def complete_delivery_task(
         (i for i, task in enumerate(tasks) if task.get("status") == "in_progress"),
         None,
     )
+    if active is None and summary_delivered:
+        remaining = [i for i, task in enumerate(tasks) if task.get("status") != "completed"]
+        if len(remaining) == 1 and tasks[remaining[0]].get("status") == "pending":
+            active = remaining[0]
     if active is None:
         return False
     content = str(tasks[active].get("content", "")).strip().lower()
@@ -57,10 +61,13 @@ def complete_delivery_task(
         re.fullmatch(
             r"(?:返回|输出|提供|提交)(?:最终)?(?:摘要|总结|回复)[。.!！\s]*|"
             r"(?:return|provide|deliver|output) (?:the )?(?:final )?"
-            r"(?:summary|response)[.!\s]*",
+            r"(?:summary|response)[.!\s]*|"
+            r"(?:tổng hợp kết quả|trình bày kết quả|trả lời cuối cùng)"
+            r"(?: xu hướng tháng| phân tích| và trình bày phân tích)?[.!\s]*",
             content,
         )
     )
+    summary_task = summary_task or tasks[active].get("kind") == "final_response"
     if not ((report_completed and report_task) or (summary_delivered and summary_task)):
         return False
     tasks[active]["status"] = "completed"

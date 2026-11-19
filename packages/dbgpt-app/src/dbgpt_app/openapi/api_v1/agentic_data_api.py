@@ -2582,6 +2582,12 @@ async def _react_agent_stream_impl(
         raw_chunks: List[str] = []
         if content is None:
             return raw_chunks
+        from dbgpt.configs.model_config import STATIC_MESSAGE_IMG_PATH
+        from .generated_images import register_images
+
+        register_images(
+            STATIC_MESSAGE_IMG_PATH, react_state.get("generated_images", []), dialogue.user_name,
+        )
         parsed = None
         if isinstance(content, str):
             try:
@@ -2594,6 +2600,8 @@ async def _react_agent_stream_impl(
                     continue
                 output_type = item.get("output_type") or "text"
                 payload = item.get("content")
+                if output_type == "image" and isinstance(payload, str):
+                    register_images(STATIC_MESSAGE_IMG_PATH, [payload], dialogue.user_name)
                 if output_type in ["code", "markdown"] and isinstance(payload, str):
                     # Send code and markdown as a single chunk — never split it.
                     raw_chunks.append(step_chunk(step_id, output_type, payload))
@@ -3575,164 +3583,8 @@ async def _react_agent_stream_impl(
         else []
     )
 
-    _todo_action_history: Dict[int, List[str]] = {}
-
-    def _active_todo_index() -> Optional[int]:
-        for idx, item in enumerate(_todo_list):
-            if item.get("status") == "in_progress":
-                return idx
-        return None
-
-    def _normalize_text(value: Optional[str]) -> str:
-        return (value or "").strip().lower()
-
-    def _is_report_like(text: str) -> bool:
-        keywords = [
-            "report",
-            "html",
-            "dashboard",
-            "visual",
-            "visualization",
-            "图表",
-            "报告",
-            "报表",
-            "可视化",
-            "渲染",
-            "展示",
-        ]
-        return any(keyword in text for keyword in keywords)
-
-    def should_advance_todo(
-        action_name: Optional[str],
-        thought: Optional[str] = None,
-        observation_text: Optional[str] = None,
-    ) -> bool:
-        """Heuristically decide whether the current todo is actually complete."""
-        if not _todo_list:
-            return False
-
-        active_idx = _active_todo_index()
-        if active_idx is None:
-            return False
-
-        action_lower = canonical_tool(_normalize_text(action_name))
-        thought_lower = _normalize_text(thought)
-        observation_lower = _normalize_text(observation_text)
-        current_todo = _normalize_text(_todo_list[active_idx].get("content"))
-        next_todo = (
-            _normalize_text(_todo_list[active_idx + 1].get("content"))
-            if active_idx + 1 < len(_todo_list)
-            else ""
-        )
-
-        history = _todo_action_history.setdefault(active_idx, [])
-        if action_lower:
-            history.append(action_lower)
-
-        transition_markers = [
-            "next step",
-            "now i need",
-            "now i should",
-            "now let me",
-            "现在需要",
-            "下一步",
-            "接下来",
-            "然后",
-            "接着",
-            "接下来我将",
-        ]
-        if next_todo and any(marker in thought_lower for marker in transition_markers):
-            if any(token and token in thought_lower for token in next_todo.split()):
-                return True
-
-        if action_lower == "html_interpreter":
-            return True
-
-        if action_lower in {
-            "load_skill",
-            "execute_skill_script",
-            "execute_skill_script_file",
-            "run_skill_script",
-        }:
-            if next_todo and next_todo in thought_lower:
-                return True
-            if _is_report_like(next_todo) and _is_report_like(thought_lower):
-                return True
-
-        if action_lower == "sql_query":
-            sql_calls = sum(1 for item in history if item == "sql_query")
-            if sql_calls < 3:
-                return False
-
-            if next_todo and any(
-                token and token in thought_lower for token in next_todo.split()
-            ):
-                return True
-
-            if _is_report_like(next_todo) and (
-                "summary" in thought_lower
-                or "summarize" in thought_lower
-                or "整理" in thought_lower
-                or "汇总" in thought_lower
-                or "报告" in thought_lower
-            ):
-                return True
-
-            if current_todo and not _is_report_like(current_todo):
-                completion_markers = [
-                    "enough information",
-                    "collected enough",
-                    "gathered enough",
-                    "completed metadata",
-                    "obtained the overview",
-                    "获取了足够",
-                    "已经获取了足够",
-                    "已完成",
-                    "已获取",
-                    "整理一下",
-                ]
-                if any(marker in thought_lower for marker in completion_markers):
-                    return True
-
-            return False
-
-        if action_lower in {"code", "execute_tool", "bash"}:
-            if _is_report_like(current_todo):
-                return False
-            if next_todo and any(
-                token and token in thought_lower for token in next_todo.split()
-            ):
-                return True
-            if observation_lower and _is_report_like(observation_lower):
-                return True
-
-        return False
-
-    def advance_todo_list() -> Optional[List[Dict[str, str]]]:
-        """Advance one todo when the current task appears substantively complete."""
-        if not _todo_list:
-            return None
-
-        changed = False
-        active_idx = _active_todo_index()
-
-        if active_idx is not None:
-            _todo_list[active_idx]["status"] = "completed"
-            changed = True
-            _todo_action_history.pop(active_idx, None)
-            for next_item in _todo_list[active_idx + 1 :]:
-                if next_item.get("status") == "pending":
-                    next_item["status"] = "in_progress"
-                    _todo_action_history.pop(active_idx + 1, None)
-                    break
-        else:
-            for item in _todo_list:
-                if item.get("status") == "pending":
-                    item["status"] = "in_progress"
-                    changed = True
-                    break
-
-        return list(_todo_list) if changed else None
+    # Task state comes from explicit todowrite updates or confirmed delivery.
+    # A thought mentioning the next step is not evidence that analysis finished.
 
     llm_client = DefaultLLMClient(
         CFG.SYSTEM_APP.get_component(
@@ -4440,12 +4292,13 @@ ordering. The registered tools and backend validation remain authoritative.
     from .tools.skill_tools import make_run_skill_script
     from .tools.tool_catalog import consolidate_tools
     from .tools.web_tools import make_web_fetch, make_web_search
+    from .tools.session_evidence import make_session_evidence
 
     if tool_mode != "knowledge" and not dashboard_agent_mode:
         tool_pack = ToolPack(tool_pack.sub_resources + report_tools + [chart_query_tool])
 
     tool_pack = ToolPack(
-        consolidate_tools(tool_pack.sub_resources)
+        consolidate_tools(tool_pack.sub_resources) + [make_session_evidence(react_state)]
         + (
             [make_run_skill_script(react_state), make_web_search(), make_web_fetch()]
             if tool_mode != "knowledge" and not dashboard_agent_mode
@@ -4777,6 +4630,15 @@ or substitute a textual summary for a requested report.
     workflow_prompt += tool_availability_guidance(
         [resource.name for resource in tool_pack.sub_resources], discovery_catalog_names
     )
+    from .tools.session_evidence import inventory_prompt
+
+    prior_inventory = (
+        inventory_prompt(artifact_sink, current_database=database_name)
+        if "session_evidence" in {resource.name for resource in tool_pack.sub_resources}
+        else ""
+    )
+    if prior_inventory:
+        workflow_prompt = prior_inventory + "\n\n" + workflow_prompt
     workflow_prompt_template = build_react_prompt_template(
         workflow_prompt,
         financial_enabled=financial_enabled and not dashboard_agent_mode,
@@ -5690,18 +5552,6 @@ or substitute a textual summary for a requested report.
                     )
             if report_task_completed:
                 yield _sse_event({"type": "plan.update", "tasks": list(_todo_list)})
-            if (
-                status == "done"
-                and action
-                and "generate_report" not in action_names
-                and action.lower() != "todowrite"
-                and should_advance_todo(
-                    action, thought_text or thoughts, observation_text
-                )
-            ):
-                updated_todos = advance_todo_list()
-                if updated_todos and not react_state.get("financial_plan"):
-                    yield _sse_event({"type": "plan.update", "tasks": updated_todos})
             # --- History: finalize step ---
             if current_history_step is not None:
                 current_history_step["status"] = status
@@ -5962,7 +5812,8 @@ or substitute a textual summary for a requested report.
     ):
         if react_state.get("_report_delivery_completed"):
             reconcile_report_delivery(_todo_list, react_state)
-        complete_delivery_task(_todo_list, summary_delivered=True)
+        if complete_delivery_task(_todo_list, summary_delivered=True):
+            yield _sse_event({"type": "plan.update", "tasks": list(_todo_list)})
     # A terminal turn must not leave the UI pretending that analysis is running.
     # Preserve completed work; unfinished objectives are not inferred completed.
     unfinished_plan = react_state.get("financial_plan") or _todo_list
@@ -5975,6 +5826,9 @@ or substitute a textual summary for a requested report.
     lineage_notice = source_lineage_notice(artifact_sink, requested_locale)
     if lineage_notice:
         final_content += "\n\n" + lineage_notice
+    from .generated_images import link_published_images
+
+    final_content = link_published_images(final_content, react_state.get("generated_images", []))
     final_answer = final_answer_assembler.finalize(final_content)
     final_answer = await _finalize_turn_report_persistence(
         dialogue=dialogue,
@@ -6303,6 +6157,27 @@ async def download_agent_file(
         filename=filename,
         media_type="application/octet-stream",
     )
+
+
+@router.api_route("/v1/chat/generated-image/{name}", methods=["GET", "HEAD"])
+async def generated_chat_image(
+    name: str, user_token: UserRequest = Depends(get_user_from_headers),
+):
+    from fastapi.responses import FileResponse
+    from dbgpt.configs.model_config import STATIC_MESSAGE_IMG_PATH
+    from .generated_images import resolve_image
+
+    try:
+        path = await run_in_threadpool(
+            resolve_image, STATIC_MESSAGE_IMG_PATH, name,
+            user_token.user_id if user_token else None,
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(path, headers={
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+    })
 
 
 @router.get("/v1/agent/skills/download")

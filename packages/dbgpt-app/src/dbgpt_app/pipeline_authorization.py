@@ -78,6 +78,13 @@ _ADMIN_MODEL_PATHS = {
 def authorize_pipeline_request(actor: PipelineActor, scope: dict) -> bool:
     method = scope.get("method")
     path = scope.get("path", "")
+    if actor.role in ("analyst", "super_admin") and method in ("GET", "HEAD") and path.startswith(
+        "/api/v1/chat/generated-image/"
+    ):
+        from .openapi.api_v1.generated_images import IMAGE_NAME
+
+        # The handler additionally verifies generated-image conversation ownership.
+        return bool(IMAGE_NAME.fullmatch(path.removeprefix("/api/v1/chat/generated-image/")))
     if module_request_allowed(actor.role, method, path):
         return True
     if actor.role in ("analyst", "super_admin") and (

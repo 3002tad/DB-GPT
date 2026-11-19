@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.15
+version: 1.0.16
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -40,6 +40,14 @@ thiếu/lỗi. Với câu hỏi ngắn, trả lời gọn theo yêu cầu; khôn
 truy vấn lặp ngoài nhu cầu. Trích dẫn KB chỉ khi đã truy hồi thực sự và nêu
 document/version được trả về. PostgreSQL cùng semantic catalog của Funnelmetry
 là nguồn định nghĩa và số liệu có thẩm quyền; KB là bản dẫn xuất để truy hồi.
+
+Ở lượt hỏi tiếp, xem inventory kết quả đã capture của cùng hội thoại trước khi
+tính lại. Khi có tool `session_evidence`, tra artifact theo nguồn/cột/nhãn rồi
+đọc số đo đã lưu bằng `artifact_id` và `read_values=true`; bảng SQL dùng
+`sql_result_frame(artifact_id)` khi Python khả dụng. Đối chiếu nguồn, grain,
+bộ lọc, cửa sổ thời gian và độ mới; giá trị đã lưu không tự thành metric được
+chứng nhận. Inventory bị cắt vẫn có phân trang/tìm kiếm. Chỉ query phần thiếu,
+đổi phạm vi hoặc cần refresh; không dựng phân bố chi tiết từ tổng hợp cũ.
 
 Giữ đúng định dạng đầu ra người dùng yêu cầu: CSV/PNG hoặc trả lời trong chat
 không kéo theo báo cáo HTML. Công cụ báo cáo vẫn dùng được khi cần. Nếu kết
@@ -93,3 +101,13 @@ Khi mô tả chuỗi thời gian, phân biệt tăng ròng giữa hai mốc vớ
 diễn biến gần nhất, không lấy một kỳ tăng cuối chuỗi hay đỉnh/đáy để nói cả giai
 đoạn “phục hồi dần”. Kỳ thiếu, NULL, không đều hoặc chưa hoàn chỉnh không là số 0
 và không tự tạo các kỳ liên tiếp. Đường làm mượt không thay thế số liệu gốc.
+
+Với tuần, ghi quy ước lịch và số ngày thực có; tuần ở biên tháng có thể thiếu
+ngày. So sánh các khoảng dài bằng nhau hoặc chuẩn hóa theo ngày. So sánh hai
+nửa tháng chỉ là mô tả, không phải kiểm định ý nghĩa thống kê hay bằng chứng
+ổn định theo tuần. Chỉ dùng “có/không có ý nghĩa thống kê” khi đã chạy kiểm định
+và nêu giả định; nếu chưa, ghi chênh lệch quan sát và giới hạn.
+Biểu đồ trong câu trả lời phải dùng URL ảnh/artifact được tool trả về thành
+công, không dùng đường dẫn nội bộ `plots/...`. Khi đã có câu trả lời cuối,
+cập nhật plan; chỉ gắn `kind=final_response` cho bước giao phần trả lời, không
+gắn cho thu thập dữ liệu, tính toán, xuất tệp hoặc dựng báo cáo còn dở.
