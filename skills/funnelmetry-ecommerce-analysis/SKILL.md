@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.16
+version: 1.0.17
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -111,3 +111,12 @@ Biểu đồ trong câu trả lời phải dùng URL ảnh/artifact được too
 công, không dùng đường dẫn nội bộ `plots/...`. Khi đã có câu trả lời cuối,
 cập nhật plan; chỉ gắn `kind=final_response` cho bước giao phần trả lời, không
 gắn cho thu thập dữ liệu, tính toán, xuất tệp hoặc dựng báo cáo còn dở.
+
+Trước khi diễn giải, dùng SQL/Python trên bằng chứng đã capture để tính cả tỷ lệ,
+hiệu, phần bù và so sánh; không tự tính nhẩm số mới trong câu trả lời. Ghi đúng
+tử số/mẫu số và grain: “có xem sản phẩm” không đồng nghĩa “không xem sản phẩm”.
+Checkout bắt đầu không chứng minh khách bỏ checkout. Với giờ/ngày trong tuần,
+nêu kiểu timestamp và timezone cho cả lọc lẫn nhóm; không gọi giờ UTC là giờ
+Việt Nam. Nếu đổi timezone, đổi cả biên khoảng thời gian cho nhất quán. Khi các
+khung giờ dài khác nhau, báo tổng số cùng số giờ hoặc tần suất mỗi giờ; tổng cao
+nhất chưa chắc có mật độ cao nhất.

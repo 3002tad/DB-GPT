@@ -1,6 +1,7 @@
 """Lossless prompt projection helpers; counts are characters, never token usage."""
 import copy
 import json
+import re
 from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
@@ -12,8 +13,34 @@ Before each group of calls, write a short public progress message in the user's
 language explaining the action and next step. Keep private reasoning in the
 thinking channel. Use intention for a short public explanation. Write ordinary
 prose without Thought, Action or Action Input protocol labels. Do not return
-only reasoning or merely describe an intended call. When finished, call terminate
-with the final answer in output."""
+only reasoning or merely describe an intended call. When finished, prefer calling
+terminate with the final answer in output. A complete public answer without tool
+calls also ends the turn; it does not certify unfinished work or missing evidence."""
+
+
+def native_public_answer(response: Any) -> str:
+    """Recognize provider public text, never private reasoning or broken calls.
+
+    Missing finish_reason is supported by older provider adapters. Explicit
+    non-stop finish reasons must not turn truncated/filtered output into success.
+    This is a transport check, not a classifier of the user's business question.
+    """
+    if (
+        not response
+        or not getattr(response, "has_text", False)
+        or getattr(response, "error_code", 0)
+        or getattr(response, "tool_calls", None)
+        or getattr(response, "finish_reason", None) not in (None, "stop", "end_turn")
+    ):
+        return ""
+    text = (response.text or "").strip()
+    if re.search(
+        r"(?im)^\s*(?:Thought|Action|Action Input|Observation)\s*:"
+        r"|<\s*/?\s*(?:think|tool_call|function_call)\b",
+        text,
+    ):
+        return ""
+    return text
 
 
 def project_history_roles(messages: List["AgentMessage"]) -> List["AgentMessage"]:

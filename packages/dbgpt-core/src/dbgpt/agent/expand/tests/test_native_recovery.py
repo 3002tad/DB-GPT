@@ -13,9 +13,89 @@ from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
 from dbgpt.agent.expand.actions.tool_action import ToolCallSpec, run_tools_batch
 from dbgpt.agent.expand.tool_recovery import observe_action_results, observe_tool_result
 from dbgpt.agent.util.llm.llm import LLMStrategyType
+from dbgpt.agent.expand.prompt_payload import native_public_answer
 
 
 class NativeRecoveryTest(unittest.TestCase):
+    def test_public_answer_uses_only_completed_public_provider_output(self):
+        def response(**overrides):
+            return SimpleNamespace(**dict(
+                {"has_text": True, "text": "Kết quả phân tích.", "error_code": 0,
+                 "finish_reason": "stop", "tool_calls": None}, **overrides
+            ))
+
+        self.assertEqual(native_public_answer(response()), "Kết quả phân tích.")
+        self.assertTrue(native_public_answer(response(finish_reason=None)))
+        for output in (
+            response(has_text=False, text="", reasoning_content="private answer"),
+            response(finish_reason="length"),
+            response(finish_reason="content_filter"),
+            response(finish_reason="tool_calls"),
+            response(error_code=1),
+            response(tool_calls=[{"function": {"name": "sql_query", "arguments": "{"}}]),
+            response(text="Thought: private reasoning"),
+            response(text='Action: sql_query\nAction Input: {}'),
+            response(text='<tool_call>{}</tool_call>'),
+            response(text='<think>private</think>'),
+        ):
+            with self.subTest(output=output):
+                self.assertEqual(native_public_answer(output), "")
+
+    def test_native_public_final_is_delivered_once_without_certifying_plan(self):
+        state = {"_ui_locale": "vi", "_native_invalid_call_count": 2,
+                 "_native_retry_requires_tool_call": True,
+                 "pending_plan": ["unfinished analysis"]}
+        agent = SimpleNamespace(
+            agent_context=AgentContext(conv_id="native-final", enable_native_function_calling=True),
+            _report_repair_state=state, _pending_native_tool_calls=None,
+            _pending_native_public_answer="Kết quả phân tích.",
+            parser=SimpleNamespace(parse_current_step=lambda _: []),
+        )
+        agent._apply_report_result = lambda *args: ToolCallingReActAgent._apply_report_result(agent, *args)
+        message = AgentMessage(content="Kết quả phân tích.")
+        first = asyncio.run(ToolCallingReActAgent.act(agent, message, sender=None))
+        self.assertTrue(first.terminate)
+        self.assertTrue(first.is_exe_success)
+        self.assertEqual(first.content, message.content)
+        self.assertEqual(state["_final_delivery_origin"], "native_public_text")
+        self.assertEqual(state["pending_plan"], ["unfinished analysis"])
+        self.assertFalse(state["_native_retry_requires_tool_call"])
+        second = asyncio.run(ToolCallingReActAgent.act(agent, message, sender=None))
+        self.assertFalse(second.is_exe_success)
+
+    def test_history_or_mismatched_message_cannot_be_promoted_to_final(self):
+        agent = SimpleNamespace(
+            agent_context=AgentContext(conv_id="native-final", enable_native_function_calling=True),
+            _report_repair_state={}, _pending_native_tool_calls=None,
+            _pending_native_public_answer="different provider answer",
+            parser=SimpleNamespace(parse_current_step=lambda _: []),
+        )
+        agent._apply_report_result = lambda *args: ToolCallingReActAgent._apply_report_result(agent, *args)
+        output = asyncio.run(ToolCallingReActAgent.act(
+            agent, AgentMessage(content="historical prose"), sender=None,
+        ))
+        self.assertFalse(output.is_exe_success)
+        self.assertFalse(output.terminate)
+
+    def test_real_protocol_failure_is_classified_and_localized(self):
+        for locale in ("vi", "en"):
+            agent = SimpleNamespace(
+                _report_repair_state={"_ui_locale": locale},
+                _pending_native_tool_calls=None,
+                agent_context=AgentContext(conv_id="bad-call", enable_native_function_calling=True),
+            )
+            for _ in range(3):
+                output = ToolCallingReActAgent._apply_report_result(
+                    agent, ActionOutput(is_exe_success=False,
+                        content="No valid ReAct step or native tool call found."),
+                    AgentMessage(content="bad protocol"), 0,
+                )
+            self.assertFalse(output.have_retry)
+            self.assertIn("TOOL_PROTOCOL_RETRY_EXHAUSTED [MISSING_ACTION]", output.content)
+            self.assertNotRegex(output.content, r"[\u4e00-\u9fff]")
+            if locale == "vi":
+                self.assertIn("Không thể", output.content)
+
     def test_missing_datasource_single_result_recovers_by_error_across_changed_sql(self):
         state = {}
         error = json.dumps({"success": False, "error_code": "SQL_DATASOURCE_REQUIRED"})
@@ -109,12 +189,13 @@ class NativeRecoveryTest(unittest.TestCase):
             {"pairs": [{"question": "Period and ranking?", "answer": "Q3/2026; top 20 by order count"}]}
         ]}
         captured = {}
+        provider_output = SimpleNamespace(has_text=False, text="", tool_calls=[
+            {"function": {"name": "terminate", "arguments": '{"output":"done"}'}}
+        ])
 
         async def create_with_output(**kwargs):
             captured.update(kwargs)
-            return SimpleNamespace(has_text=False, text="", tool_calls=[
-                {"function": {"name": "terminate", "arguments": '{"output":"done"}'}}
-            ])
+            return provider_output
 
         agent = SimpleNamespace(
             _report_repair_state=state,
@@ -141,6 +222,18 @@ class NativeRecoveryTest(unittest.TestCase):
         self.assertNotIn("", [m.get("content") for m in captured["messages"]])
         self.assertIn("Q3/2026; top 20 by order count", captured["messages"][0]["content"])
         self.assertEqual(1, captured["messages"][0]["content"].count("Confirmed user clarification answers"))
+        self.assertEqual(agent._pending_native_public_answer, "")
+        # Actual provider prose becomes eligible without turning thinking into
+        # public content or changing auto tool choice. The next response resets it.
+        provider_output = SimpleNamespace(has_text=True, text="Đã phân tích.",
+                                          tool_calls=None, finish_reason="stop")
+        asyncio.run(ToolCallingReActAgent._thinking_native(agent, messages))
+        self.assertEqual(agent._pending_native_public_answer, "Đã phân tích.")
+        self.assertIsNone(agent._pending_native_tool_calls)
+        provider_output = SimpleNamespace(has_text=False, text="", tool_calls=None,
+                                          reasoning_content="private")
+        asyncio.run(ToolCallingReActAgent._thinking_native(agent, messages))
+        self.assertEqual(agent._pending_native_public_answer, "")
 
     def test_selected_model_remains_pinned_on_retry(self):
         class FakeAgent:

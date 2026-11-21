@@ -47,7 +47,7 @@ from .react_agent import (
     _REACT_WRITE_MEMORY_TEMPLATE,
     ReActAgent,
 )
-from .prompt_payload import NATIVE_TOOL_PROTOCOL, native_request_shape
+from .prompt_payload import NATIVE_TOOL_PROTOCOL, native_public_answer, native_request_shape
 
 logger = logging.getLogger(__name__)
 
@@ -535,6 +535,19 @@ class ToolCallingReActAgent(ReActAgent):
                 handled_calls_before,
             )
         if native_enabled and not getattr(self, "_pending_native_tool_calls", None):
+            # Consume only the public output of this exact provider response.
+            # Historical prose, private thinking and incomplete tool calls cannot
+            # enter this path. Normal verification still runs after act().
+            public_answer = getattr(self, "_pending_native_public_answer", "")
+            object.__setattr__(self, "_pending_native_public_answer", "")
+            if public_answer and public_answer == (message.content or "").strip():
+                report_state["_final_delivery_origin"] = "native_public_text"
+                return self._apply_report_result(
+                    ActionOutput(
+                        is_exe_success=True, terminate=True, content=public_answer,
+                    ),
+                    message, attempts_before, handled_calls_before,
+                )
             steps = self.parser.parse_current_step(message.content or "")
             if not steps or not all(step.action for step in steps):
                 output = ActionOutput(
@@ -715,11 +728,23 @@ class ToolCallingReActAgent(ReActAgent):
                 state["_native_retry_requires_tool_call"] = False
         if failures >= 3:
             output.have_retry = False
-            output.content = (
-                "TOOL_PROTOCOL_RETRY_EXHAUSTED: "
-                "模型连续三次未提交完整的工具调用参数，"
-                "本次执行已停止；已生成的数据和草稿保留，尚未完成的复核不会自动通过。"
+            detail = output.content or ""
+            failure_kind = (
+                "MISSING_ACTION" if "No valid ReAct step" in detail
+                else "INVALID_TOOL_ARGUMENTS" if "TOOL_ARGUMENT_INVALID" in detail
+                else "INVALID_ACTION_FORMAT"
             )
+            state["_tool_protocol_failure_kind"] = failure_kind
+            explanation = (
+                "Không thể thực thi phản hồi sau ba lần sửa giao thức. "
+                "Dữ liệu và bản nháp đã tạo được giữ lại; công việc và kiểm tra "
+                "chưa hoàn tất vẫn chưa được xác nhận."
+                if str(state.get("_ui_locale", "en")).lower().startswith("vi")
+                else "The response could not be executed after three protocol repairs. "
+                "Saved data and drafts are retained; unfinished work and checks "
+                "remain unconfirmed."
+            )
+            output.content = f"TOOL_PROTOCOL_RETRY_EXHAUSTED [{failure_kind}]: {explanation}"
             output.observations = output.content
         return output
 
@@ -829,6 +854,7 @@ class ToolCallingReActAgent(ReActAgent):
         """Native function-calling thinking loop (mirrors base thinking retries)."""
         tools = self._build_native_tools()
         object.__setattr__(self, "_pending_native_tool_calls", None)
+        object.__setattr__(self, "_pending_native_public_answer", "")
         last_model = None
         last_err = None
         retry_count = 0
@@ -1001,6 +1027,9 @@ class ToolCallingReActAgent(ReActAgent):
                 # syntax and can contain examples or incomplete action names.
                 text = (response.text or "") if response and response.has_text else ""
                 tool_calls = getattr(response, "tool_calls", None) or None
+                object.__setattr__(
+                    self, "_pending_native_public_answer", native_public_answer(response)
+                )
                 if tool_calls:
                     object.__setattr__(self, "_pending_native_tool_calls", tool_calls)
                     if stream_callback:

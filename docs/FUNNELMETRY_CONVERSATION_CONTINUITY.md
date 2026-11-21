@@ -457,3 +457,24 @@ Reuse is an informed Agent choice, not a SQL cache or execution gate. No prior
 narrative becomes evidence and no old observation is silently refreshed. Source
 regression and read-only real-catalog checks pass; model behavior and token
 savings require evaluation after deployment.
+
+## Native public final responses
+
+With native `tool_choice=auto`, a provider may finish with public text and no
+tool calls. The current response is retained ephemerally and consumed once by
+`act()` only when its text matches the message being executed. It follows the
+ordinary final-answer verification path; no synthetic provider tool call is
+recorded. This ends the turn, not a certification of claims or pending plan work.
+
+Private reasoning, explicit ReAct/tool-call wrappers, errored responses and
+explicit non-stop finish reasons (including length/filter termination) cannot
+use this path. A new model request clears the previous candidate. Legacy
+adapters without finish_reason remain supported. Valid native calls still take
+precedence over accompanying prose. Actual protocol failures retain bounded
+repair, a failure category and a Vietnamese/English terminal explanation.
+
+Interpretation guidance also requires computed ratios/complements, declared
+timezone for filtering and grouping, duration-aware hourly comparisons, and
+separation of checkout starts from abandonment. These instructions do not act as
+a SQL gate or certify LLM arithmetic. Regression and saved-output replay cover
+delivery; a model evaluation is still required for explanation quality.
