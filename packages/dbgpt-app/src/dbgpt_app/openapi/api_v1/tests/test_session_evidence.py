@@ -185,17 +185,26 @@ def test_unavailable_catalog_does_not_block_analysis():
     assert json.loads(make_session_evidence({})())['status'] == 'unavailable'
 
 
-def test_production_prefix_is_added_after_mode_selection_before_template_rendering():
+def test_production_progress_is_live_and_does_not_inject_duplicate_static_inventory():
     source = Path(__file__).parents[1] / 'agentic_data_api.py'
     tree = ast.parse(source.read_text(encoding='utf-8'))
     fn = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == '_react_agent_stream_impl')
-    start = next(i for i, n in enumerate(fn.body) if isinstance(n, ast.Assign)
-                 and any(isinstance(t, ast.Name) and t.id == 'prior_inventory' for t in n.targets))
-    context = {'workflow_prompt': 'Selected skill, KB and current task', 'artifact_sink': object(),
-               'database_name': 'selected', 'inventory_prompt': lambda *_a, **_k: 'Prior evidence',
-               'tool_pack': SimpleNamespace(sub_resources=[SimpleNamespace(name='session_evidence')])}
-    exec(compile(ast.Module(body=fn.body[start:start + 2], type_ignores=[]), str(source), 'exec'), context)
-    assert context['workflow_prompt'] == 'Prior evidence\n\nSelected skill, KB and current task'
-    context.update(workflow_prompt='Greeting or constrained mode', tool_pack=SimpleNamespace(sub_resources=[]))
-    exec(compile(ast.Module(body=fn.body[start:start + 2], type_ignores=[]), str(source), 'exec'), context)
-    assert context['workflow_prompt'] == 'Greeting or constrained mode'
+    start = next(i for i, n in enumerate(fn.body) if isinstance(n, ast.FunctionDef) and n.name == 'analysis_progress')
+    tasks = [{"content": "requested count", "status": "pending"}]
+    context = {"workflow_prompt": "Selected skill, KB and current task", "artifact_sink": object(),
+               "database_name": "selected", "_todo_list": tasks, "react_state": {}, "greeting": False,
+               "evidence_page": lambda *_a, **_k: {"total": 0, "artifacts": []},
+               "tool_pack": SimpleNamespace(sub_resources=[SimpleNamespace(name='session_evidence')])}
+    code = compile(ast.Module(body=fn.body[start:start + 2], type_ignores=[]), str(source), 'exec')
+    exec(code, context)
+    provider = context['react_state']['_analysis_progress_provider']
+    assert provider()['tasks'][0]['status'] == 'pending'
+    tasks[0]['status'] = 'completed'
+    assert provider()['tasks'][0]['status'] == 'completed'
+    assert context['workflow_prompt'] == 'Selected skill, KB and current task'
+    context.update(react_state={}, tool_pack=SimpleNamespace(sub_resources=[]))
+    exec(code, context)
+    assert not context['react_state']
+    context.update(greeting=True, tool_pack=SimpleNamespace(sub_resources=[SimpleNamespace(name='session_evidence')]))
+    exec(code, context)
+    assert not context['react_state']

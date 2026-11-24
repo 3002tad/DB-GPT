@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import useChat from './use-chat';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 const transport = vi.hoisted(() => ({ calls: [] as { url: string; options: any }[] }));
 vi.mock('@/utils', () => ({ getUserId: () => 'test-user' }));
@@ -27,6 +28,37 @@ const failure = {
   stage_label: '生成批注修改提案',
   retry_hint: '本轮已停止；重新发起本次操作。',
 };
+
+it('accepts SSE content type with charset and rejects JSON/HTTP failures without false success', async () => {
+  const view = renderHook(() => useChat({}));
+  const onMessage = vi.fn(), onDone = vi.fn(), onError = vi.fn();
+  await act(() => view.result.current.chat({ chatId: 'C', data: { user_input: 'ask' }, onMessage, onDone, onError }));
+  await expect(transport.calls[0].options.onopen(new Response(null, {
+    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+  }))).resolves.toBeUndefined();
+  for (const status of [200, 403]) {
+    vi.mocked(fetchEventSource).mockImplementationOnce(async (_url, options) => {
+      await options!.onopen!(new Response(JSON.stringify({ success: false, err_msg: 'Permission denied' }), {
+        status, headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      }));
+    });
+    await act(() => view.result.current.chat({ chatId: 'C', data: { user_input: 'ask' }, onMessage, onDone, onError }));
+  }
+  expect(onMessage).not.toHaveBeenCalled();
+  expect(onDone).not.toHaveBeenCalled();
+  expect(onError).toHaveBeenCalledTimes(2);
+  expect(onError.mock.calls[0][0]).toBe('Permission denied');
+});
+
+it('reports incomplete Agent transport closure instead of successful completion', async () => {
+  const view = renderHook(() => useChat({}));
+  const onMessage = vi.fn(), onDone = vi.fn(), onError = vi.fn();
+  await act(() => view.result.current.chat({ chatId: 'C', data: { user_input: 'ask' }, onMessage, onDone, onError }));
+  act(() => transport.calls[0].options.onclose());
+  emit({ type: 'done' });
+  expect(onError).toHaveBeenCalledOnce();
+  expect(onDone).not.toHaveBeenCalled();
+});
 
 it('selects the registered ReAct endpoint and preserves user/model/data-source binding', async () => {
   const view = renderHook(() => useChat({}));

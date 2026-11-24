@@ -1,4 +1,5 @@
-import { ChatEn } from '../en/chat';
+import {
+ ChatEn } from '../en/chat';
 
 type I18nKeys = keyof typeof ChatEn;
 
@@ -7,6 +8,11 @@ export interface Resources {
 }
 
 export const ChatZh: Resources['translation'] = {
+  chat_stream_incomplete: "连接在任务完成前结束，已保存的结果仍保留。",
+  taskflow_generation_failed: "生成失败。",
+  taskflow_request_missing: "已保存的生成请求不可用，请刷新流程。",
+  taskflow_run_failed: "试运行未成功。",
+  taskflow_run_incomplete: "连接在完成前中断，请先检查已保存的状态。",
   dialog_list: '对话列表',
   delete_chat: '删除会话',
   delete_chat_confirm: '您确认要删除会话吗？',
@@ -521,6 +527,7 @@ export const ChatZh: Resources['translation'] = {
   qa_result_chip: '结果',
   qa_result_title: '查询结果 · {{count}} 行',
   qa_preview_note: '仅显示前 {{count}} 行 · 导出获取全量',
+  qa_columns_truncated: "结果仅包含 {{count}} 列中的 {{kept}} 列，导出也仅包含这些列。",
   qa_truncated_note: '结果已截断至前 {{kept}} 行（共 {{count}} 行）',
   qa_intermediate_queries: '中间查询 · {{count}}',
   qa_export_csv: '导出 CSV',
@@ -558,6 +565,7 @@ export const ChatZh: Resources['translation'] = {
   timeline_thinking_dots: '思考中…',
   timeline_thinking_running: '思考中',
   timeline_thinking: '思考',
+  timeline_elapsed_hint: "步骤耗时包含编排和传输，并非 SQL 执行耗时。",
   timeline_status_failed: '失败',
   rail_groups_count: '{{count}} 组',
   timeline_read_skill: '读取技能',

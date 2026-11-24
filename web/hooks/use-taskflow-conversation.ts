@@ -1,3 +1,4 @@
+import i18n from '@/app/i18n';
 import { generationApi } from '@/client/api/taskflow-generation';
 import type { EditingSnapshot, GenerationRequest, GenerationSession } from '@/types/taskflow-generation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,51 +22,83 @@ export function useTaskflowConversation(
   const initialize = useRef<Promise<GenerationSession> | null>(null);
   const syncQueue = useRef<Promise<unknown>>(Promise.resolve());
   const mounted = useRef(true);
+  const scope = useRef(storageKey);
+  scope.current = storageKey;
+  const pollEpoch = useRef(0);
+  const submitting = useRef(false);
+  const sessionKey = useRef(storageKey);
+  const assertActive = useCallback(() => {
+    if (!mounted.current || scope.current !== storageKey) throw new Error('Generation session changed');
+  }, [storageKey]);
+  const storage = (operation: 'get' | 'set' | 'remove', key: string, value = '') => {
+    try {
+      if (operation === 'get') return localStorage.getItem(key);
+      if (operation === 'set') localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    } catch { /* Session remains usable without browser persistence. */ }
+    return null;
+  };
   const activePoll = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSnapshotRef = useRef(onSnapshot);
   onSnapshotRef.current = onSnapshot;
 
   const accept = useCallback(
     (state: GenerationSession, apply = false) => {
+      assertActive();
       current.current = state;
       if (mounted.current) {
         setSession(state);
         if (apply) onSnapshotRef.current(state.snapshot);
       }
-      localStorage.setItem(storageKey, state.session_id);
+      storage('set', storageKey, state.session_id);
       if (state.snapshot.meta.uid)
-        localStorage.setItem(`taskflow-session:${state.snapshot.meta.uid}`, state.session_id);
+        storage('set', `taskflow-session:${state.snapshot.meta.uid}`, state.session_id);
       return state;
     },
-    [storageKey],
+    [storageKey, assertActive],
   );
 
   const ensure = useCallback(async () => {
+    assertActive();
+    if (sessionKey.current !== storageKey) {
+      sessionKey.current = storageKey;
+      current.current = null;
+      initialize.current = null;
+      syncQueue.current = Promise.resolve();
+      pollEpoch.current++;
+      if (activePoll.current) clearTimeout(activePoll.current);
+      submitting.current = false;
+      resumed.current = false;
+      setSession(null); setBusy(false); setError(null);
+    }
     if (current.current) return current.current;
     if (!initialize.current) {
       initialize.current = (async () => {
-        const sid = localStorage.getItem(storageKey);
+        const baseline = JSON.stringify(latest.current);
+        const sid = storage('get', storageKey);
         if (sid) {
           try {
-            return accept(await generationApi(`/${sid}`, undefined, 'GET'), true);
+            return accept(await generationApi(`/${sid}`, undefined, 'GET'), JSON.stringify(latest.current) === baseline);
           } catch (err: any) {
             // Only a missing/deleted session is safe to replace.
-            if (!err.message.includes('不存在')) throw err;
-            localStorage.removeItem(storageKey);
+            if (err.status !== 404 && err.code !== 'NOT_FOUND') throw err;
+            storage('remove', storageKey);
           }
         }
+        assertActive();
         const state = await generationApi(
           '',
           latest.current.meta.uid ? { flow_uid: latest.current.meta.uid } : { snapshot: latest.current },
         );
-        return accept(state, true);
+        return accept(state, JSON.stringify(latest.current) === baseline);
       })();
-      initialize.current.catch(() => {
-        initialize.current = null;
+      const pending = initialize.current;
+      pending.catch(() => {
+        if (initialize.current === pending) initialize.current = null;
       });
     }
     return initialize.current;
-  }, [accept, storageKey]);
+  }, [accept, storageKey, assertActive]);
 
   const sync = useCallback(async () => {
     const operation = syncQueue.current
@@ -89,33 +122,43 @@ export function useTaskflowConversation(
   }, [ensure, accept]);
 
   useEffect(() => {
-    if (enabled) void ensure().catch(err => setError(err.message));
-  }, [enabled, ensure]);
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      pollEpoch.current++;
+      if (activePoll.current) clearTimeout(activePoll.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (enabled) void ensure().catch(err => { if (mounted.current && scope.current === storageKey) setError(err.message); });
+  }, [enabled, ensure, storageKey]);
 
   const serialized = JSON.stringify(snapshot);
   const hasSession = !!session;
   useEffect(() => {
     if (!enabled || !hasSession) return;
     const timer = setTimeout(() => {
-      void sync().catch(err => setError(err.message));
+      void sync().catch(err => { if (mounted.current && scope.current === storageKey) setError(err.message); });
     }, 450);
     return () => clearTimeout(timer);
-  }, [serialized, enabled, hasSession, sync]);
+  }, [serialized, enabled, hasSession, sync, storageKey]);
 
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      if (activePoll.current) clearTimeout(activePoll.current);
-    };
-  }, []);
+
 
   const poll = useCallback(
     (sid: string, rid: string, baseSnapshot: string) => {
+      const epoch = ++pollEpoch.current;
+      if (activePoll.current) clearTimeout(activePoll.current);
+      let failures = 0;
+      const valid = () => mounted.current && scope.current === storageKey && pollEpoch.current === epoch;
       const check = async () => {
-        if (!mounted.current) return;
+        if (!valid()) return;
+        activePoll.current = null;
         try {
           const state = await generationApi(`/${sid}`, undefined, 'GET');
+          if (!valid()) return;
+          failures = 0; setError(null);
           const request = state.requests[rid];
           const apply =
             request?.status === 'succeeded' &&
@@ -126,23 +169,29 @@ export function useTaskflowConversation(
             activePoll.current = setTimeout(check, 900);
           } else {
             setBusy(false);
-            if (request?.status === 'failed') setError(request.error || '生成失败');
+            if (request?.status === 'failed') setError(request.error || i18n.t('taskflow_generation_failed', { defaultValue: 'Generation failed' }));
+            if (!request) setError(i18n.t('taskflow_request_missing', { defaultValue: 'The saved generation request is unavailable. Refresh this flow.' }));
           }
         } catch (err: any) {
+          if (!valid()) return;
           setError(err.message);
+          if ([401, 403, 404].includes(err.status) || ['NOT_FOUND', 'UNAUTHORIZED', 'PERMISSION_DENIED'].includes(err.code)) {
+            setBusy(false); return;
+          }
+          failures++;
           // Query the original request after a transient disconnect; never submit
           // another generation implicitly.
-          activePoll.current = setTimeout(check, 2500);
+          activePoll.current = setTimeout(check, Math.min(30000, 2500 * 2 ** Math.min(failures - 1, 4)));
         }
       };
       void check();
     },
-    [accept],
+    [accept, storageKey],
   );
 
   const resumed = useRef(false);
   useEffect(() => {
-    if (!session || resumed.current) return;
+    if (!session || resumed.current || session.session_id !== current.current?.session_id) return;
     resumed.current = true;
     const req = Object.values(session.requests).find(item => item.status === 'running');
     if (req) {
@@ -160,10 +209,13 @@ export function useTaskflowConversation(
       answers: Record<string, string>,
       selectedId: string | null,
     ) => {
+      if (submitting.current || busy) return false;
+      submitting.current = true;
       setBusy(true);
       setError(null);
       try {
         const state = await sync();
+        assertActive();
         const baseSnapshot = JSON.stringify(latest.current);
         const request = await generationApi<GenerationRequest>(`/${state.session_id}/messages`, {
           client_message_id: crypto.randomUUID(),
@@ -175,15 +227,17 @@ export function useTaskflowConversation(
           replace_candidate: replace,
           scope: local ? { type: 'nodes', node_ids: [selectedId] } : { type: 'flow' },
         });
+        assertActive();
         poll(state.session_id, request.request_id, baseSnapshot);
         return true;
       } catch (err: any) {
-        setError(err.message);
-        setBusy(false);
+        if (mounted.current && scope.current === storageKey) { setError(err.message); setBusy(false); }
         return false;
+      } finally {
+        if (scope.current === storageKey) submitting.current = false;
       }
     },
-    [sync, poll],
+    [sync, poll, assertActive, storageKey, busy],
   );
 
   const action = useCallback(
@@ -193,6 +247,10 @@ export function useTaskflowConversation(
       try {
         const state = name === 'cancel' ? await ensure() : await sync();
         const active = Object.values(state.requests).find(req => req.status === 'running');
+        if (name === 'cancel' && !active) { setBusy(false); return; }
+        if ((name === 'apply' || name === 'discard') && !state.candidate) {
+          setBusy(false); return;
+        }
         const path =
           name === 'cancel'
             ? `/requests/${active?.request_id}/cancel`
@@ -201,24 +259,27 @@ export function useTaskflowConversation(
               : `/candidates/${state.candidate?.candidate_id}/${name}`;
         const baseSnapshot = JSON.stringify(latest.current);
         const result = await generationApi(`/${state.session_id}${path}`, {});
+        assertActive();
+        if (name === 'cancel') { pollEpoch.current++; if (activePoll.current) clearTimeout(activePoll.current); }
         accept(result, (name === 'apply' || name === 'undo') && JSON.stringify(latest.current) === baseSnapshot);
       } catch (err: any) {
-        setError(err.message);
+        if (mounted.current && scope.current === storageKey) setError(err.message);
       } finally {
-        setBusy(false);
+        if (mounted.current && scope.current === storageKey) setBusy(false);
       }
     },
-    [ensure, sync, accept],
+    [ensure, sync, accept, storageKey, assertActive],
   );
 
   const save = useCallback(
     async (publish: boolean) => {
       const state = await sync();
+      const baseline = JSON.stringify(latest.current);
       const result = await generationApi(`/${state.session_id}/save`, {
         expected_draft_revision: state.draft_revision,
         publish,
       });
-      accept(result, true);
+      accept(result, JSON.stringify(latest.current) === baseline);
       return result;
     },
     [sync, accept],

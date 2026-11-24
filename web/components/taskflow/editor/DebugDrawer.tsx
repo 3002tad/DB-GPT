@@ -32,6 +32,7 @@ const DebugDrawer: React.FC<{
   // Debug-local model selection: defaults to the globally selected model but
   // can be overridden per debug run without changing the global choice.
   const [debugModel, setDebugModel] = useState<string>(model);
+  const effectiveModel = modelList.includes(debugModel) ? debugModel : modelList.includes(model) ? model : modelList[0] || '';
   useEffect(() => {
     if (model && model !== debugModel) setDebugModel(model);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,7 +59,12 @@ const DebugDrawer: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
-  useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(() => () => {
+    controllerRef.current?.abort(); controllerRef.current = null;
+  }, []);
+  useEffect(() => {
+    if (!open) { controllerRef.current?.abort(); controllerRef.current = null; setRunning(false); }
+  }, [open]);
 
   const steps = useMemo<DebugStep[]>(() => {
     const markerMap = new Map(markers.map(m => [m.step_id, m]));
@@ -80,8 +86,9 @@ const DebugDrawer: React.FC<{
   }, [dslNodes, markers, running]);
 
   const handleRun = async () => {
+    if (controllerRef.current) return;
     const payload = buildPayload();
-    if (!payload || !question.trim()) return;
+    if (!payload || !question.trim() || !effectiveModel) return;
     setRunning(true);
     setAnswer('');
     setSections([]);
@@ -92,6 +99,7 @@ const DebugDrawer: React.FC<{
     controllerRef.current = controller;
     try {
       const runContext = prepareRun ? await prepareRun() : null;
+      controller.signal.throwIfAborted();
       const endpoint = runContext
         ? `/api/v2/serve/awel/taskflow/generation-sessions/${runContext.sessionId}/debug`
         : '/api/v2/serve/awel/flow/debug';
@@ -102,13 +110,13 @@ const DebugDrawer: React.FC<{
           runContext
             ? {
                 expected_draft_revision: runContext.revision,
-                model: debugModel,
+                model: effectiveModel,
                 question,
               }
             : {
                 flow: payload,
                 request: {
-                  model: debugModel,
+                  model: effectiveModel,
                   messages: question,
                   stream: false,
                   conv_uid: `taskflow-debug-${Date.now()}`,
@@ -129,10 +137,10 @@ const DebugDrawer: React.FC<{
       let terminalSeen = false;
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        if (controllerRef.current !== controller || controller.signal.aborted) return;
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
+        buffer = done ? '' : lines.pop() ?? '';
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed.startsWith('data:')) continue;
@@ -146,7 +154,7 @@ const DebugDrawer: React.FC<{
             if (event.run_completed) {
               terminalSeen = true;
               setCompleted(event.success);
-              if (!event.success) setError(prev => prev || '试运行未成功');
+              if (!event.success) setError(prev => prev || t('taskflow_run_failed'));
               continue;
             }
             chunk = event.text ?? '';
@@ -164,14 +172,17 @@ const DebugDrawer: React.FC<{
           setSections(parsed.sections);
           setAnswer(parsed.cleanText);
         }
+        if (done) break;
       }
-      if (runContext && !terminalSeen) setError('试运行连接中断，未收到完成结果，请重新运行');
+      if (runContext && !terminalSeen) setError(t('taskflow_run_incomplete'));
     } catch (e: any) {
-      if (e?.name !== 'AbortError') setError(e?.message ?? String(e));
+      if (controllerRef.current === controller && !controller.signal.aborted) setError(e?.message ?? String(e));
     } finally {
-      setRunning(false);
-      controllerRef.current = null;
-      onRunComplete?.();
+      if (controllerRef.current === controller) {
+        setRunning(false);
+        controllerRef.current = null;
+        onRunComplete?.();
+      }
     }
   };
 
@@ -182,6 +193,8 @@ const DebugDrawer: React.FC<{
       open={open}
       onClose={() => {
         controllerRef.current?.abort();
+        controllerRef.current = null;
+        setRunning(false);
         onClose();
       }}
     >
@@ -189,7 +202,7 @@ const DebugDrawer: React.FC<{
         <div className='flex gap-2'>
           <Select
             className='!w-44 flex-none'
-            value={debugModel}
+            value={effectiveModel}
             options={modelOptions}
             optionFilterProp='value'
             onChange={val => setDebugModel(val)}
@@ -201,7 +214,7 @@ const DebugDrawer: React.FC<{
             onChange={e => setQuestion(e.target.value)}
             onPressEnter={() => !running && handleRun()}
           />
-          <Button type='primary' loading={running} onClick={handleRun} disabled={!question.trim()}>
+          <Button type='primary' loading={running} onClick={handleRun} disabled={!question.trim() || !effectiveModel}>
             {t('taskflow_run')}
           </Button>
         </div>

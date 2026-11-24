@@ -37,7 +37,7 @@ export default function DashboardCreatePage() {
   const [sources, setSources] = useState<DataSource[]>([]);
   const [sourceName, setSourceName] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
-  const effectiveModel = selectedModel || (modelList.includes(model) ? model : modelList[0]) || '';
+  const effectiveModel = (modelList.includes(selectedModel) ? selectedModel : modelList.includes(model) ? model : modelList[0]) || '';
   const [files, setFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState('');
   const [answer, setAnswer] = useState('');
@@ -94,6 +94,7 @@ export default function DashboardCreatePage() {
     setBusy(true);
     setError('');
     setAnswer('');
+    const isCurrent = () => active.current === controller && !controller.signal.aborted;
     const complete = () => {
       if (active.current === controller) {
         active.current = null;
@@ -102,7 +103,8 @@ export default function DashboardCreatePage() {
       controller.abort();
     };
     try {
-      localStorage.setItem(SELECTED_MODEL_STORAGE_KEY, effectiveModel);
+      // Preference persistence must not block the real request in restricted browsers.
+      try { localStorage.setItem(SELECTED_MODEL_STORAGE_KEY, effectiveModel); } catch { /* optional preference */ }
       conversationId.current ||= uuid();
       if (files.length && !datasetId.current) {
         const form = new FormData();
@@ -115,6 +117,7 @@ export default function DashboardCreatePage() {
           signal: controller.signal,
         });
         const body = await upload.json();
+        controller.signal.throwIfAborted();
         if (!upload.ok || !body.success || !body.data?.dataset_id) {
           throw new Error(body.err_msg || dt('文件上传失败，文件已保留，可重新发送'));
         }
@@ -145,11 +148,12 @@ export default function DashboardCreatePage() {
           },
         },
         onMessage: content => {
-          setAnswer(previous => (content.startsWith(previous) ? content : previous + content));
+          if (isCurrent()) setAnswer(previous => (content.startsWith(previous) ? content : previous + content));
         },
-        onDashboardEvent: event => setGenerations(previous => reduceDashboardGenerations(previous, event)),
+        onDashboardEvent: event => { if (isCurrent()) setGenerations(previous => reduceDashboardGenerations(previous, event)); },
         onDone: complete,
         onError: (detail, cause) => {
+          if (!isCurrent()) return;
           setError(cause?.message || detail);
           complete();
         },

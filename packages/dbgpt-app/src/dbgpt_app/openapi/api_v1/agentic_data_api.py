@@ -4630,15 +4630,27 @@ or substitute a textual summary for a requested report.
     workflow_prompt += tool_availability_guidance(
         [resource.name for resource in tool_pack.sub_resources], discovery_catalog_names
     )
-    from .tools.session_evidence import inventory_prompt
+    # Rebuilt before each native model call; metadata only, never result blobs.
+    from .tools.session_evidence import evidence_page
 
-    prior_inventory = (
-        inventory_prompt(artifact_sink, current_database=database_name)
-        if "session_evidence" in {resource.name for resource in tool_pack.sub_resources}
-        else ""
-    )
-    if prior_inventory:
-        workflow_prompt = prior_inventory + "\n\n" + workflow_prompt
+    def analysis_progress():
+        page = evidence_page(artifact_sink, limit=6)
+        return {
+            "selected_database": database_name,
+            "tasks": [{"content": str(t.get("content", ""))[:240],
+                       "status": t.get("status")} for t in _todo_list[:16]],
+            "evidence_total": page["total"],
+            "recent_evidence": [{k: item.get(k) for k in (
+                "artifact_id", "database", "captured_at", "columns", "row_count",
+                "sql", "sql_truncated", "recorded_scope", "freshness"
+            )} for item in page["artifacts"]],
+        }
+
+    if not greeting and "session_evidence" in {
+        resource.name for resource in tool_pack.sub_resources
+    }:
+        react_state["_analysis_progress_provider"] = analysis_progress
+
     workflow_prompt_template = build_react_prompt_template(
         workflow_prompt,
         financial_enabled=financial_enabled and not dashboard_agent_mode,
@@ -5541,6 +5553,10 @@ or substitute a textual summary for a requested report.
                         succeeded=status == "done",
                     )
 
+            # Native batches can include todowrite alongside SQL. Always project
+            # the actual plan, not only the single-tool todowrite branch.
+            if _todo_list and not react_state.get("financial_plan"):
+                yield _sse_event({"type": "plan.update", "tasks": copy.deepcopy(_todo_list)})
             # Mark step as done and track as last completed
             yield step_done(react_step_id, status)
             report_task_completed = False

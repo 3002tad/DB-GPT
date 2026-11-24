@@ -97,7 +97,9 @@ def link_published_images(content, urls):
               and IMAGE_NAME.fullmatch(u.removeprefix("/images/"))]
 
     def replace(match):
-        basename = Path(match.group(1)).name
+        from dbgpt.core.interface.report_capture import public_image_basename
+
+        basename = public_image_basename(Path(match.group(1)).name)
         candidates = {u for u in images if u.endswith("_" + basename)}
         return f"![Biểu đồ]({quote(candidates.pop(), safe='/')})" if len(candidates) == 1 else match.group(0)
 

@@ -1,5 +1,11 @@
 // Vietnamese copy for modules added by the upstream integration.
 const upstreamVi = {
+  chat_stream_incomplete: "Kết nối kết thúc trước khi Agent hoàn tất. Các kết quả đã lưu vẫn được giữ lại.",
+  taskflow_generation_failed: "Không thể hoàn tất tạo luồng.",
+  taskflow_request_missing: "Không tìm thấy yêu cầu tạo luồng đã lưu. Hãy tải lại luồng.",
+  taskflow_run_failed: "Chạy thử chưa thành công.",
+  taskflow_run_incomplete: "Kết nối kết thúc trước khi có kết quả hoàn tất. Kiểm tra trạng thái đã lưu trước khi chạy lại.",
+
   artifact_bundle_meta: 'Xem trước và tải xuống · {{count}} tệp',
   artifact_open: 'Mở',
   artifact_bundle_files: 'Tệp',
@@ -420,6 +426,7 @@ const upstreamVi = {
   "qa_result_chip": "Kết quả",
   "qa_result_title": "Kết quả truy vấn · {{count}} dòng",
   "qa_preview_note": "Hiển thị {{count}} dòng đầu · xuất để lấy toàn bộ",
+  qa_columns_truncated: "Kết quả chỉ chứa {{kept}} trên {{count}} cột. Tệp xuất cũng chỉ gồm các cột này.",
   "qa_truncated_note": "Kết quả giới hạn ở {{kept}} dòng đầu (tổng {{count}})",
   "qa_intermediate_queries": "Truy vấn trung gian · {{count}}",
   "qa_export_csv": "Xuất CSV",
@@ -453,6 +460,7 @@ const upstreamVi = {
   "timeline_thinking_dots": "Đang suy luận…",
   "timeline_thinking_running": "Đang suy luận",
   "timeline_thinking": "Suy luận",
+  timeline_elapsed_hint: "Thời gian của bước gồm điều phối và truyền dữ liệu; không phải thời gian thực thi SQL.",
   "timeline_status_failed": "Thất bại",
   "rail_groups_count": "{{count}} nhóm",
   "timeline_read_skill": "Đọc kỹ năng",

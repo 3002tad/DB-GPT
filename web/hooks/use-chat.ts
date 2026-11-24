@@ -122,23 +122,32 @@ const useChat = ({ queryAgentURL, app_code }: Props) => {
           signal: ctrl ? ctrl.signal : null,
           openWhenHidden: true,
           async onopen(response) {
-            if (response.ok && response.headers.get('content-type') === EventStreamContentType) {
+            const mediaType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+            if (response.ok && mediaType === EventStreamContentType) return;
+            const body = mediaType === 'application/json' ? await response.json() : null;
+            if (!isCurrent() || terminal) return;
+            if (!response.ok || body?.success === false) {
+              const detail = body?.detail ?? body?.err_msg ?? body?.message;
+              throw new Error(typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : `HTTP ${response.status}`);
+            }
+            if (body && requestScene !== 'chat_react_agent') {
+              onMessage?.(body);
+              finish();
+              ctrl?.abort();
               return;
             }
-            if (response.headers.get('content-type') === 'application/json') {
-              response.json().then(data => {
-                if (!isCurrent() || terminal) return;
-                onMessage?.(data);
-                finish();
-                ctrl && ctrl.abort();
-              });
-            }
+            throw new Error(i18n.t('chat_request_failed', { defaultValue: 'Expected an event stream; no completed Agent result was received.' }));
           },
           onclose() {
             if (!isCurrent()) return;
-            if (!terminal) onClose?.();
+            if (!terminal) {
+              if (requestScene === 'chat_react_agent') {
+                clearQuestions();
+                onError?.(i18n.t('chat_stream_incomplete', { defaultValue: 'Connection ended before the Agent completed. Saved results are retained.' }));
+              } else onClose?.();
+            }
             terminal = true;
-            ctrl && ctrl.abort();
+            ctrl?.abort();
           },
           onerror(err) {
             throw new Error(err);
@@ -253,7 +262,8 @@ const useChat = ({ queryAgentURL, app_code }: Props) => {
         if (!isCurrent() || terminal) return;
         terminal = true;
         ctrl && ctrl.abort();
-        onError?.('Sorry, We meet some error, please try agin later.', err as Error);
+        clearQuestions();
+        onError?.(err instanceof Error ? err.message : i18n.t('chat_request_failed', { defaultValue: 'Chat request failed. Please try again.' }), err as Error);
       }
     },
     [queryAgentURL, app_code, scene, handleQuestionEvent, clearQuestions],

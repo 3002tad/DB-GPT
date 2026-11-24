@@ -14,6 +14,9 @@ export interface QueryArtifactPayload {
   rows: any[][];
   row_count?: number;
   truncated?: boolean;
+  rows_truncated?: boolean;
+  columns_truncated?: boolean;
+  column_count?: number;
   db_name?: string;
   execution?: {
     status: 'succeeded' | 'failed';
@@ -45,8 +48,11 @@ function triggerDownload(blob: Blob, fileName: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // Give the browser time to acquire the blob before releasing it.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function withExt(fileName: string, ext: string): string {

@@ -891,6 +891,17 @@ class ToolCallingReActAgent(ReActAgent):
         state = getattr(self, "_report_repair_state", None)
         from .decision_context import decision_context, pin_decision_context
 
+        from .analysis_progress import pin_analysis_progress
+        if state is not None:
+            if llm_messages and llm_messages[0].get("role") == "system":
+                llm_messages[0]["content"] = pin_analysis_progress(
+                    llm_messages[0].get("content") or "", state
+                )
+            else:
+                progress = pin_analysis_progress("", state)
+                if progress:
+                    llm_messages = _new_system_message(progress) + llm_messages
+
         confirmed_scope = decision_context(state)
         if confirmed_scope:
             # System messages survive rolling-memory/context compaction.

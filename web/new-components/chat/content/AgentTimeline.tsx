@@ -350,7 +350,7 @@ function FlowRow({ block, sub = false }: { block: TimelineBlock; sub?: boolean }
           <span className='flex-1' />
         )}
         {block.kind !== 'thinking' && block.durationMs != null && block.durationMs > 0 && (
-          <span className='flex-none text-xs text-[#8b8b84] dark:text-[#7c7972] tabular-nums'>
+          <span title={t('timeline_elapsed_hint', 'Elapsed step time, including orchestration and transport; not SQL execution time.')} className='flex-none text-xs text-[#8b8b84] dark:text-[#7c7972] tabular-nums'>
             {formatDuration(block.durationMs)}
           </span>
         )}

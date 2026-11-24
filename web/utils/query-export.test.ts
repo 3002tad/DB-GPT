@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { buildQueryCsv } from './query-export';
+import { buildQueryCsv, downloadQueryCsv } from './query-export';
 
 describe('buildQueryCsv', () => {
   it('emits header + escaped rows with CRLF', () => {
@@ -21,5 +21,25 @@ describe('buildQueryCsv', () => {
   it('handles empty result sets', () => {
     const csv = buildQueryCsv({ sql: 'SELECT demo', columns: ['a'], rows: [] });
     expect(csv).toBe('a');
+  });
+
+  it('keeps the blob alive until the browser can start its download', () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:query', revokeObjectURL: revoke });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      expect(this.isConnected).toBe(true);
+      expect(this.download).toBe('query.csv');
+    });
+    try {
+      downloadQueryCsv({ sql: 'SELECT 1', columns: ['n'], rows: [[1]] }, 'query');
+      expect(click).toHaveBeenCalledOnce();
+      expect(revoke).not.toHaveBeenCalled();
+      expect(document.querySelector('a[download]')).toBeNull();
+      vi.advanceTimersByTime(1000);
+      expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:query');
+    } finally {
+      vi.useRealTimers(); vi.unstubAllGlobals(); click.mockRestore();
+    }
   });
 });

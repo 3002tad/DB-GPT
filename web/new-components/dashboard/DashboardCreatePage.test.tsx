@@ -87,6 +87,37 @@ beforeEach(() => {
 });
 
 describe('scoped Dashboard creation entry', () => {
+  it('ignores callbacks from a stopped request after another request starts', async () => {
+    state.chat.mockImplementation(() => new Promise<void>(() => {}));
+    render(<DashboardCreatePage />);
+    await chooseSource();
+    fireEvent.change(screen.getByRole('textbox', { name: '分析需求' }), { target: { value: 'My current request' } });
+    const send = screen.getByRole('button', { name: '发送需求' });
+    fireEvent.click(send);
+    const first = state.chat.mock.calls[0][0];
+    fireEvent.click(screen.getByRole('button', { name: '停止生成' }));
+    fireEvent.click(send);
+    act(() => {
+      first.onMessage('stale answer');
+      first.onDashboardEvent(plan);
+      first.onError('stale failure');
+      first.onDone();
+    });
+    expect(screen.queryByText('stale answer')).toBeNull();
+    expect(screen.queryByText('stale failure')).toBeNull();
+    expect((send as HTMLButtonElement).disabled).toBe(true);
+    expect(state.chat.mock.calls[1][0].ctrl.signal.aborted).toBe(false);
+  });
+
+  it('allows requests even when preference storage is unavailable', async () => {
+    vi.stubGlobal('localStorage', { setItem: () => { throw new Error('blocked'); } });
+    state.chat.mockResolvedValue(undefined);
+    render(<DashboardCreatePage />);
+    await chooseSource();
+    fireEvent.change(screen.getByRole('textbox', { name: '分析需求' }), { target: { value: 'Show performance' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送需求' }));
+    await waitFor(() => expect(state.chat).toHaveBeenCalledOnce());
+  });
   it.each(['brutal-viz-design', 'serenityspa-viz-design'])(
     'prefills retained %s after hydration without sending or overwriting user edits',
     async skill => {

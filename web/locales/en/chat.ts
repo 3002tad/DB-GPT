@@ -1,4 +1,10 @@
 export const ChatEn = {
+  chat_stream_incomplete: "Connection ended before the Agent completed. Saved results are retained.",
+  taskflow_generation_failed: "Generation failed.",
+  taskflow_request_missing: "The saved generation request is unavailable. Refresh this flow.",
+  taskflow_run_failed: "The test run did not succeed.",
+  taskflow_run_incomplete: "The connection ended before the run completed. Refresh its saved status before retrying.",
+
   chat_online: 'chat Online',
   dialog_list: 'Dialog List',
   delete_chat: 'Delete Chat',
@@ -519,6 +525,7 @@ export const ChatEn = {
   qa_result_chip: 'Result',
   qa_result_title: 'Query result · {{count}} rows',
   qa_preview_note: 'Showing first {{count}} rows · export for the full set',
+  qa_columns_truncated: "Result contains only {{kept}} of {{count}} columns. Export includes these columns only.",
   qa_truncated_note: 'Result capped at first {{kept}} rows (total {{count}})',
   qa_intermediate_queries: 'Intermediate queries · {{count}}',
   qa_export_csv: 'Export CSV',
@@ -556,6 +563,7 @@ export const ChatEn = {
   timeline_thinking_dots: 'Thinking…',
   timeline_thinking_running: 'Thinking',
   timeline_thinking: 'Thinking',
+  timeline_elapsed_hint: "Elapsed step time, including orchestration and transport; not SQL execution time.",
   timeline_status_failed: 'Failed',
   rail_groups_count: '{{count}} groups',
   timeline_read_skill: 'Read skill',

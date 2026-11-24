@@ -1,3 +1,5 @@
+import { useStreamState } from '@/hooks/use-stream-state';
+import { useChatFollowScroll } from '@/hooks/use-chat-follow-scroll';
 import { ChatContext } from '@/app/chat-context';
 import { apiInterceptors } from '@/client/api';
 import { getChatFlows, getFlowById, getFlowTemplates } from '@/client/api/flow';
@@ -1206,7 +1208,7 @@ const Playground: NextPage = () => {
     setQueuedSendAfterUpload(false);
   }, [closeSessionFilePreview, sessionFiles]);
 
-  const [executionMap, setExecutionMap] = useState<
+  const [executionMap, setExecutionMap, flushExecution] = useStreamState<
     Record<
       string,
       {
@@ -1936,9 +1938,7 @@ const Playground: NextPage = () => {
     setPendingResourceRestore(null);
   }, [pendingResourceRestore, dataSources, knowledgeSpaces, allSkills, _loadingSources, _loadingKnowledge, _loadingSkills, i18n.language]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useChatFollowScroll(messagesEndRef, messages);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -2720,6 +2720,24 @@ const Playground: NextPage = () => {
     [t],
   );
 
+  const artifactProjectionCache = useRef(new WeakMap<object, {
+    builder: typeof buildArtifactsFromExecution;
+    entries: Map<string, { answer: string | undefined; subAgents: unknown; stepKey: string; artifacts: Artifact[] }>;
+  }>());
+  const projectExecutionArtifacts = useCallback((id: string, exec: Parameters<typeof buildArtifactsFromExecution>[1], answer?: string) => {
+    let cached = artifactProjectionCache.current.get(exec.outputs);
+    if (!cached || cached.builder !== buildArtifactsFromExecution) {
+      cached = { builder: buildArtifactsFromExecution, entries: new Map() };
+      artifactProjectionCache.current.set(exec.outputs, cached);
+    }
+    const stepKey = JSON.stringify(exec.steps.map(step => [step.id, step.action]));
+    const entry = cached.entries.get(id);
+    if (entry && entry.answer === answer && entry.subAgents === exec.subAgents && entry.stepKey === stepKey) return entry.artifacts;
+    const artifacts = buildArtifactsFromExecution(id, exec, undefined, undefined, answer);
+    cached.entries.set(id, { answer, subAgents: exec.subAgents, stepKey, artifacts });
+    return artifacts;
+  }, [buildArtifactsFromExecution]);
+
   // Conversation-level artifact list (rail gallery + header capsule).
   // Includes the fallback summary artifact of the latest answer so every
   // conversation has artifacts even when no files were produced.
@@ -2742,7 +2760,7 @@ const Playground: NextPage = () => {
       }
       const exec = executionMap[msg.id];
       if (!exec || !hasArtifactOutputs(exec)) continue;
-      list.push(...buildArtifactsFromExecution(msg.id, exec, undefined, undefined, msg.context));
+      list.push(...projectExecutionArtifacts(msg.id, exec, msg.context));
     }
     // Persisted reports can be restored without the execution steps that produced them.
     list.push(...artifacts.filter(artifact => isFinancialReportReference(artifact.content)));
@@ -2782,7 +2800,7 @@ const Playground: NextPage = () => {
       deduped.unshift(a);
     }
     return deduped;
-  }, [messages, executionMap, artifacts, buildArtifactsFromExecution, rerunQueryArtifacts, t]);
+  }, [messages, executionMap, artifacts, projectExecutionArtifacts, rerunQueryArtifacts, t]);
 
   // Newest round that produced a query result set: only that round keeps an
   // expanded query card; every older round folds its queries into its own
@@ -3923,6 +3941,7 @@ const Playground: NextPage = () => {
         });
       }
     } finally {
+      flushExecution();
       setConvRunning(currentConvId, false);
       delete liveRoundRef.current[currentConvId];
       bumpDialogueList();
@@ -4241,6 +4260,7 @@ const Playground: NextPage = () => {
         );
       }
     } finally {
+      flushExecution();
       setConvRunning(currentConvId, false);
       delete liveRoundRef.current[currentConvId];
       bumpDialogueList();

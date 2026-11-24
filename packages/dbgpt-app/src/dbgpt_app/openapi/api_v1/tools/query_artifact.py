@@ -10,6 +10,7 @@ payloads through :func:`build_query_chunk` so every surface agrees on shape
 and caps.
 """
 
+import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 #: Output type key understood by the web client's artifact pipeline.
@@ -53,6 +54,10 @@ def check_read_only(sql: str) -> Optional[str]:
 
 def _jsonable(value: Any) -> Any:
     """Coerce connector cell values into JSON-safe primitives."""
+    # JSON.parse rejects bare NaN/Infinity. Preserve them as explicit display
+    # strings; full typed values remain in the captured SQL artifact for Python.
+    if isinstance(value, float) and not math.isfinite(value):
+        return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (bytes, bytearray)):
@@ -86,7 +91,10 @@ def build_query_chunk(
         "columns": col_names,
         "rows": [[_jsonable(v) for v in list(row)[: len(col_names)]] for row in kept],
         "row_count": len(rows),
-        "truncated": len(rows) > max_rows,
+        "truncated": len(rows) > max_rows or len(columns) > QUERY_ARTIFACT_MAX_COLS,
+        "rows_truncated": len(rows) > max_rows,
+        "columns_truncated": len(columns) > QUERY_ARTIFACT_MAX_COLS,
+        "column_count": len(columns),
     }
     if db_name:
         payload["db_name"] = db_name

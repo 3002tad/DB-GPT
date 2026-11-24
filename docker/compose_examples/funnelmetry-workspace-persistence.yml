@@ -1,0 +1,10 @@
+# Overlay for the existing Funnelmetry ai-agent Compose project, service webserver.
+# Copy the running container's /app/pilot/tmp into this volume BEFORE recreating
+# it. An empty volume otherwise hides existing files. See the accompanying guide.
+services:
+  webserver:
+    volumes:
+      - agent-workspaces:/app/pilot/tmp
+
+volumes:
+  agent-workspaces:

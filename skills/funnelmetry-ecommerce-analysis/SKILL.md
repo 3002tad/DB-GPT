@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.17
+version: 1.0.18
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -120,3 +120,14 @@ nêu kiểu timestamp và timezone cho cả lọc lẫn nhóm; không gọi gi�
 Việt Nam. Nếu đổi timezone, đổi cả biên khoảng thời gian cho nhất quán. Khi các
 khung giờ dài khác nhau, báo tổng số cùng số giờ hoặc tần suất mỗi giờ; tổng cao
 nhất chưa chắc có mật độ cao nhất.
+
+## Điều phối và kết thúc đúng phạm vi
+
+Theo dõi từng yêu cầu chính bằng kết quả/artifact đã có hoặc giới hạn còn thiếu.
+Trước mỗi nhóm tool, xác định dữ kiện nào còn thiếu và có thể thay đổi kết luận.
+Khi đủ bằng chứng cho yêu cầu chính, tổng hợp trả lời và cập nhật kế hoạch;
+không coi kiểm tra bổ sung hay tệp cho câu hỏi tương lai là điều kiện hoàn tất.
+Với các số đếm độc lập, không tự thêm phân tích giao nhau/cohort hoặc chuỗi
+chuyển đổi. Chỉ kiểm tra khóa nối khi kết luận thực sự dùng quan hệ đó.
+Dùng lại kết quả khớp nguồn, grain, thời gian, bộ lọc và freshness. Khi cần
+refresh hoặc gặp mâu thuẫn, vẫn chủ động dùng SQL/tool; không áp trần số bước.

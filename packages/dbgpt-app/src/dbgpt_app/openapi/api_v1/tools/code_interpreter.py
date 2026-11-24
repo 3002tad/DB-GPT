@@ -6,6 +6,7 @@ never interpolates a path literal, so adversarial display names or paths
 cannot inject code.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -154,33 +155,6 @@ def build_execution_env(
     return env
 
 
-def _try_repair_truncated_code(raw_code: str) -> Optional[str]:
-    """Attempt to fix code that was truncated by the LLM's token limit."""
-    lines = raw_code.split("\n")
-    for trim in range(1, min(11, len(lines))):
-        candidate_lines = lines[: len(lines) - trim]
-        if not candidate_lines:
-            continue
-        candidate = "\n".join(candidate_lines)
-        open_chars = {"(": ")", "[": "]", "{": "}"}
-        close_chars = set(open_chars.values())
-        stack: list = []
-        for ch in candidate:
-            if ch in open_chars:
-                stack.append(open_chars[ch])
-            elif ch in close_chars:
-                if stack and stack[-1] == ch:
-                    stack.pop()
-        if stack:
-            candidate += "\n" + "".join(reversed(stack))
-        try:
-            compile(candidate, "<repair>", "exec")
-            return candidate
-        except SyntaxError:
-            continue
-    return None
-
-
 def make_code_interpreter(
     react_state: Dict[str, Any],
     *,
@@ -263,7 +237,7 @@ def make_code_interpreter(
         work_dir = conversation_work_dir(react_state)
         capture_dir = os.path.join(work_dir, ".report-executions", uuid.uuid4().hex)
         os.makedirs(capture_dir, exist_ok=True)
-        files_before = _workspace_files(work_dir)
+        files_before = await asyncio.to_thread(_workspace_files, work_dir)
 
         preamble_lines = [
             "import json",
@@ -309,44 +283,33 @@ def make_code_interpreter(
         try:
             compile(full_code, "<code>", "exec")
         except SyntaxError as se:
-            repaired = _try_repair_truncated_code(full_code)
-            if repaired is not None:
-                logger.warning(
-                    "code: auto-repaired truncated code "
-                    "(original SyntaxError: %s line %s)",
-                    se.msg,
-                    se.lineno,
-                )
-                full_code = repaired
-                code = full_code[len(preamble) :]
-            else:
-                error_msg = (
-                    f"SyntaxError before execution: {se.msg} "
-                    f"(line {se.lineno})\n"
-                    "Please regenerate complete, syntactically valid Python code. "
-                    "Keep code under 80 lines."
-                )
-                capture_python_execution(
-                    code=code,
-                    duration_ms=int((time.perf_counter() - started) * 1000),
-                    status="failed",
-                    exit_code=None,
-                    stdout="",
-                    stderr="",
-                    error=error_msg,
-                    artifact_sink=react_state.get("_report_artifact_sink"),
-                )
-                return json.dumps(
-                    {
-                        "success": False,
-                        "error_code": "PYTHON_SYNTAX_ERROR",
-                        "chunks": [
-                            {"output_type": "code", "content": code.strip()},
-                            {"output_type": "text", "content": error_msg},
-                        ]
-                    },
-                    ensure_ascii=False,
-                )
+            error_msg = (
+                f"SyntaxError before execution: {se.msg} "
+                f"(line {se.lineno})\n"
+                "Please regenerate complete, syntactically valid Python code. "
+                "No partial script was executed; correct the original code and retry."
+            )
+            capture_python_execution(
+                code=code,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                status="failed",
+                exit_code=None,
+                stdout="",
+                stderr="",
+                error=error_msg,
+                artifact_sink=react_state.get("_report_artifact_sink"),
+            )
+            return json.dumps(
+                {
+                    "success": False,
+                    "error_code": "PYTHON_SYNTAX_ERROR",
+                    "chunks": [
+                        {"output_type": "code", "content": code.strip()},
+                        {"output_type": "text", "content": error_msg},
+                    ]
+                },
+                ensure_ascii=False,
+            )
 
         full_code += postamble
         output_text = ""
@@ -478,7 +441,7 @@ def make_code_interpreter(
                 }
             )
 
-        files_after = _workspace_files(work_dir)
+        files_after = await asyncio.to_thread(_workspace_files, work_dir)
         changed_files = {
             path
             for path, signature in files_after.items()
@@ -508,7 +471,7 @@ def make_code_interpreter(
         # A script can write a chart and then fail. Such a partial output has no
         # successful producer and must not be advertised for report use.
         captured_images = (
-            publish_generated_images(image_paths) if status == "succeeded" else []
+            await asyncio.to_thread(publish_generated_images, image_paths) if status == "succeeded" else []
         )
         published_paths = {image["source_path"] for image in captured_images}
         chunks.extend(

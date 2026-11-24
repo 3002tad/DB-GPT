@@ -421,7 +421,13 @@ def make_sql_query(
             db_error = getattr(e, "orig", e)
             sql_state = getattr(db_error, "pgcode", None) or getattr(db_error, "sqlstate", None)
             error_text = str(e).lower()
+            composite_count_error = (
+                getattr(database_connector, "dialect", None) == "postgresql"
+                and (sql_state == "42883" or "function count(" in error_text)
+                and "count(" in error_text and "does not exist" in error_text
+            )
             code = (
+                "SQL_COMPOSITE_DISTINCT_SYNTAX" if composite_count_error else
                 "SQL_QUERY_TIMEOUT" if timed_out else
                 "BLOCKED_BY_QUALITY" if quality_blocked else
                 "SQL_UNDEFINED_TABLE" if sql_state == "42P01" or "does not exist" in error_text and "relation" in error_text else
@@ -439,6 +445,11 @@ def make_sql_query(
                 else f"{code}: SQL execution failed: {e}"
             )
             recovery_hint = (
+                "PostgreSQL COUNT takes one expression: for a composite distinct key "
+                "use COUNT(DISTINCT (key_a, key_b)), or count a SELECT DISTINCT "
+                "subquery. Preserve the intended NULL semantics, filters and grain. "
+                "Inspect the query and rewrite it yourself; no SQL was changed."
+                if composite_count_error else
                 "Aggregate functions cannot be nested at the same SELECT level. "
                 "Compute the inner aggregate in a subquery/CTE at its intended grain, "
                 "then aggregate those named results in an outer SELECT. For a grouped "

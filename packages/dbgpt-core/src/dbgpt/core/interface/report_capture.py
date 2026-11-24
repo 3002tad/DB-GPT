@@ -1436,6 +1436,15 @@ def capture_python_execution(
         raise
 
 
+def public_image_basename(name: str) -> str:
+    """A bounded filename accepted by the owned image route and filesystem."""
+    suffix = Path(name).suffix.lower()
+    stem = Path(name).stem
+    stem = re.sub(r"[^\w .-]", "_", stem)
+    stem = stem.encode("utf-8")[:160].decode("utf-8", errors="ignore") or "chart"
+    return stem + suffix
+
+
 def publish_generated_images(paths: Sequence[str]) -> List[dict]:
     """Publish exact image bytes once; tools only adapt their output chunks."""
     from dbgpt.configs.model_config import STATIC_MESSAGE_IMG_PATH
@@ -1447,7 +1456,9 @@ def publish_generated_images(paths: Sequence[str]) -> List[dict]:
         source = Path(path)
         content = store_artifact_file(source)
         snapshot = artifact_content_path(cast(str, content.uri))
-        name = f"{cast(str, content.sha256)[:16]}_{source.name}"
+        # Ownership is per published URL, not per byte hash. Identical charts
+        # produced by two users must not share an exclusive owner marker.
+        name = f"{cast(str, content.sha256)[:16]}_{uuid.uuid4().hex[:12]}_{public_image_basename(source.name)}"
         shutil.copyfile(snapshot, target_dir / name)
         images.append(
             {

@@ -1,12 +1,14 @@
 """bash tool — run shell commands using the configured execution runtime."""
 
+import asyncio
 import json
 import logging
 import os
-import uuid
+from pathlib import Path
 from typing import Any, Dict, List
 
 from dbgpt.agent.resource.tool.base import tool
+from dbgpt.core.interface.report_capture import IMAGE_EXTENSIONS, publish_generated_images
 from dbgpt_sandbox.sandbox.execution_layer.base import ExecutionStatus
 
 from ._execution import run_code
@@ -39,7 +41,7 @@ def make_shell_interpreter(react_state: Dict[str, Any]):
 
         sandbox_work_dir = conversation_work_dir(react_state)
         os.makedirs(sandbox_work_dir, exist_ok=True)
-        files_before = snapshot_generated_files(sandbox_work_dir)
+        files_before = await asyncio.to_thread(snapshot_generated_files, sandbox_work_dir)
         producer_status = "failed"
 
         output_text = ""
@@ -91,94 +93,43 @@ def make_shell_interpreter(react_state: Dict[str, Any]):
         else:
             chunks.append({"output_type": "text", "content": "(no output)"})
 
-        # Safety-net post-processing for skill script execution
-        _code_lower = code.strip().lower()
-        _is_skill_script = "skills/" in _code_lower and ".py" in _code_lower
-        if _is_skill_script and output_text.strip():
-            import shutil
-
-            from dbgpt.configs.model_config import STATIC_MESSAGE_IMG_PATH
-
-            IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
-
-            if "calculate_ratios" in _code_lower:
+        # Publish only changed files from this successful execution. Never scan
+        # old charts or guess output paths from stdout/skill command names.
+        files_after = await asyncio.to_thread(snapshot_generated_files, sandbox_work_dir)
+        image_paths = [path for path, signature in files_after.items()
+                       if files_before.get(path) != signature
+                       and Path(path).suffix.lower() in IMAGE_EXTENSIONS]
+        published = []
+        publication_error = None
+        if producer_status == "succeeded":
+            if "calculate_ratios" in code:
                 try:
-                    ratio_data = json.loads(output_text.strip())
-                    if isinstance(ratio_data, dict):
-                        react_state["ratio_data"] = ratio_data
-                except Exception:
+                    ratios = json.loads(output_text)
+                    if isinstance(ratios, dict): react_state["ratio_data"] = ratios
+                except (ValueError, TypeError):
                     pass
-
-            if "generate_charts" in _code_lower:
-                try:
-                    os.makedirs(STATIC_MESSAGE_IMG_PATH, exist_ok=True)
-                    try:
-                        chart_output = json.loads(output_text.strip())
-                        if isinstance(chart_output, dict):
-                            chart_map = chart_output.get("charts", chart_output)
-                            for name, abs_path in chart_map.items():
-                                if isinstance(abs_path, str) and os.path.isfile(
-                                    abs_path
-                                ):
-                                    ext = os.path.splitext(abs_path)[1].lower()
-                                    if ext in IMAGE_EXTS:
-                                        basename = os.path.basename(abs_path)
-                                        unique_name = (
-                                            f"{uuid.uuid4().hex[:8]}_{basename}"
-                                        )
-                                        dest = os.path.join(
-                                            STATIC_MESSAGE_IMG_PATH, unique_name
-                                        )
-                                        shutil.copy2(abs_path, dest)
-                                        img_url = f"/images/{unique_name}"
-                                        react_state.setdefault(
-                                            "generated_images", []
-                                        ).append(img_url)
-                                        orig_stem = os.path.splitext(
-                                            os.path.basename(abs_path)
-                                        )[0].lower()
-                                        react_state.setdefault("image_url_map", {})[
-                                            orig_stem
-                                        ] = img_url
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-
-                    out_dir = conversation_work_dir(react_state)
-                    if os.path.isdir(out_dir):
-                        for fname in os.listdir(out_dir):
-                            ext = os.path.splitext(fname)[1].lower()
-                            if ext in IMAGE_EXTS:
-                                abs_path = os.path.join(out_dir, fname)
-                                orig_stem = os.path.splitext(fname)[0].lower()
-                                if orig_stem not in react_state.get(
-                                    "image_url_map", {}
-                                ):
-                                    unique_name = f"{uuid.uuid4().hex[:8]}_{fname}"
-                                    dest = os.path.join(
-                                        STATIC_MESSAGE_IMG_PATH, unique_name
-                                    )
-                                    shutil.copy2(abs_path, dest)
-                                    img_url = f"/images/{unique_name}"
-                                    react_state.setdefault(
-                                        "generated_images", []
-                                    ).append(img_url)
-                                    react_state.setdefault("image_url_map", {})[
-                                        orig_stem
-                                    ] = img_url
-
-                    all_images = react_state.get("generated_images", [])
-                    if all_images:
-                        img_summary = (
-                            "已生成的图片URL（在生成HTML报告时请使用这些URL）:\n"
-                            + "\n".join(f"  - {url}" for url in all_images)
-                        )
-                        chunks.append({"output_type": "text", "content": img_summary})
-                except Exception as e:
-                    logger.warning(
-                        "shell_interpreter: image post-processing failed: %s", e
-                    )
-
-        chunks.extend(generated_file_chunks(sandbox_work_dir, files_before, producer_status))
-        return json.dumps({"chunks": chunks}, ensure_ascii=False)
+            try:
+                published = await asyncio.to_thread(publish_generated_images, image_paths)
+            except (OSError, ValueError) as error:
+                publication_error = str(error)
+                chunks.append({"output_type": "text", "content": "Image publication failed: " + str(error)})
+        for image in published:
+            chunks.append({"output_type": "image", "content": image["uri"]})
+            react_state.setdefault("generated_images", []).append(image["uri"])
+            react_state.setdefault("image_url_map", {})[Path(image["source_path"]).stem.lower()] = image["uri"]
+        published_paths = {image["source_path"] for image in published}
+        chunks.extend(chunk for chunk in generated_file_chunks(
+            sandbox_work_dir, files_before, producer_status, after=files_after
+        ) if chunk["content"]["file_path"] not in published_paths)
+        success = producer_status == "succeeded" and publication_error is None
+        return json.dumps({
+            "success": success,
+            "error_code": None if success else (
+                "SHELL_IMAGE_PUBLICATION_FAILED" if publication_error else
+                "SHELL_EXECUTION_TIMEOUT" if producer_status == "timed_out" else "SHELL_EXECUTION_FAILED"
+            ),
+            "producer_status": producer_status,
+            "chunks": chunks,
+        }, ensure_ascii=False)
 
     return bash

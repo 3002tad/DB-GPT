@@ -18,6 +18,26 @@ from dbgpt_app.openapi.api_v1.tools.tool_catalog import make_tool_search
 
 
 @pytest.mark.asyncio
+async def test_postgres_composite_count_hint_does_not_rewrite_or_retry():
+    class Connector:
+        dialect = "postgresql"
+
+        def __init__(self):
+            self.calls = []
+
+        def run(self, sql):
+            self.calls.append(sql)
+            raise RuntimeError("function count(text, text) does not exist")
+
+    connector = Connector()
+    sql = "SELECT COUNT(DISTINCT dataset_id, session_id) FROM visits"
+    result = json.loads(await make_sql_query({}, connector)(sql=sql))
+    assert result["error_code"] == "SQL_COMPOSITE_DISTINCT_SYNTAX"
+    assert "COUNT(DISTINCT (key_a, key_b))" in result["recovery_hint"]
+    assert connector.calls == [sql]
+
+
+@pytest.mark.asyncio
 async def test_missing_tool_then_discovery_then_native_schema_call():
     calls = []
 

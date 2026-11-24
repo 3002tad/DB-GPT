@@ -336,7 +336,12 @@ export default function QueryArtifactBlock({ payload, onRerun, fileName, classNa
                   })}
                 </div>
               )}
-              {payload.truncated && (
+              {payload.columns_truncated && (
+                <div className='px-4 py-2 border-t text-[12px] text-[#d97706]'>
+                  {t('qa_columns_truncated', { kept: payload.columns.length, count: payload.column_count })}
+                </div>
+              )}
+              {(payload.rows_truncated ?? (payload.truncated && !payload.columns_truncated)) && (
                 <div className='px-4 py-2 border-t border-[#f0f0ec] dark:border-[#232220] text-[12px] text-[#d97706]'>
                   {t('qa_truncated_note', '结果已截断至前 {{kept}} 行（共 {{count}} 行）', {
                     kept: rows.length,
