@@ -1,7 +1,7 @@
 ---
 name: dashboard-builder
 description: Plan, generate, repair, and safely revise reusable dashboards from a selected database or registered multi-file tabular dataset through the DB-GPT Dashboard tools.
-version: 1.1.2
+version: 1.1.3
 author: DB-GPT Dashboard Lab
 allowed-tools: sql_query load_dashboard_style load_dashboard_draft resolve_dashboard_reference plan_dashboard revise_dashboard_plan create_dashboard_draft repair_dashboard_draft modify_dashboard_draft propose_dashboard_change question terminate
 ---
@@ -12,6 +12,15 @@ Use this skill when the user asks to create, revise, or repair a reusable data
 dashboard from the database selected in the data assistant. A bounded CSV/Excel
 upload group that DB-GPT registered as one SQLite data source counts as the
 selected database; use SQL tools against that durable source.
+
+Schema recovery is not metric validation. After correcting a table/column or
+GROUP BY error, recheck the measure's grain, time field, status filters and
+currency against metadata. Payment-action rows are not order counts; an amount
+sum across capture/refund actions or currencies is not automatically revenue.
+Adapt a visual template to the selected source; unsupported room/service/visit
+concepts must be omitted or explicitly replaced with supported measures, not
+invented. Retain successful sibling query results and correct only failed calls
+using the returned schema/hint and the selected SQL dialect.
 
 This skill **orchestrates** the workflow. Deterministic tools own persistence,
 SQL validation, query execution, revision checks, and publication safety. Do not

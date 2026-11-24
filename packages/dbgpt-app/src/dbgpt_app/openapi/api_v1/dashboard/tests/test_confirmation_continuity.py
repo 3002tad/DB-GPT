@@ -591,7 +591,7 @@ async def test_premature_question_or_finish_cannot_end_confirmed_generation(
     assert not any(kind == "question.asked" for kind, _ in environment[3])
     failure = generation_failure(state)
     assert failure["type"] == "dashboard.generation.failed"
-    assert "未完成" in failure["message"]
+    assert "incomplete" in failure["message"]
 
 
 @pytest.mark.asyncio

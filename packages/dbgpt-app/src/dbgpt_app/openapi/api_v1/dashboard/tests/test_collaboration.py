@@ -2,6 +2,7 @@ import asyncio
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 import pytest
 from fastapi import WebSocketDisconnect
@@ -704,6 +705,7 @@ def test_hub_broadcasts_presence_and_messages():
 class _RouteWebSocket(_FakeWebSocket):
     def __init__(self, ticket, incoming=None):
         super().__init__()
+        self.state = SimpleNamespace()
         self.query_params = {"ticket": ticket}
         self.incoming = list(incoming or [])
         self.accepted = False
@@ -779,3 +781,16 @@ def test_websocket_route_denies_viewer_edit_ticket(collaboration_service, monkey
 
     assert socket.accepted is False
     assert socket.close_code == 4403
+
+
+def test_websocket_route_rejects_identity_mismatch(collaboration_service, monkeypatch):
+    from dbgpt_app.openapi.api_v1.dashboard import api
+
+    store = CollaborationTicketStore()
+    issued = store.issue("collab-dashboard", "alice", "browser-a")
+    socket = _RouteWebSocket(issued.ticket)
+    socket.state.pipeline_actor = SimpleNamespace(id="bob")
+    monkeypatch.setattr(api, "ticket_store", store)
+    asyncio.run(api.collaborate_dashboard(socket, "collab-dashboard"))
+    assert not socket.accepted and socket.close_code == 4403
+    assert not socket.messages

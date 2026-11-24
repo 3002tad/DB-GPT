@@ -478,3 +478,33 @@ timezone for filtering and grouping, duration-aware hourly comparisons, and
 separation of checkout starts from abandonment. These instructions do not act as
 a SQL gate or certify LLM arithmetic. Regression and saved-output replay cover
 delivery; a model evaluation is still required for explanation quality.
+
+## Dashboard discovery and completion
+
+Dashboard discovery uses structured per-call batch observations. Typed SQL
+authoring errors (undefined relation/column, ambiguous column, grouping errors)
+may receive the existing two bounded correction rounds, including the original
+schema/recovery hint. Successful siblings remain captured and are not repeated.
+Legacy dialect syntax errors remain supported; fatal/unknown failures and
+confirmed generation do not enter this discovery correction path.
+
+Failure summaries select failed calls rather than the first 2,000 characters of
+joined successes and errors. Each failed item retains its code and available
+recovery metadata. Malformed payloads stop conservatively. vi/en/zh runtime
+messages cover tool failure and incomplete/timeout generation, preserving saved
+state and the distinction between validated and saved widgets.
+
+General chat's native public-text completion does not certify a dashboard.
+The dashboard workflow still requires a persisted plan/result; otherwise it
+offers bounded workflow correction or reports failure. Protocol-repair prefixes
+do not hide a recoverable missing-action response. Metric grain and monetary
+semantics must be rechecked after a schema repair; no SQL is automatically
+rewritten or business definition changed by these handlers.
+
+Dashboard regression fixtures support source archives without `.git`: mount the
+tracked `examples/dashboard` fixtures when running the suite in a test image.
+The collaboration socket double models Starlette's `state`, including an actor
+mismatch denial test. Service fixtures follow the current confirmation and
+staged-query lifecycle: a SQL-free plan cannot be repaired directly, and a failed
+candidate remains unsaved until repaired. These are test contracts; no runtime
+authorization or persistence requirement is relaxed to make fixtures pass.

@@ -9,7 +9,7 @@ from dbgpt.agent import ActionOutput
 from dbgpt.agent.expand.tool_calling_agent import ToolCallingReActAgent
 
 from .generation_budget import GenerationBudget, check_generation_deadline
-from .tool_failure import capture_tool_failure, discovery_correction, failed_action
+from .tool_failure import _locale, capture_tool_failure, discovery_correction, failed_action
 
 GENERATION_STAGES = {
     "sql_generation": "模型生成 SQL",
@@ -158,14 +158,43 @@ def generation_failure(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         f"{summary}\n试运行通过：{completed_titles}。"
         f"\n尚未通过试运行：{pending_titles}。\n{retry_hint}"
     )
+    locale = _locale(state)
+    stage_label = GENERATION_STAGES.get(stage, stage)
+    short_summary = f"本次看板生成未完成：{reason}。"
+    if locale in {"vi", "en"}:
+        labels = {
+            "vi": ["Tạo SQL", "Kiểm tra cấu trúc và trường", "Kiểm tra dữ liệu chia sẻ",
+                   "Chạy thử SQL biểu đồ", "Sửa biểu đồ và dữ liệu chia sẻ", "Lưu bản nháp"],
+            "en": ["Generate SQL", "Validate structure and fields", "Validate sharing data",
+                   "Validate chart SQL", "Repair charts and sharing data", "Save draft"],
+        }
+        stage_label = dict(zip(GENERATION_STAGES, labels[locale])).get(stage, stage)
+        if locale == "vi":
+            reason = f"hết thời gian {budget.seconds} giây" if timed_out else "lượt thực thi đã kết thúc"
+            preservation = (f"Bản nháp revision {saved_revision} được giữ lại." if saved_revision
+                            else "Kế hoạch được giữ lại; SQL chưa được lưu thành dashboard sử dụng được.")
+            retry_hint = "Kiểm tra kế hoạch/bản nháp, điều chỉnh phạm vi hoặc bộ lọc rồi xác nhận lại. Không tự động thử lại."
+            short_summary = f"Tạo dashboard chưa hoàn tất: {reason}."
+            summary = (f"{short_summary} Dừng ở bước {stage_label}. "
+                       f"{len(validated)}/{len(widgets)} biểu đồ qua chạy thử SQL (chưa đồng nghĩa đã lưu). {preservation}")
+            message = f"{summary}\nĐã qua chạy thử: {', '.join(titles[x] for x in validated) or 'Không có'}.\nChưa qua chạy thử: {', '.join(titles[x] for x in pending) or 'Không có'}.\n{retry_hint}"
+        else:
+            reason = f"reached the {budget.seconds}-second limit" if timed_out else "execution ended"
+            preservation = (f"Draft revision {saved_revision} is preserved." if saved_revision
+                            else "The plan is preserved; candidate SQL was not saved as a usable dashboard.")
+            retry_hint = "Review the retained plan/draft, adjust scope or filters, then confirm again. No automatic retry."
+            short_summary = f"Dashboard generation incomplete: {reason}."
+            summary = (f"{short_summary} Stopped at {stage_label}. "
+                       f"{len(validated)}/{len(widgets)} charts passed SQL validation (not necessarily saved). {preservation}")
+            message = f"{summary}\nValidated: {', '.join(titles[x] for x in validated) or 'None'}.\nNot validated: {', '.join(titles[x] for x in pending) or 'None'}.\n{retry_hint}"
     return {
         **generation,
         "type": "dashboard.generation.failed",
         "message": message,
-        "summary": f"本次看板生成未完成：{reason}。",
+        "summary": short_summary,
         "reason": "timeout" if timed_out else "incomplete",
         "stage": stage,
-        "stage_label": GENERATION_STAGES.get(stage, stage),
+        "stage_label": stage_label,
         "limit_seconds": budget.seconds if budget else None,
         "validated_widget_ids": validated,
         "failed_widget_ids": failed,
@@ -336,6 +365,11 @@ class DashboardConfirmationAgent(ToolCallingReActAgent):
                         "or reload styles. " + feedback
                     ),
                 )
+        public_completion = bool(
+            getattr(self, "_pending_native_public_answer", "")
+            and getattr(self, "_pending_native_public_answer", "") == (message.content or "").strip()
+            and not getattr(self, "_pending_native_tool_calls", None)
+        )
         try:
             output = await super().act(message, sender, **kwargs)
         except Exception as exc:
@@ -344,12 +378,16 @@ class DashboardConfirmationAgent(ToolCallingReActAgent):
                 content=f"{type(exc).__name__}: {exc}",
                 action="agent_output",
             )
-        if (
+        public_completion = public_completion and bool(output.terminate)
+        if public_completion:
+            # General chat may finish with public prose. A dashboard still
+            # requires its own persisted plan/result, not a claim of saving.
+            output = ActionOutput(is_exe_success=False, action="agent_output",
+                                  content="No persisted dashboard result for this final response.")
+        if public_completion or (
             not output.is_exe_success
             and not output.action
-            and str(output.content).startswith(
-                "No valid ReAct step or native tool call found."
-            )
+            and "No valid ReAct step or native tool call found." in str(output.content)
         ):
             # Some providers finish in prose after a successful tool. Only
             # persisted facts can close the turn; never trust claims in prose.

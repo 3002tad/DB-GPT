@@ -103,10 +103,10 @@ async def test_slow_model_is_cancelled_not_retried(environment):
     assert budget.stop_reason == "timeout"
     failure = generation_failure(state)
     assert failure["reason"] == "timeout"
-    assert failure["stage_label"] == "模型生成 SQL"
+    assert failure["stage_label"] == "Generate SQL"
     assert failure["validated_widget_ids"] == []
     assert failure["pending_widget_ids"] == [f"sales-{i}" for i in range(3)]
-    assert "不会自动重试" in failure["retry_hint"]
+    assert "No automatic retry" in failure["retry_hint"]
     assert environment[1].rows[dashboard_id].current_revision == 1
     json.dumps(failure)  # No internal timers/coroutines leak into SSE/history.
 
@@ -162,7 +162,7 @@ async def test_slow_query_keeps_truthful_progress_and_cannot_save_late(
             await asyncio.wait_for(run_bounded_generation(state, generate), timeout=5)
         assert entered.is_set() and not finished.is_set()
         failure = generation_failure(state)
-        assert failure["stage_label"] == "组件 SQL 试运行"
+        assert failure["stage_label"] == "Validate chart SQL"
         assert failure["validated_widget_ids"] == ["sales-0"]
         assert failure["pending_widget_ids"] == ["sales-1", "sales-2"]
         assert failure.get("saved_revision") is None
@@ -207,7 +207,7 @@ async def test_deadline_checked_at_atomic_save_boundary(environment, monkeypatch
     await run_bounded_generation(state, generate)
     failure = generation_failure(state)
     assert failure["reason"] == "timeout"
-    assert failure["stage_label"] == "保存看板草稿"
+    assert failure["stage_label"] == "Save draft"
     assert failure["validated_widget_ids"] == [f"sales-{i}" for i in range(3)]
     assert environment[1].rows[dashboard_id].current_revision == 1
 

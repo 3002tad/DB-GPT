@@ -17,11 +17,11 @@ from dbgpt_app.openapi.api_v1.dashboard.service import DashboardService
 
 
 def _repository_root() -> Path:
-    return next(
-        parent
-        for parent in Path(__file__).resolve().parents
-        if (parent / ".git").exists()
-    )
+    # Source archives, installed test images and worktrees need no .git folder.
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "examples/dashboard/build_demo_databases.py").is_file():
+            return parent
+    raise RuntimeError("Dashboard example fixtures are required to run this suite.")
 
 
 class SQLiteDemoConnector:

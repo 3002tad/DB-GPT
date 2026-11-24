@@ -256,6 +256,9 @@ async def test_misplaced_annotation_operations_are_not_silently_filtered(
         pack,
     )
     assert outcome.is_exe_success is False
-    assert "Unknown top-level" in outcome.content
-    assert "op" in outcome.content and "path" in outcome.content
+    # Core argument validation rejects missing operations before dispatching the
+    # dashboard-specific parser; misplaced keys must never reach the tool.
+    assert "TOOL_ARGUMENT_INVALID" in outcome.content
+    assert "missing required arguments: operations" in outcome.content
+    assert "No tool was executed" in outcome.content
     assert not events

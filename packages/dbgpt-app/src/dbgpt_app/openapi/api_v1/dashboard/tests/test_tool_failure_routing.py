@@ -108,13 +108,15 @@ async def test_saved_complete_generation_ends_without_another_provider_call():
     }
 
     @tool(description="Save a validated revision", args={})
-    async def save_validated():
-        state["dashboard_generation"].update(status="completed", saved_revision=2)
+    async def create_dashboard_draft():
+        state["dashboard_generation"].update(status="completed", saved_revision=2, saved_widget_ids=["total"])
         return {"saved_revision": 2}
 
-    agent = bound_agent(state, [save_validated])
-    output = await act(agent, "save_validated", {})
-    assert output.is_exe_success and output.terminate
+    agent = bound_agent(state, [create_dashboard_draft])
+    output = await act(agent, "create_dashboard_draft", {})
+    assert output.is_exe_success and agent._saved_completion
+    text, _ = await agent.thinking([])
+    assert "Action: terminate" in text and "Dashboard saved" in text
     assert "dashboard_tool_failure" not in state
 
 
@@ -127,14 +129,17 @@ async def test_saved_plan_ends_before_waiting_for_another_provider_response():
         state.update(
             dashboard_record_id="sales",
             dashboard_refs=[
-                {"dashboard_id": "sales", "status": "awaiting_confirmation"}
+                {"dashboard_id": "sales", "status": "awaiting_confirmation",
+                 "plan": {"title": "Sales", "widgets": []}}
             ],
         )
-        return {"saved_revision": 1}
+        return json.dumps({"__dashboard_ref__": state["dashboard_refs"][0]})
 
     agent = bound_agent(state, [plan_dashboard])
     output = await act(agent, "plan_dashboard", {})
-    assert output.is_exe_success and output.terminate
+    assert output.is_exe_success and agent._saved_completion
+    text, _ = await agent.thinking([])
+    assert "Action: terminate" in text and "Sales" in text and "saved" in text
 
 
 @pytest.mark.asyncio
@@ -185,7 +190,7 @@ async def test_plain_response_continues_staged_generation_with_bounded_retries()
         output = await agent.act(AgentMessage(content="看板已完成。"), agent)
         assert not output.is_exe_success and output.have_retry
         assert not output.terminate
-        assert "at most two missing widgets: trend" in output.content
+        assert "at most 4 missing widgets: trend" in output.content
         assert state["dashboard_query_staging"] is staged
         assert "dashboard_tool_failure" not in state
     output = await agent.act(AgentMessage(content="看板已完成。"), agent)
@@ -364,7 +369,7 @@ async def test_native_parallel_sqlite_discovery_recovers_real_results(
         assert json.loads(evidence[1]["content"])["chunks"][0]["content"]["rows"] == [
             [30.0]
         ]
-        assert evidence[1]["content"] in output.content
+        assert evidence[1]["content"] not in output.content
     else:
         assert evidence[1]["success"] is False
         assert "information_schema.tables" in evidence[1]["content"]
@@ -406,7 +411,7 @@ def test_parallel_discovery_does_not_recover_fatal_sibling(fatal):
     assert discovery_correction(state, output) is None
     assert "_dashboard_discovery_corrections" not in state
     failure = capture_tool_failure(state, output)
-    assert failure["stage_label"] == "探索源数据"
+    assert failure["stage_label"] == "Explore source data"
 
 
 @pytest.mark.asyncio
@@ -433,8 +438,8 @@ async def test_proposal_parse_failure_never_becomes_question(
     assert not output.is_exe_success and not output.have_retry
     failure = generation_failure(state)
     assert failure["type"] == "dashboard.generation.failed"
-    assert failure["stage_label"] == "生成批注修改提案"
-    assert failure["retry_hint"] and "失败原因" in failure["message"]
+    assert failure["stage_label"] == "Propose changes"
+    assert failure["retry_hint"] and "Reason:" in failure["message"]
     assert "operations" in failure["message"] or "top-level" in failure["message"]
     # Even a stale model response trying to ask the original English technical
     # question cannot register a request or emit question.asked after this failure.
@@ -445,7 +450,7 @@ async def test_proposal_parse_failure_never_becomes_question(
     )
     assert not again.is_exe_success and not again.have_retry
     assert again.content == output.content
-    with pytest.raises(RuntimeError, match="失败原因"):
+    with pytest.raises(RuntimeError, match="Reason:"):
         await question(questions=["Why is parsing failing?"])
     assert not any(kind == "question.asked" for kind, _ in events)
     assert (
@@ -467,7 +472,7 @@ async def test_internal_tool_exception_stops_without_relabeling_as_question():
     output = await act(agent, "load_dashboard_draft", {})
     assert not output.is_exe_success and not output.have_retry
     assert "Test storage connection unavailable" in output.content
-    assert generation_failure(state)["stage_label"] == "加载已保存看板"
+    assert generation_failure(state)["stage_label"] == "Load saved dashboard"
 
 
 @pytest.mark.asyncio
@@ -502,7 +507,7 @@ async def test_sqlite_catalog_error_gets_bounded_correction():
         agent, "sql_query", {"sql": "SELECT * FROM information_schema.columns"}
     )
     assert not output.have_retry
-    assert generation_failure(state)["stage_label"] == "探索源数据"
+    assert generation_failure(state)["stage_label"] == "Explore source data"
 
 
 @pytest.mark.asyncio

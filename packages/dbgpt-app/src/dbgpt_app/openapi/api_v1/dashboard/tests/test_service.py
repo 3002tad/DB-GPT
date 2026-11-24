@@ -2379,44 +2379,61 @@ async def test_repair_tool_normalizes_real_model_wrapper_and_publication(
         )
     )
     dashboard_id = planned["__dashboard_plan_draft__"]["dashboard_id"]
-    repaired = json.loads(
-        await tools["repair_dashboard_draft"](
-            widget_queries={
-                "schema_version": "1.3",
-                "widgets": {
-                    "sales": {
-                        "sql": (
-                            "SELECT SUM(sales) AS total_sales FROM sales "
-                            "WHERE store IN (:store_ids)"
-                        ),
+    # Repair applies to a generated draft with a real failed query, not to
+    # a SQL-free plan. Confirm, generate a failing candidate, then repair it.
+    tools = {
+        item._tool.name: item
+        for item in make_dashboard_planner_tools(
+            react_state={"conv_id": "conv-repair-alias"},
+            database_connector=connector, database_name="walmart", owner_id="alice",
+            user_prompt=f"[[confirm-dashboard:{dashboard_id}]] confirm revision 1",
+            model_name="mock-model", stream_callback=capture, planner_service=planner,
+        )
+    }
+    query_wrapper = {
+        "schema_version": "1.3",
+        "widgets": {
+            "sales": {
+                "sql": (
+                    "SELECT SUM(sales) AS total_sales FROM sales "
+                    "WHERE store IN (:store_ids)"
+                ),
+                "output_fields": {
+                    "total_sales": "number",
+                },
+                "encoding": {"value": "total_sales"},
+                "publication": {
+                    "query": {
+                        "sql": "SELECT store, sales FROM sales",
                         "output_fields": {
-                            "total_sales": "number",
+                            "store": "integer",
+                            "sales": "number",
                         },
-                        "encoding": {"value": "total_sales"},
-                        "publication": {
-                            "query": {
-                                "sql": "SELECT store, sales FROM sales",
-                                "output_fields": {
-                                    "store": "integer",
-                                    "sales": "number",
-                                },
-                            },
-                            "filter_fields": {"store_ids": "store"},
-                            "measures": [
-                                {
-                                    "source_field": "sales",
-                                    "output_field": "total_sales",
-                                    "aggregation": "sum",
-                                }
-                            ],
-                            "output_columns": ["total_sales"],
-                        },
-                    }
+                    },
+                    "filter_fields": {"store_ids": "store"},
+                    "measures": [
+                        {
+                            "source_field": "sales",
+                            "output_field": "total_sales",
+                            "aggregation": "sum",
+                        }
+                    ],
+                    "output_columns": ["total_sales"],
                 },
             }
-        )
+        },
+    }
+    broken_wrapper = json.loads(json.dumps(query_wrapper))
+    broken_wrapper["widgets"]["sales"]["sql"] = (
+        "SELECT SUM(missing_amount) AS total_sales FROM sales WHERE store IN (:store_ids)"
     )
+    generated = json.loads(await tools["create_dashboard_draft"](widget_queries=broken_wrapper))
+    assert "__dashboard_repair_required__" in generated, generated
+    assert generated["__dashboard_repair_required__"]["issues"]
+    assert service.get_dashboard(dashboard_id, "alice").current_revision == 1
+    repaired = json.loads(await tools["repair_dashboard_draft"](widget_queries=query_wrapper))
 
+    assert "__dashboard__" in repaired, repaired
     assert repaired["__dashboard__"]["dashboard_id"] == dashboard_id
     assert repaired["__dashboard__"]["publishable"] is True
     saved = service.get_dashboard(dashboard_id, "alice")
@@ -2536,7 +2553,7 @@ async def test_confirmation_turn_preloads_the_authoritative_plan_contract(
             database_connector=connector,
             database_name="walmart",
             owner_id="alice",
-            user_prompt="Build a sales dashboard",
+            user_prompt="Build one sales by store chart",
             model_name="mock-model",
             stream_callback=capture,
             planner_service=planner,
@@ -2570,6 +2587,7 @@ async def test_confirmation_turn_preloads_the_authoritative_plan_contract(
     planned = json.loads(
         await planning_tools["plan_dashboard"](plan=json.dumps(plan_payload))
     )
+    assert "__dashboard_plan_draft__" in planned, planned
     dashboard_id = planned["__dashboard_plan_draft__"]["dashboard_id"]
 
     confirmation_state = {"conv_id": "conv-plan-contract"}
@@ -3414,7 +3432,7 @@ async def test_dashboard_tool_normalizes_query_map_and_infers_filter_bindings(
             database_connector=connector,
             database_name="walmart",
             owner_id="alice",
-            user_prompt="Build a filtered sales dashboard",
+            user_prompt="Build one filtered sales KPI",
             model_name="mock-model",
             stream_callback=capture,
             planner_service=planner,
@@ -3466,6 +3484,7 @@ async def test_dashboard_tool_normalizes_query_map_and_infers_filter_bindings(
     planned = json.loads(
         await planning_tools["plan_dashboard"](plan=json.dumps(plan_payload))
     )
+    assert "__dashboard_plan_draft__" in planned, planned
     dashboard_id = planned["__dashboard_plan_draft__"]["dashboard_id"]
 
     confirmation_tools = {
