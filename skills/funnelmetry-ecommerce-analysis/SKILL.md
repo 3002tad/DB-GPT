@@ -1,7 +1,7 @@
 ---
 name: funnelmetry-ecommerce-analysis
 description: Hướng dẫn phân tích dữ liệu thương mại điện tử Funnelmetry bằng metadata có phiên bản, SQL và các công cụ phân tích sẵn có.
-version: 1.0.18
+version: 1.0.19
 ---
 
 # Phân tích dữ liệu Funnelmetry
@@ -87,6 +87,19 @@ nếu cần in hoặc ghi JSON, dùng `result_json(REPORT_RESULT)` để chuẩn
 NumPy/Decimal/ngày theo contract capture, không dùng `default=str` để đổi số
 hoặc boolean thành chuỗi. Mỗi lần gọi Python có biến mới; tệp trong workspace
 cùng phiên được giữ lại.
+Tool trả `saved_result` chứa kết quả REPORT_RESULT đã capture (có cờ truncated);
+dùng ngay khi đủ phạm vi, không tính lại chỉ để in kết quả hoặc chuyển thành
+JSON. `session_evidence(artifact_id=..., read_values=true)` đọc lại kết quả đã
+lưu cùng nhãn/ngày. CSV đã capture trong workspace có thể đọc lại bằng
+`pd.read_csv`; tool đối chiếu checksum tệp thực đọc để nối lineage. Không cần
+query lại DB chỉ để dựng biểu đồ từ CSV đó. PNG được tool tự công bố khi chạy
+thành công; dùng URL được trả về, không tìm thêm tool publish ảnh.
+SQL date có thể đã là `datetime.date`; chuẩn hóa cột/index bằng
+`pd.to_datetime` trước khi dùng `.dt` hoặc API Timestamp. Khi nhóm NULL, giữ
+giá trị thiếu và cờ `is_null` riêng trong dữ liệu xuất; chỉ đổi nhãn hiển thị,
+không dùng một chuỗi sentinel có thể trùng với giá trị raw thật. Với CSV có cờ
+NULL riêng, dùng `keep_default_na=False` khi đọc nhãn raw rồi áp dụng cờ đó,
+để chuỗi rỗng hay nhãn như `NA` không bị pandas tự chuyển thành NULL.
 Không giải thích mùa thấp bằng ranh giới fixture hay chiến dịch khi chưa có
 bằng chứng tương ứng; ghi rõ giả thuyết nếu cần đề xuất cách kiểm tra.
 Chỉ giải thích trạng thái theo định nghĩa đã truy hồi; không tự mở rộng tên viết

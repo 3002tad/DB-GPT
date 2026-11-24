@@ -4641,8 +4641,9 @@ or substitute a textual summary for a requested report.
                        "status": t.get("status")} for t in _todo_list[:16]],
             "evidence_total": page["total"],
             "recent_evidence": [{k: item.get(k) for k in (
-                "artifact_id", "database", "captured_at", "columns", "row_count",
-                "sql", "sql_truncated", "recorded_scope", "freshness"
+                "artifact_id", "type", "database", "captured_at", "columns", "row_count",
+                "sql", "sql_truncated", "recorded_scope", "freshness", "result",
+                "scalar_count", "input_artifact_ids"
             )} for item in page["artifacts"]],
         }
 

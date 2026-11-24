@@ -30,7 +30,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 import sqlparse
 from sqlparse import tokens as T
 
-from .approval_code_risk import code_has_sink, code_provably_safe
+from .approval_code_risk import code_has_sink, code_provably_safe, python_preflight_error
 from .tool_names import canonical_tool
 
 logger = logging.getLogger(__name__)
@@ -948,6 +948,10 @@ def make_approval_gate(
 
     async def gate(name: str, args: dict) -> Optional[str]:
         name = canonical_tool(name)
+        if name == "code":
+            invalid = python_preflight_error(args)
+            if invalid:
+                return json.dumps(invalid, ensure_ascii=False)
         mode = approval_mode()
         ov = center.conv_mode(conv_id)
         if ov == "open":

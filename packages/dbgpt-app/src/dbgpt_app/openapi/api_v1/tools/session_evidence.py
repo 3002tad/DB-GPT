@@ -3,10 +3,15 @@ import json
 import logging
 import sqlite3
 from decimal import Decimal
+from typing import Annotated
+
+from pydantic import Field
 
 from dbgpt.agent.resource.tool.base import tool
 from dbgpt.core.interface.report import ArtifactContent
 from dbgpt.core.interface.report_capture import normalize_artifact_value, read_artifact_result, select_artifact_result
+
+from .result_preview import result_preview
 
 logger = logging.getLogger(__name__)
 SCOPE_FIELDS = ("grain", "scope", "time_window", "parameters", "quality", "semantic_version")
@@ -153,15 +158,21 @@ def inventory_prompt(sink, *, current_database=None, max_chars=6500):
 def make_session_evidence(state):
     @tool(description=(
         "Inspect captured evidence in this owner's current conversation, including "
-        "earlier turns. Paginate/search metadata with query, offset and limit. "
+        "earlier turns. Paginate/search metadata with query, nonnegative offset "
+        "and limit 1..40; use next_offset for further pages. "
         "Select artifact_id for full SQL/scope and registered scalar coordinates; "
         "read_values=True loads that artifact's saved numeric results without querying "
         "the source again. Values retain capture-time scope and unverified business "
-        "meaning; inspect source/filters/grain/freshness before reuse. For SQL tables "
+        "meaning. read_values also returns a bounded saved_result (including "
+        "dates/labels) when query is empty and offset is zero; truncated previews "
+        "are not complete tables. Reuse it for the final answer, not another "
+        "calculation solely to display results. "
+        "Inspect source/filters/grain/freshness before reuse. For SQL tables "
         "use code sql_result_frame(artifact_id). No arbitrary files or other sessions."
     ))
     def session_evidence(artifact_id: str = "", read_values: bool = False,
-                         query: str = "", offset: int = 0, limit: int = 8) -> str:
+                         query: str = "", offset: Annotated[int, Field(ge=0)] = 0,
+                         limit: Annotated[int, Field(ge=1, le=40)] = 8) -> str:
         sink = state.get("_report_artifact_sink")
         if sink is None:
             return json.dumps({"status": "unavailable", "reason": "No session evidence capture"})
@@ -185,7 +196,7 @@ def make_session_evidence(state):
                 entries = []
                 selected_artifact = artifacts[artifact_id]
                 result_error = False
-                if read_values and selected:
+                if read_values and (selected or not query and offset == 0):
                     try:
                         # Verify/read the original blob once for this bounded page,
                         # not once per metric; never persist this transient copy.
@@ -193,6 +204,8 @@ def make_session_evidence(state):
                         selected_artifact = selected_artifact.model_copy(update={
                             "result": ArtifactContent(inline=captured),
                         })
+                        if not query and offset == 0:
+                            page["saved_result"] = result_preview(captured)
                     except (ValueError, OSError, KeyError, TypeError):
                         result_error = True
                 for metric in selected:
@@ -216,6 +229,11 @@ def make_session_evidence(state):
                 raise ValueError("Select an artifact_id before reading saved values")
             return json.dumps(page, ensure_ascii=False)
         except (ValueError, OSError, sqlite3.Error, KeyError, TypeError):
+            if offset < 0 or not 1 <= limit <= 40:
+                return json.dumps({"status": "unavailable",
+                    "error_code": "EVIDENCE_PAGINATION_INVALID",
+                    "reason": "Use offset >= 0 and limit 1..40; follow next_offset. "
+                    "The evidence is still available; do not recompute it."})
             return json.dumps({"status": "unavailable", "reason":
                 "Evidence unavailable or invalid pagination; inspect a valid artifact ID "
                 "or query missing evidence as needed. No tools are disabled."})

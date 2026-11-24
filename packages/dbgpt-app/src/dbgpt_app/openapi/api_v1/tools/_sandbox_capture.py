@@ -1,6 +1,8 @@
 """Build self-contained capture helpers for images without DB-GPT installed."""
 
 import inspect
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -114,6 +116,46 @@ class TrackedSQLResults(list):
     __rmul__ = __mul__
 
 
+def tracked_csv_reader(reader, manifest, trace_path):
+    """Record only exact, successfully read prior exports in this execution.
+
+    Read once into immutable bytes, so the parser and checksum see the same
+    content. Unregistered/changed files remain readable without invented
+    lineage. This hook is provenance instrumentation, not Python isolation.
+    """
+    used = set()
+
+    def read_csv(source=None, *args, **kwargs):
+        if source is None and "filepath_or_buffer" in kwargs:
+            source = kwargs.pop("filepath_or_buffer")
+        if not isinstance(source, (str, os.PathLike)):
+            return reader(source, *args, **kwargs)
+        name = os.path.abspath(source)
+        entry = manifest.get(Path(os.path.relpath(name, os.getcwd())).as_posix())
+        if not entry or os.path.realpath(name) != name:
+            return reader(source, *args, **kwargs)
+        data = Path(name).read_bytes()
+        options = dict(kwargs)
+        if options.get("memory_map"):
+            options["memory_map"] = False  # The checksum snapshot is already in memory.
+        if options.get("compression", "infer") == "infer":
+            # Match pandas' filename-based inference after switching to bytes.
+            options["compression"] = next((kind for suffix, kind in (
+                (".gz", "gzip"), (".bz2", "bz2"), (".zip", "zip"),
+                (".xz", "xz"), (".zst", "zstd"), (".tar", "tar"),
+            ) if name.endswith(suffix)), None)
+        result = reader(io.BytesIO(data), *args, **options)
+        if hashlib.sha256(data).hexdigest() == entry["sha256"]:
+            used.add(entry["artifact_id"])
+            trace = Path(trace_path)
+            temporary = trace.with_suffix(".pending")
+            temporary.write_text(json.dumps(sorted(used)), encoding="utf-8")
+            os.replace(temporary, trace)
+        return result
+
+    return read_csv
+
+
 def capture_helper_source() -> str:
     """Reuse host serialization rules without importing host packages in children.
 
@@ -122,6 +164,8 @@ def capture_helper_source() -> str:
     """
     imports = """
 import base64
+import hashlib
+import io
 import json
 import math
 import os
@@ -141,5 +185,6 @@ from typing import Any
             result_json,
             prepare_output_path,
             TrackedSQLResults,
+            tracked_csv_reader,
         )
     )

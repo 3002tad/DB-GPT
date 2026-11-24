@@ -21,7 +21,9 @@ Verdict model (deliberately conservative in both directions):
 """
 
 import ast
+import json
 import logging
+from pathlib import PurePosixPath
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -257,11 +259,72 @@ def _is_write_mode(mode: Optional[str]) -> bool:
     return bool(set(mode) & {"w", "a", "x", "+"})
 
 
+def python_preflight_error(args: dict) -> Optional[dict]:
+    """Reject malformed input before approval, without executing any prefix."""
+    code = args.get("code") if isinstance(args, dict) else None
+    if not isinstance(code, str) or not code.strip():
+        return {"success": False, "error_code": "PYTHON_CODE_REQUIRED",
+                "recovery_hint": "Pass Python source in the code string."}
+    try:
+        nested = json.loads(code)
+    except (ValueError, TypeError):
+        nested = None
+    if (isinstance(nested, dict) and "code" in nested
+            or code.lstrip().startswith('{"code":')):
+        return {"success": False, "error_code": "PYTHON_ARGUMENT_ENVELOPE_INVALID",
+                "recovery_hint": "The code string contains another JSON code envelope. "
+                "Send one tool argument object with code containing only Python source. "
+                "Do not wrap/stringify the argument object inside code. Nothing ran."}
+    try:
+        compile(code, "<user-code>", "exec")
+    except (SyntaxError, ValueError, RecursionError) as error:
+        return {"success": False, "error_code": "PYTHON_SYNTAX_ERROR",
+                "line": getattr(error, "lineno", None),
+                "column": getattr(error, "offset", None),
+                "message": getattr(error, "msg", type(error).__name__),
+                "recovery_hint": "Correct the original Python source at the reported "
+                "line. No partial script ran; preserve prior results and inputs."}
+    return None
+
+
+def _workspace_export(node, paths):
+    if isinstance(node, ast.Name):
+        return node.id in paths
+    if isinstance(node, ast.Call) and _dotted(node.func) == "output_path":
+        if len(node.args) != 1 or not isinstance(node.args[0], ast.Constant):
+            return False
+        value = node.args[0].value
+        return (isinstance(value, str) and bool(value) and "\\" not in value
+                and ":" not in value and not PurePosixPath(value).is_absolute()
+                and ".." not in PurePosixPath(value).parts)
+    return False
+
+
 def analyze_python(code: str) -> CodeRisk:
     tree = parse_python(code or "")
     if tree is None:
         return CodeRisk(parse_ok=False)
     risk = CodeRisk(parse_ok=True)
+    # Only direct, unambiguous bindings to the injected output_path helper.
+    # This refines ordinary export UX, not an arbitrary-Python security proof.
+    paths = set()
+    shadowed = any(isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name == "output_path"
+                   or isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)
+                   and n.id == "output_path" for n in ast.walk(tree))
+    assignments = {}
+    for statement in tree.body:
+        if isinstance(statement, ast.Assign):
+            for target in statement.targets:
+                if isinstance(target, ast.Name):
+                    assignments.setdefault(target.id, []).append(statement.value)
+    if not shadowed:
+        for name, values in assignments.items():
+            if len(values) == 1 and _workspace_export(values[0], set()):
+                # A nested reassignment makes this binding ambiguous too.
+                stores = sum(isinstance(n, ast.Name) and n.id == name
+                             and isinstance(n.ctx, ast.Store) for n in ast.walk(tree))
+                if stores == 1:
+                    paths.add(name)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -273,6 +336,12 @@ def analyze_python(code: str) -> CodeRisk:
             name = _dotted(node.func)
             base = name.split(".")[0]
             method = name.split(".")[-1] if "." in name else ""
+            destination = node.args[0] if node.args else next((
+                kw.value for kw in node.keywords if kw.arg in _PATH_KWARGS | {"fname"}
+            ), None)
+            if (not shadowed and method in {"to_csv", "to_json", "savefig"}
+                    and _workspace_export(destination, paths)):
+                continue
             if isinstance(node.func, ast.Name) and name in _SINK_NAMES:
                 risk.sinks.append(name)
             elif name in _SINK_DOTTED:

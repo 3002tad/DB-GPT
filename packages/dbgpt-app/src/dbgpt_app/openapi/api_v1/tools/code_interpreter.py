@@ -31,6 +31,8 @@ from dbgpt_sandbox.sandbox.execution_layer.base import ExecutionStatus
 
 from ._execution import run_code
 from ._sandbox_capture import capture_helper_source
+from ..approval_code_risk import python_preflight_error
+from .result_preview import result_preview
 from .generated_files import (
     generated_file_chunks,
     snapshot_generated_files as _workspace_files,
@@ -39,6 +41,33 @@ from .generated_files import (
 logger = logging.getLogger(__name__)
 
 EXECUTION_TIMEOUT_SECONDS = 60
+
+
+def workspace_csv_manifest(sink, work_dir):
+    """Index this conversation's captured CSV exports, not all workspace files."""
+    if sink is None:
+        return {}
+    root = Path(work_dir).resolve()
+    entries = {}
+    for artifact in sink.snapshot():
+        if (artifact.type != "reference"
+                or getattr(artifact, "reference_type", None) != "file"
+                or artifact.status != "succeeded"
+                or artifact.execution.conv_uid != sink.context.conv_uid):
+            continue
+        locator = artifact.locator or {}
+        name, checksum = locator.get("path"), locator.get("sha256")
+        if not isinstance(name, str) or not isinstance(checksum, str):
+            continue
+        path = Path(name)
+        if not path.is_absolute() or not path.is_relative_to(root):
+            continue
+        if not path.name.lower().endswith((".csv", ".csv.gz", ".csv.bz2", ".csv.xz")):
+            continue
+        entries[path.relative_to(root).as_posix()] = {
+            "artifact_id": artifact.artifact_id, "sha256": checksum,
+        }
+    return entries
 
 
 def conversation_work_dir(react_state: Dict[str, Any]) -> str:
@@ -192,6 +221,13 @@ def make_code_interpreter(
             "and typed values. If JSON text is needed, use "
             "result_json(REPORT_RESULT) instead of json.dumps or default=str. "
             "Each call starts fresh Python variables; workspace files persist. "
+            "pd.read_csv on a prior captured workspace CSV records that exact file's "
+            "checksum lineage automatically. Returned saved_result contains the "
+            "captured REPORT_RESULT preview: reuse it to answer rather than "
+            "recomputing just to print it. Charts are published automatically on "
+            "successful execution; no separate image-publishing tool is needed. "
+            "SQL date columns retain datetime.date values; use pd.to_datetime "
+            "before Timestamp/.dt operations; do not call .date() on a date. "
             'Parameters: {{"code": "python code string"}}'
         )
     )
@@ -227,12 +263,9 @@ def make_code_interpreter(
                 )
             missing["execution_attempts"] = missing.get("execution_attempts", 0) + 1
 
-        if not code or not code.strip():
-            return json.dumps(
-                {"success": False, "error_code": "PYTHON_CODE_REQUIRED",
-                 "chunks": [{"output_type": "text", "content": "No code provided"}]},
-                ensure_ascii=False,
-            )
+        invalid = python_preflight_error({"code": code})
+        if invalid:
+            return json.dumps(invalid, ensure_ascii=False)
 
         work_dir = conversation_work_dir(react_state)
         capture_dir = os.path.join(work_dir, ".report-executions", uuid.uuid4().hex)
@@ -266,6 +299,10 @@ def make_code_interpreter(
             "def sql_result_frame(index=-1, *, artifact_id=None):",
             "    dataset = SQL_RESULTS.select(artifact_id if artifact_id is not None else index)",
             '    return pd.DataFrame(dataset["rows"], columns=dataset["columns"])',
+            'with open(os.environ["WORKSPACE_CSV_MANIFEST"], encoding="utf-8") as _csv_manifest_file:',
+            '    _csv_manifest = json.load(_csv_manifest_file)',
+            'pd.read_csv = _report_capture.tracked_csv_reader(',
+            '    pd.read_csv, _csv_manifest, os.environ["FILE_INPUT_TRACE_PATH"])',
         ]
         preamble = "\n".join(preamble_lines) + "\n"
         result_path = os.path.join(capture_dir, "_report_result.json")
@@ -285,7 +322,7 @@ def make_code_interpreter(
         except SyntaxError as se:
             error_msg = (
                 f"SyntaxError before execution: {se.msg} "
-                f"(line {se.lineno})\n"
+                f"(source line {max(1, (se.lineno or 1) - len(preamble_lines))})\n"
                 "Please regenerate complete, syntactically valid Python code. "
                 "No partial script was executed; correct the original code and retry."
             )
@@ -339,6 +376,11 @@ def make_code_interpreter(
                     dataset["truncated"] = False
                     dataset["row_count"] = len(data["rows"])
             sql_trace_path = os.path.join(capture_dir, "_sql_inputs.json")
+            file_trace_path = os.path.join(capture_dir, "_file_inputs.json")
+            csv_manifest_path = os.path.join(capture_dir, "_workspace_csv_manifest.json")
+            csv_manifest = workspace_csv_manifest(artifact_sink, work_dir)
+            with open(csv_manifest_path, "w", encoding="utf-8") as manifest_file:
+                json.dump(csv_manifest, manifest_file)
             if isinstance(sql_results, list) and sql_results:
                 sql_results_path = os.path.join(capture_dir, "_report_sql_results.json")
                 with open(sql_results_path, "w", encoding="utf-8") as context_file:
@@ -365,6 +407,8 @@ def make_code_interpreter(
                     "REPORT_RESULT_PATH": result_path,
                     "SQL_RESULTS_PATH": sql_results_path,
                     "SQL_INPUT_TRACE_PATH": sql_trace_path,
+                    "FILE_INPUT_TRACE_PATH": file_trace_path,
+                    "WORKSPACE_CSV_MANIFEST": csv_manifest_path,
                     "REPORT_CALCULATION_INPUTS": (
                         (react_state.get("_report_missing_calculation") or {}).get(
                             "input_path"
@@ -489,6 +533,13 @@ def make_code_interpreter(
         if "sql_trace_path" in locals() and os.path.isfile(sql_trace_path):
             with open(sql_trace_path, encoding="utf-8") as trace:
                 sql_input_artifact_ids.extend(json.load(trace))
+        if "file_trace_path" in locals() and os.path.isfile(file_trace_path):
+            with open(file_trace_path, encoding="utf-8") as trace:
+                # Only accept IDs from the server's owner/session-scoped manifest.
+                permitted = {entry["artifact_id"] for entry in csv_manifest.values()}
+                sql_input_artifact_ids.extend(
+                    identity for identity in json.load(trace) if identity in permitted
+                )
         missing_calculation = react_state.get("_report_missing_calculation")
         if missing_calculation and not missing_calculation.get("result_artifact_id"):
             sql_input_artifact_ids.extend(missing_calculation["source_artifact_ids"])
@@ -524,6 +575,7 @@ def make_code_interpreter(
                 item.artifact_id == python_artifact_id and item.result is None
                 for item in sink.snapshot()
             )
+            and react_state.get("_report_missing_calculation")
         ):
             chunks.append(
                 {
@@ -567,7 +619,7 @@ def make_code_interpreter(
         except Exception:
             pass
 
-        all_images = react_state.get("generated_images", [])
+        all_images = [image["uri"] for image in captured_images]
         if all_images:
             locale = str(react_state.get("_ui_locale") or "en")
             image_heading = (
@@ -595,6 +647,7 @@ def make_code_interpreter(
             "PYTHON_SQL_INPUT_NOT_FOUND" if "SQL_RESULT_NOT_FOUND" in (error_text or artifact_error or "") else
             "PYTHON_SQL_INPUT_SELECTOR_INVALID" if "SQL_RESULT_SELECTOR_INVALID" in (error_text or artifact_error or "") else
             "PYTHON_IMPORT_ERROR" if "ModuleNotFoundError" in (error_text or artifact_error or "") else
+            "PYTHON_DATE_TYPE_ERROR" if "'datetime.date' object has no attribute 'date'" in (error_text or artifact_error or "") else
             "PYTHON_EXECUTION_FAILED"
         )
         recovery_hint = (
@@ -617,10 +670,14 @@ def make_code_interpreter(
             "db_gpt_tools is not installed. Inspect imports and available inputs "
             "before retrying. Do not substitute invented source records."
             if error_code == "PYTHON_IMPORT_ERROR" else
+            "SQL date values can already be datetime.date. Use pd.to_datetime on "
+            "the date column/index before Timestamp/.dt operations, or isoformat() "
+            "for an existing date. Preserve the captured inputs; no new SQL is needed."
+            if error_code == "PYTHON_DATE_TYPE_ERROR" else
             "Inspect the captured error and correct the script; preserve valid prior artifacts."
             if not success else None
         )
-        if success and not lineage:
+        if success and not lineage and (result_inline is not None or captured_images):
             chunks.append({"output_type": "text", "content": (
                 "INPUT_LINEAGE_UNCAPTURED: this computation has no captured input "
                 "artifact references. It may be a standalone calculation or literal "
@@ -644,6 +701,7 @@ def make_code_interpreter(
             "provenance": {"input_artifact_ids": lineage,
                            "status": "captured_inputs" if lineage else "uncaptured_inputs"},
             "chunks": chunks, "artifact_id": python_artifact_id,
+            "saved_result": result_preview(result_inline) if success and result_inline is not None else None,
         }, ensure_ascii=False)
 
     return code

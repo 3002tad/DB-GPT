@@ -153,3 +153,23 @@ def test_renamed_tools_classify_same_as_historical_aliases():
     assert POLICY.classify("bash", {"command": "rm -rf /"})[0] == TIER_DENY
     sink = {"code": "import subprocess\nsubprocess.run(['ls'])"}
     assert POLICY.classify("code", sink)[0] == TIER_CONFIRM
+
+
+@pytest.mark.parametrize("snippet", [
+    "df.to_csv(output_path('exports/summary.csv'), index=False)",
+    "p = output_path('exports/summary.csv')\ndf.to_csv(p)",
+    "df.to_json(path_or_buf=output_path('exports/summary.json'))",
+])
+def test_declared_workspace_exports_do_not_require_manual_approval(snippet):
+    assert POLICY.classify("code", _code(snippet)) == (TIER_AUTO, "code.static_auto")
+
+
+@pytest.mark.parametrize("snippet", [
+    "df.to_csv(output_path('../outside.csv'))",
+    "p=output_path('exports/summary.csv')\np='/etc/important'\ndf.to_csv(p)",
+    "def output_path(p): return '/tmp/anything'\ndf.to_csv(output_path('x.csv'))",
+    "df.to_csv('/tmp/outside.csv')",
+    "import requests\ndf.to_csv(output_path('x.csv'))\nrequests.post(url, data=payload)",
+])
+def test_arbitrary_paths_reassignments_and_external_effects_still_confirm(snippet):
+    assert POLICY.classify("code", _code(snippet))[0] == TIER_CONFIRM
