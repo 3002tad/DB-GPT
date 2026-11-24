@@ -16,6 +16,7 @@ def test_manager_exists_before_registering_start_listener(monkeypatch, kind):
 
     def create(params, model_storage):
         assert model_storage is storage
+        assert params.port == 5670 and params.host == "127.0.0.1"
         events.append(("created", None))
         return local
 
