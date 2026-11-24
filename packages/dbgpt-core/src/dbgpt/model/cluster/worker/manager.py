@@ -1246,7 +1246,6 @@ def initialize_worker_manager_in_client(
                 llm_deploy_config,
                 model_storage=model_storage,
             )
-        worker_manager.after_start(start_listener)
         for embedding_deploy_config in models_config.embeddings:
             _start_local_embedding_worker(
                 worker_manager,
@@ -1260,6 +1259,14 @@ def initialize_worker_manager_in_client(
                 worker_type=WorkerType.RERANKER.value,
                 model_storage=model_storage,
             )
+        # UI-managed LLMs are restored from ModelStorage. There need not be
+        # a static LLM in TOML to initialize the adapter before registering
+        # listeners (an embedding-only bootstrap is valid).
+        if not worker_manager.worker_manager:
+            worker_manager.worker_manager = _create_local_model_manager(
+                worker_params, model_storage
+            )
+        worker_manager.after_start(start_listener)
     else:
         from dbgpt.model.cluster.controller.controller import (
             ModelRegistryClient,
